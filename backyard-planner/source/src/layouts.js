@@ -79,7 +79,7 @@ function ideaHillCountry() {
     it('tree_orn', { x: 31, z: 10.5, w: 9, h: 11, p: { kind: 'redbud' } }),
     it('agave', { x: -4, z: 13, w: 3.5, p: { variety: 'agave' } }),
     it('agave', { x: -6.5, z: 16.5, w: 3, p: { variety: 'yucca' } }),
-    it('grass_orn', { x: -2.5, z: 17, w: 3, h: 3, p: { variety: 'muhly' } }),
+    it('grass_orn', { x: -3.2, z: 17.2, w: 3, h: 3, p: { variety: 'muhly' } }),
     it('grass_orn', { x: 2, z: 13.5, w: 2.5, h: 2.5, p: { variety: 'feather' } }),
     it('boulder', { x: 0.5, z: 16.5, w: 3.5, d: 2.6, h: 1.6, p: { stone: 'limestone' } }),
     it('bench', { x: -4.5, z: 40, w: 5, rot: ARC, p: { material: 'stone' } }),
@@ -94,10 +94,10 @@ function ideaModern() {
     it('privacy_screen', { x: 4.2, z: 19, w: 10, h: 7, rot: ARC, p: { style: 'metal' } }),
     it('privacy_screen', { x: 24.8, z: 19, w: 10, h: 7, rot: ARC, p: { style: 'horizontal' } }),
     it('walkway', { x: 14.5, z: 34.5, w: 3.5, d: 15, p: { material: 'slab_gray', edging: 'steel' } }),
-    it('surface_pad', { x: 8.75, z: 45.5, w: 34.5, d: 6, p: { material: 'gravel_white', shape: 'rect', edging: 'steel' } }),
-    it('hedge', { pts: [[-7, 48.3], [25, 48.3]], w: 3.5, h: 14, p: { variety: 'cypress' } }),
-    it('chaise', { x: 4, z: 45.2, rot: PI, p: { frame: 'metal', color: '#e9e6df' } }),
-    it('chaise', { x: 8, z: 45.2, rot: PI, p: { frame: 'metal', color: '#e9e6df' } }),
+    it('surface_pad', { x: 8.75, z: 44.4, w: 34.5, d: 6, p: { material: 'gravel_white', shape: 'rect', edging: 'steel' } }),
+    it('hedge', { pts: [[-7, 48.7], [25, 48.7]], w: 2.4, h: 14, p: { variety: 'cypress' } }),
+    it('chaise', { x: 4, z: 44.1, rot: PI, p: { frame: 'metal', color: '#e9e6df' } }),
+    it('chaise', { x: 8, z: 44.1, rot: PI, p: { frame: 'metal', color: '#e9e6df' } }),
     it('tree_orn', { x: 31, z: 17, w: 11, h: 11, p: { kind: 'maple' } }),
     it('uplight', { x: 29, z: 18.5, rot: PI / 2, p: { tilt: 72, reach: 16 } }),
     it('planter', { x: 2, z: 12, w: 2.8, h: 3, p: { style: 'black', plant: 'grass' } }),
@@ -144,14 +144,14 @@ function ideaCottage() {
     it('shrub', { x: 33, z: 6, w: 3.5, h: 3.5, p: { variety: 'hydrangea' } }),
     it('planter', { x: 2, z: 8, w: 2, h: 2, p: { style: 'terracotta', plant: 'flowers' } }),
     it('planter', { x: 27, z: 8, w: 2, h: 2, p: { style: 'terracotta', plant: 'flowers' } }),
-    it('adirondack', { x: -2, z: 31.5, rot: ARC - 0.3, p: { color: '#f1efe9' } }),
-    it('adirondack', { x: -2.5, z: 35, rot: ARC + 0.2, p: { color: '#f1efe9' } }),
+    it('adirondack', { x: -2, z: 31.2, rot: ARC - 0.3, p: { color: '#f1efe9' } }),
+    it('adirondack', { x: -2.5, z: 34.6, rot: ARC + 0.2, p: { color: '#f1efe9' } }),
   ];
 }
 function ideaKids() {
   return [
-    it('surface_pad', { x: 19, z: 31.5, w: 22, d: 17, p: { material: 'mulch_cedar', shape: 'rounded', edging: 'steel' } }),
-    it('playset', { x: 19, z: 31.5, w: 18, d: 14, p: { accent: '#2d8a4e' } }),
+    it('surface_pad', { x: 17.5, z: 31.5, w: 21, d: 17, p: { material: 'mulch_cedar', shape: 'rounded', edging: 'steel' } }),
+    it('playset', { x: 17.5, z: 31.5, w: 18, d: 14, p: { accent: '#2d8a4e' } }),
     it('trampoline', { x: -1, z: 39, w: 14, d: 14, p: { color: '#2f6fb0' } }),
     it('sandbox', { x: 5, z: 17, w: 6, d: 6 }),
     it('shade_sail', { x: 5, z: 18, w: 13, d: 12, p: { shape: 'triangle', color: '#e3b23c' } }),
@@ -177,6 +177,8 @@ function ideaEntertainer() {
     it('lamp_post', { x: 29.5, z: 28, h: 8 }),
     it('planter', { x: 29, z: 11.5, w: 2.4, h: 2.4, p: { style: 'black', plant: 'tree' } }),
     it('tree_orn', { x: 32, z: 34, w: 11, h: 14, p: { kind: 'crape', bloom: 'purple' } }),
+    it('patio_heater', { x: 3.5, z: 8.4 }),
+    it('patio_heater', { x: 25.5, z: 8.4 }),
   ];
 }
 function ideaResort() {
@@ -189,13 +191,13 @@ function ideaResort() {
     it('umbrella', { x: 13, z: 28, w: 9, d: 9, p: { color: '#e9e6df' } }),
     it('surface_pad', { x: 26, z: 17, w: 11, d: 11, p: { material: 'slab_gray', shape: 'rect', edging: 'none' } }),
     it('hot_tub', { x: 26, z: 17, w: 7, d: 7, rot: -ARC, p: { cover: 'open', color: 'gray' } }),
-    it('privacy_screen', { x: 31.8, z: 17, w: 11, h: 7, rot: ARC, p: { style: 'horizontal' } }),
+    it('privacy_screen', { x: 31.8, z: 16.8, w: 11, h: 7, rot: ARC, p: { style: 'horizontal' } }),
     it('privacy_screen', { x: 26, z: 22.8, w: 11, h: 7, p: { style: 'horizontal' } }),
     it('hedge', { pts: [[-8, 48.2], [22, 48.2]], w: 3.5, h: 14, p: { variety: 'cypress' } }),
     it('walkway', { x: 8, z: 17.6, w: 4, d: 13, p: { material: 'slab_gray', edging: 'steel' } }),
     it('light_row', { pts: [[5.4, 12.5], [5.4, 23]], h: 2, p: { spacing: 5, style: 'bollard' } }),
     it('lamp_post', { x: -4.6, z: 23.6, h: 7 }),
-    it('lamp_post', { x: 20.6, z: 23.6, h: 7 }),
+    it('lamp_post', { x: 19.8, z: 24.4, h: 7 }),
     it('planter', { x: 18, z: 30.5, w: 2.4, h: 2.5, p: { style: 'white', plant: 'grass' } }),
     it('grass_orn', { x: 31, z: 29, w: 3, h: 3.5, p: { variety: 'fountain' } }),
     it('grass_orn', { x: 34.5, z: 31, w: 3, h: 3.5, p: { variety: 'fountain' } }),
@@ -218,6 +220,7 @@ function ideaHomestead() {
     it('tree_fruit', { x: 35, z: 31.5, w: 8, h: 10, p: { fruit: 'apple' } }),
     it('walk_path', { pts: [[13.5, 10.6], [12.5, 25], [12, 37.5]], w: 3, p: { material: 'dg', smooth: false, edging: 'none' } }),
     it('flower_bed', { pts: [[-8.3, 12], [-3.5, 12], [-3.5, 20], [-8.3, 20]], p: { material: 'mulch_brown', edging: 'none', plants: 'flowers', density: 'full', smooth: true } }),
+    it('chicken_coop', { x: -3, z: 44.5, rot: ARC, p: { color: 'red', hens: 4 } }),
   ];
 }
 function ideaDogs() {
@@ -232,6 +235,7 @@ function ideaDogs() {
     it('adirondack', { x: 18.5, z: 21.8, rot: ARC, p: { color: '#2d5a3d' } }),
     it('raised_bed', { x: 15, z: 43.5, w: 6, d: 3, h: 2.2, p: { material: 'cedar', plants: 'herbs' } }),
     it('light_row', { pts: [[-3.3, 16.5], [-4.3, 30], [-2.8, 41.5]], h: 1.6, p: { spacing: 7, style: 'mushroom', smooth: true } }),
+    it('dog_agility', { x: 17.6, z: 31.5, p: { color: '#2f6fb0' } }),
   ];
 }
 function ideaBudget() {
@@ -307,6 +311,50 @@ function ideaNight() {
   ];
 }
 
+function ideaWellness() {
+  return [
+    it('deck', { x: 0.5, z: 43, w: 21, d: 11, h: 0.8, p: { material: 'cedar', railing: 'none' } }),
+    it('sauna', { x: -6, z: 43.6, w: 7, d: 8, rot: PI, p: { wood: 'cedar', porch: true } }),
+    it('cold_plunge', { x: 1.5, z: 44.5, p: { color: 'wood' } }),
+    it('outdoor_shower', { x: 8, z: 45.5, w: 4, d: 4 }),
+    it('walk_path', { pts: [[10.5, 10.6], [9.5, 19], [6, 28], [3.5, 37.2]], w: 2.8, p: { material: 'stepping_square', smooth: true, spacing: 2.2 } }),
+    it('koi_pond', { x: -1.5, z: 24, w: 10, d: 7 }),
+    it('surface_pad', { x: 21, z: 32, w: 14, d: 14, p: { material: 'gravel_white', shape: 'circle', edging: 'steel' } }),
+    it('daybed', { x: 21, z: 32, rot: PI, p: { frame: 'teak', color: '#e9e6df', accent: '#7b8a6a', canopy: true } }),
+    it('egg_chair', { x: 27.4, z: 14.2, rot: -ARC + 0.4, p: { color: 'natural', cushion: '#e9e6df' } }),
+    it('egg_chair', { x: 21.4, z: 14.6, rot: -ARC - 0.2, p: { color: 'natural', cushion: '#e9e6df' } }),
+    it('hedge', { pts: [[13, 48.3], [27, 48.3]], w: 3.5, h: 9, p: { variety: 'privet', smooth: false } }),
+    it('tree_orn', { x: 33, z: 25, w: 10, h: 12, p: { kind: 'redbud' } }),
+    it('grass_orn', { x: 5, z: 29.5, w: 3, h: 3.5, p: { variety: 'fountain' } }),
+    it('grass_orn', { x: -5, z: 30.5, w: 3, h: 3.5, p: { variety: 'fountain' } }),
+    it('shrub', { x: 14, z: 39, w: 3, h: 3, p: { variety: 'rosemary' } }),
+    it('light_row', { pts: [[12.2, 13], [11.2, 20], [8, 28], [5.6, 35]], h: 1.6, p: { spacing: 6, style: 'mushroom', smooth: true } }),
+    it('uplight', { x: 31, z: 22, rot: 0, p: { tilt: 75, reach: 14 } }),
+    it('bird_feeder', { x: 29.5, z: 36 }),
+    it('planter', { x: 2.5, z: 12, w: 2.4, h: 2.4, p: { style: 'black', plant: 'grass' } }),
+  ];
+}
+function ideaGameDay() {
+  return [
+    it('movie_screen', { x: 13, z: 46.8, w: 14, rot: PI, p: { projector: true } }),
+    it('outdoor_rug', { x: 13, z: 37.5, w: 12, d: 7, p: { pattern: 'stripes', color: '#2f4f6f' } }),
+    it('bean_bags', { x: 9.5, z: 37.5, rot: 0, p: { color: '#c84b3a', color2: '#f2c230' } }),
+    it('bean_bags', { x: 16.5, z: 37.5, rot: 0, p: { color: '#3f6f8a', color2: '#2d8a4e' } }),
+    it('putting_green', { x: 30.5, z: 21, w: 14, d: 9, p: { holes: 3 } }),
+    it('ladder_toss', { x: -5, z: 24, rot: 0 }),
+    it('cornhole', { x: 22.5, z: 32, rot: ARC, p: { color: '#c84b3a' } }),
+    it('bar_set', { x: 22.4, z: 6.2, p: { color: 'black', stools: 4 } }),
+    it('grill', { x: 26.2, z: 1.7, p: { style: 'kamado' } }),
+    it('grill', { x: 3, z: 1.7, p: { style: 'griddle' } }),
+    it('patio_heater', { x: 3.5, z: 8.3 }),
+    it('patio_heater', { x: 27.3, z: 8.3 }),
+    it('picnic_table', { x: 3, z: 33, w: 8, rot: ARC, p: { color: 'natural' } }),
+    it('string_lights', { pts: [[19.6, 10.6], [27, 28], [27, 41], [-1, 41], [-1, 28], [7.4, 10.6]], h: 10, p: { poles: 'skipFirst', bulb: 'globe', color: 'warm' } }),
+    it('deck_box', { x: 30, z: 11.5, rot: PI }),
+    it('tree_shade', { x: 33.5, z: 34, w: 14, h: 18, p: { kind: 'oak' } }),
+  ];
+}
+
 const EXAMPLES = [
   ['family', 'Idea: pool, pup & fire pit', 'A round pool, a fire pit circle and a fenced puppy run, tied together with stepping stones and string lights.', ideaFamily],
   ['garden', 'Idea: garden retreat', 'Raised beds and a rose arch on decomposed granite, plus a black steel pergola lounge screened with cedar slats.', ideaGarden],
@@ -322,6 +370,8 @@ const EXAMPLES = [
   ['budget', 'Idea: simple and budget-friendly', 'A few inexpensive moves that change the most: gravel, a steel fire bowl, a stock tank pool and string lights.', ideaBudget],
   ['med', 'Idea: Mediterranean courtyard', 'Warm brick, a central fountain, potted citrus and a vine-covered pergola for long dinners.', ideaMediterranean],
   ['pollinator', 'Idea: pollinator garden', 'Dense flowers, grasses and water for birds and butterflies, with a stepping-stone path through the middle.', ideaPollinator],
+  ['wellness', 'Idea: backyard spa', 'Sauna, cold plunge and outdoor shower on a cedar deck at the back, a koi pond along the way, and a canopy daybed to rest in.', ideaWellness],
+  ['gameday', 'Idea: game day and movie nights', 'A big screen at the back fence with bean bags on a rug, lawn games, a putting green and a patio bar with heaters for cool nights.', ideaGameDay],
   ['night', 'Idea: night garden', 'Made to be seen after dark: white blooms, uplit trees, lanterns, torches and a glowing fire table. Try it with Evening.', ideaNight],
 ];
 export const EXAMPLE_KEYS = EXAMPLES.map((e) => e[0]);

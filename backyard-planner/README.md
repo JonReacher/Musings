@@ -2,18 +2,25 @@
 
 A 3D designer for one real backyard: a two-story house with a 29 × 10 ft concrete patio, a covered patio roof, a resin shed and a weathered wood privacy fence. Try out gardens, a puppy run, pools, privacy fencing, fire pits, walkways, landscaping, lighting and a grilling area, and move or resize any of it. Open `index.html` in a recent browser with WebGL. There is nothing to install, and it works offline.
 
-![Night garden layout in the editor, with eight more example layouts](screenshot.jpg)
+![Game day and movie nights layout at dusk, with the backyard spa layout and its cost estimate below](screenshot.jpg)
 
 ## What it does
 
 - **Start from the real yard.** I measured the house, patio, patio roof, shed, fence lines and river rock drainage strip from photos of the yard and checked them against the known size of the patio. The fence uses a texture taken from one of those photos. These existing pieces are locked, and you can unlock any of them to adjust it.
-- **Add things.** There are 66 kinds of items in 10 groups: garden, pets, pools and water, fences and structures, fire and grilling, seating, plants and trees, paths and surfaces, lighting, and play. Click an item to place it, or drag it onto the yard.
+- **Add things.** There are 97 kinds of items in 10 groups: garden, pets, pools and water, fences and structures, fire and grilling, outdoor furniture, plants and trees, paths and surfaces, lighting, and play. Click an item to place it, or drag it onto the yard. Some of the newer ones:
+  - **Outdoor furniture:** sofa, lounge chair, conversation set, coffee and side tables, canopy daybed, hanging egg chair, swing bench, rocking chair, bar-height table set, picnic table, outdoor rug, deck box, bean bag loungers and an offset umbrella.
+  - **Water and wellness:** a rectangular above-ground pool with the ladder on the long side (or the short end), pool floats, a cold plunge, a barrel sauna, an outdoor shower and a koi pond.
+  - **Fire:** patio heaters and a chiminea.
+  - **Fun:** an outdoor movie screen that glows after dark, a basketball hoop or half court, a putting green, a playhouse, ladder toss, a chicken coop with a run, a dog agility set and a bird feeder.
 - **Move, resize and rotate.** Drag an item to move it. Drag the gold handles to resize it, and the white ring to rotate it. You can also type sizes in feet and inches. Each item has its own options, such as fence style, pool wall, paver pattern, bloom color or chair count.
 - **Draw shapes.** Walkways, fence lines, hedges, string lights, rows of path lights, dry creek beds, flower beds and custom surfaces are drawn point by point and reshaped afterward.
 - **See how far things are.** The inspector shows how far the selected item is from the house and from each fence. A measuring tool works anywhere in the yard.
 - **Get rough material amounts.** Each layout totals its paving, gravel and mulch (with cubic yards at 3 in. deep), new fencing and string light length.
+- **Estimate the cost.** The Estimate button lists materials and parts for everything you've added, grouped by category and by item, with quantities, unit prices and totals. Switch between doing it yourself and hiring it out, set the percentage added for surprises and waste, type in your own quotes for any unit price (they're remembered and used in every layout), and download it all as a CSV. The prices are typical 2026 US figures before tax and delivery, so treat the total as a ballpark.
+- **Auto-arrange.** Arrange → Fix overlaps moves only the things that actually collide, by as little as it can. Arrange → Try a new arrangement lays out everything you've added again, keeping walking room between groups; click it again for another idea. Things sitting on a patio, rug, deck or bed move with it. Fences, paths, string lights and anything locked stay put, and Undo puts it all back.
+- **Lock moves.** Turn on Lock moves (or press L) and dragging only moves the camera, so you can orbit and pan without nudging anything. You can still select items and change their sizes and options.
 - **Compare layouts.** Save, duplicate, rename and switch between layouts. Export and import them as JSON.
-- **Start from an example.** It comes with 15 example layouts, each built around a different design approach:
+- **Start from an example.** It comes with 17 example layouts, each built around a different design approach:
 
   | Layout | Approach |
   |---|---|
@@ -31,10 +38,12 @@ A 3D designer for one real backyard: a two-story house with a 29 × 10 ft concre
   | Simple and budget-friendly | Gravel, a steel fire bowl, a stock tank pool and string lights |
   | Mediterranean courtyard | Brick, a central fountain, potted citrus and a vine pergola |
   | Pollinator garden | Flowers, grasses and water for birds and butterflies |
+  | Backyard spa | Sauna, cold plunge and outdoor shower on a cedar deck, a koi pond and a canopy daybed |
+  | Game day and movie nights | A movie screen with bean bags, lawn games, a putting green and a patio bar with heaters |
   | Night garden | White blooms, uplit trees, lanterns and torches, made for after dark |
 
 - **Sun and night.** Set the time of day and the month to see where shade falls. After sunset, the fixtures you've added light up the yard.
-- **Three ways to look.** Orbit in 3D, switch to a top-down plan, or walk around at eye level.
+- **Ways to look.** Orbit in 3D, switch to a top-down plan, or walk around at eye level. Viewpoints jumps to set views, including standing on the patio. The FOV slider widens or narrows the camera lens for the 3D and walk views; double-click it to reset.
 
 ## Controls
 
@@ -51,6 +60,7 @@ A 3D designer for one real backyard: a two-story house with a 29 × 10 ft concre
 | 1 / 2 / 3 | 3D, plan, walk |
 | W A S D, drag | Move and look in walk mode |
 | M, G, F | Measure, grid, zoom to the selected item |
+| L | Lock or unlock moving |
 
 Left and right mean as seen standing on the patio looking out.
 

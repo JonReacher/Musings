@@ -1,5 +1,6 @@
 import { rng as mkrng } from './core.js';
 import { BUILDERS, SURFACES, surfaceOptions } from './models_items.js';
+import './models_more.js';
 import { POLY_BUILDERS } from './models_poly.js';
 import { FENCE_STYLES, buildHouse, buildSlab, buildCoveredPatio, buildAC } from './models_site.js';
 
@@ -9,7 +10,7 @@ export const CATEGORIES = [
   { id: 'water', name: 'Pools & water' },
   { id: 'structures', name: 'Fences & structures' },
   { id: 'fire', name: 'Fire & grilling' },
-  { id: 'seating', name: 'Seating' },
+  { id: 'seating', name: 'Outdoor furniture' },
   { id: 'plants', name: 'Plants & trees' },
   { id: 'paths', name: 'Paths & surfaces' },
   { id: 'lighting', name: 'Lighting' },
@@ -57,11 +58,19 @@ export const TYPES = {
   dog_house: { name: 'Dog house', cat: 'pets', kind: 'box', builder: 'dog_house', size: { w: 3, d: 4, h: 3.5 }, resize: 'wd', params: [sel('color', 'Finish', [['wood', 'Cedar'], ['red', 'Barn red'], ['gray', 'Gray']], 'wood')] },
   splash_pool: { name: 'Dog splash pool', cat: 'pets', kind: 'box', builder: 'splash_pool', size: { w: 5, d: 5, h: 1 }, resize: 'diam', params: [sel('color', 'Color', [['blue', 'Blue'], ['pink', 'Pink']], 'blue')] },
 
+  chicken_coop: { name: 'Chicken coop & run', cat: 'pets', kind: 'box', builder: 'chicken_coop', size: { w: 8, d: 12, h: 7 }, resize: 'wd', min: { w: 6, d: 8 }, max: { w: 16, d: 24 }, params: [sel('color', 'Coop', [['red', 'Barn red'], ['white', 'White'], ['gray', 'Gray']], 'red'), rng('hens', 'Hens', 0, 8, 1, 4)] },
+  dog_agility: { name: 'Dog agility set', cat: 'pets', kind: 'box', builder: 'dog_agility', size: { w: 10, d: 14, h: 3 }, resize: 'none', params: [col('color', 'Tunnel', [['#2f6fb0', 'Blue'], ['#c84b3a', 'Red'], ['#2d8a4e', 'Green']], '#2f6fb0')], desc: 'Tunnel, two jumps and weave poles' },
   // ---------- water ----------
   pool_round: { name: 'Above-ground pool (round)', cat: 'water', kind: 'box', builder: 'pool_round', size: { w: 18, d: 18, h: 4.33 }, resize: 'diam', hEditable: true, min: { w: 8, h: 2.5 }, max: { w: 33, h: 5 },
-    params: [sel('style', 'Wall', [['gray', 'Steel frame, gray'], ['blue', 'Frame, blue'], ['resin', 'Resin, sand'], ['wood', 'Wood-look panels']], 'gray'), tog('ladder', 'Ladder', true), tog('pump', 'Pump', true)], desc: 'Common sizes: 12, 15, 18, 21, 24 ft' },
+    params: [sel('style', 'Wall', [['gray', 'Steel frame, gray'], ['blue', 'Frame, blue'], ['resin', 'Resin, sand'], ['wood', 'Wood-look panels']], 'gray'), tog('ladder', 'Ladder', true), tog('pump', 'Pump', true), tog('floats', 'Pool floats', false)], desc: 'Common sizes: 12, 15, 18, 21, 24 ft' },
   pool_oval: { name: 'Above-ground pool (oval)', cat: 'water', kind: 'box', builder: 'pool_oval', size: { w: 15, d: 30, h: 4.33 }, resize: 'wd', hEditable: true, min: { w: 8, d: 10, h: 2.5 }, max: { h: 5 },
-    params: [sel('shape', 'Shape', [['oval', 'Oval'], ['rectangle', 'Rectangle frame']], 'oval'), sel('style', 'Wall', [['gray', 'Steel frame, gray'], ['blue', 'Frame, blue'], ['resin', 'Resin, sand'], ['wood', 'Wood-look panels']], 'gray')] },
+    params: [sel('shape', 'Shape', [['oval', 'Oval'], ['rectangle', 'Rectangle frame']], 'oval'), sel('style', 'Wall', [['gray', 'Steel frame, gray'], ['blue', 'Frame, blue'], ['resin', 'Resin, sand'], ['wood', 'Wood-look panels']], 'gray'), tog('floats', 'Pool floats', false)] },
+  pool_rect: { name: 'Above-ground pool (rectangular)', cat: 'water', kind: 'box', builder: 'pool_rect', size: { w: 24, d: 12, h: 4.33 }, resize: 'wd', hEditable: true, min: { w: 8, d: 6, h: 2.5 }, max: { w: 40, d: 24, h: 5 },
+    params: [sel('style', 'Wall', [['gray', 'Steel frame, gray'], ['blue', 'Frame, blue'], ['resin', 'Resin, sand'], ['wood', 'Wood-look panels']], 'gray'), sel('ladder', 'Ladder', [['long', 'Long side'], ['short', 'Short end']], 'long'), tog('floats', 'Pool floats', false)], desc: 'Frame pools commonly come 9 × 18, 12 × 24 and 16 × 32 ft' },
+  cold_plunge: { name: 'Cold plunge tub', cat: 'water', kind: 'box', builder: 'cold_plunge', size: { w: 6, d: 3, h: 2.8 }, resize: 'none', params: [sel('color', 'Finish', [['dark', 'Charcoal'], ['wood', 'Cedar']], 'dark')] },
+  sauna: { name: 'Barrel sauna', cat: 'water', kind: 'box', builder: 'sauna', size: { w: 7, d: 8, h: 8 }, resize: 'wd', min: { w: 5, d: 5 }, max: { w: 8, d: 12 }, params: [sel('wood', 'Wood', [['cedar', 'Red cedar'], ['dark', 'Thermo wood']], 'cedar'), tog('porch', 'Front step', true)], desc: 'Width is the barrel diameter; depth is its length' },
+  outdoor_shower: { name: 'Outdoor shower', cat: 'water', kind: 'box', builder: 'outdoor_shower', size: { w: 4, d: 4, h: 7.5 }, resize: 'wd', min: { w: 3, d: 3 }, max: { w: 6, d: 6 } },
+  koi_pond: { name: 'Koi pond', cat: 'water', kind: 'box', builder: 'koi_pond', size: { w: 10, d: 7, h: 1 }, resize: 'wd', min: { w: 4, d: 3 }, max: { w: 24, d: 18 }, desc: 'Lined pond with a small waterfall, lily pads and fish' },
   stock_tank: { name: 'Stock tank pool', cat: 'water', kind: 'box', builder: 'stock_tank', size: { w: 8, d: 8, h: 2 }, resize: 'diam', hEditable: true, min: { w: 4 }, max: { w: 12 }, params: [tog('deck', 'Gravel ring', true)] },
   hot_tub: { name: 'Hot tub', cat: 'water', kind: 'box', builder: 'hot_tub', size: { w: 7, d: 7, h: 3 }, resize: 'wd', params: [sel('cover', 'Cover', [['open', 'Open'], ['closed', 'Covered']], 'open'), sel('color', 'Cabinet', [['gray', 'Gray'], ['brown', 'Brown']], 'gray')] },
   fountain: { name: 'Fountain', cat: 'water', kind: 'box', builder: 'fountain', size: { w: 4, d: 4, h: 4 }, resize: 'diam', params: [sel('stone', 'Stone', [['gray', 'Gray'], ['limestone', 'Limestone']], 'gray')] },
@@ -80,6 +89,7 @@ export const TYPES = {
     params: [sel('shape', 'Shape', [['square', 'Square'], ['triangle', 'Triangle']], 'square'), col('color', 'Fabric', [['#d9c9a3', 'Sand'], ['#6f7d74', 'Sage'], ['#3d4f66', 'Navy'], ['#e9e6df', 'White'], ['#b5543c', 'Terracotta']], '#d9c9a3')] },
   shed: { name: 'Storage shed', cat: 'structures', kind: 'box', builder: 'shed', size: { w: 8, d: 10, h: 8 }, resize: 'wd', hEditable: true, min: { w: 4, d: 4, h: 6 },
     params: [sel('style', 'Style', [['artisan', 'Modern resin (like yours)'], ['barn', 'Red barn'], ['gable', 'Cedar gable']], 'gable')] },
+  cantilever_umbrella: { name: 'Offset umbrella', cat: 'structures', kind: 'box', builder: 'cantilever_umbrella', size: { w: 10, d: 10, h: 8.5 }, resize: 'diam', min: { w: 8 }, max: { w: 13 }, params: [col('color', 'Fabric', [['#d9c9a3', 'Sand'], ['#2f5d73', 'Teal'], ['#b5543c', 'Terracotta'], ['#2b2b2b', 'Black'], ['#e9e6df', 'White']], '#d9c9a3')], desc: 'Base sits off to one side, so the shade covers a lounge or table' },
   umbrella: { name: 'Patio umbrella', cat: 'structures', kind: 'box', builder: 'umbrella', size: { w: 9, d: 9, h: 8.5 }, resize: 'diam', min: { w: 6 }, max: { w: 13 },
     params: [col('color', 'Fabric', [['#2f5d73', 'Teal'], ['#d9c9a3', 'Sand'], ['#b5543c', 'Terracotta'], ['#2b2b2b', 'Black'], ['#e9e6df', 'White']], '#2f5d73')] },
 
@@ -89,6 +99,8 @@ export const TYPES = {
   grill: { name: 'Grill', cat: 'fire', kind: 'box', builder: 'grill', size: { w: 5, d: 2.2, h: 4 }, resize: 'none', params: [sel('style', 'Type', [['gas', 'Gas grill'], ['kettle', 'Charcoal kettle'], ['smoker', 'Offset smoker'], ['kamado', 'Kamado'], ['griddle', 'Flat-top griddle']], 'gas')] },
   outdoor_kitchen: { name: 'Outdoor kitchen', cat: 'fire', kind: 'box', builder: 'outdoor_kitchen', size: { w: 10, d: 2.6, h: 3 }, resize: 'w', min: { w: 5 }, max: { w: 24 },
     params: [sel('shape', 'Layout', [['straight', 'Straight'], ['L', 'L-shaped']], 'straight'), rng('ret', 'L return', 3, 12, 0.5, 6, 'ft'), sel('stone', 'Base', [['limestone', 'Limestone'], ['gray', 'Gray stone'], ['brown', 'Brown stone'], ['stucco', 'Stucco']], 'limestone'), sel('counter', 'Counter', [['dark', 'Dark granite'], ['light', 'Light quartz'], ['concrete', 'Concrete']], 'dark'), rng('stools', 'Bar stools', 0, 6, 1, 3)] },
+  patio_heater: { name: 'Patio heater', cat: 'fire', kind: 'box', builder: 'patio_heater', size: { w: 3, d: 3, h: 7.5 }, resize: 'none', params: [sel('color', 'Finish', [['silver', 'Stainless'], ['bronze', 'Bronze']], 'silver')] },
+  chiminea: { name: 'Chiminea', cat: 'fire', kind: 'box', builder: 'chiminea', size: { w: 2.4, d: 2.4, h: 5.3 }, resize: 'none', params: [sel('color', 'Finish', [['clay', 'Clay'], ['black', 'Cast iron']], 'clay')] },
   pizza_oven: { name: 'Pizza oven', cat: 'fire', kind: 'box', builder: 'pizza_oven', size: { w: 4.5, d: 4.5, h: 6 }, resize: 'none' },
   grill_pad: { name: 'Grilling pad', cat: 'fire', kind: 'box', builder: 'surface_pad', size: { w: 10, d: 8, h: 0 }, resize: 'wd', ground: true, defaults: { material: 'pavers_gray', shape: 'rect', edging: 'none' }, paramsRef: 'surface_pad', desc: 'A paved spot for the grill and prep' },
 
@@ -103,6 +115,22 @@ export const TYPES = {
   hammock: { name: 'Hammock', cat: 'seating', kind: 'box', builder: 'hammock', size: { w: 13, d: 3.5, h: 4.5 }, resize: 'none', params: [col('color', 'Fabric', [['#c8584a', 'Red'], ['#d9c9a3', 'Natural'], ['#3d6f8a', 'Blue'], ['#5b7a4a', 'Green']], '#d9c9a3')] },
   bistro_set: { name: 'Bistro set', cat: 'seating', kind: 'box', builder: 'bistro_set', size: { w: 3, d: 5, h: 3 }, resize: 'none', params: [col('color', 'Color', [['#1f3b2e', 'Green'], ['#2b2b2b', 'Black'], ['#f1efe9', 'White'], ['#2f4f6f', 'Navy']], '#1f3b2e')] },
 
+  sofa: { name: 'Outdoor sofa', cat: 'seating', kind: 'box', builder: 'sofa', size: { w: 7, d: 3, h: 3 }, resize: 'w', min: { w: 4 }, max: { w: 10 },
+    params: [sel('frame', 'Frame', [['wicker', 'Wicker'], ['teak', 'Teak'], ['modern', 'Charcoal'], ['white', 'White']], 'teak'), col('color', 'Cushions', CUSHIONS, '#d9d3c4'), col('accent', 'Pillows', CUSHIONS, '#c9a24a')] },
+  club_chair: { name: 'Lounge chair', cat: 'seating', kind: 'box', builder: 'club_chair', size: { w: 3, d: 3, h: 3 }, resize: 'none', params: [sel('frame', 'Frame', [['wicker', 'Wicker'], ['teak', 'Teak'], ['modern', 'Charcoal'], ['white', 'White']], 'teak'), col('color', 'Cushion', CUSHIONS, '#d9d3c4')] },
+  conversation_set: { name: 'Conversation set', cat: 'seating', kind: 'box', builder: 'conversation_set', size: { w: 10, d: 9, h: 3 }, resize: 'none',
+    params: [sel('frame', 'Frame', [['wicker', 'Wicker'], ['teak', 'Teak'], ['modern', 'Charcoal'], ['white', 'White']], 'wicker'), col('color', 'Cushions', CUSHIONS, '#e9e6df'), col('accent', 'Pillows', CUSHIONS, '#2f4f6f'), sel('table', 'Table', [['coffee', 'Teak coffee table'], ['stone', 'Stone table'], ['fire', 'Fire table']], 'fire'), sel('rug', 'Rug', [['none', 'None'], ['stripes', 'Stripes'], ['diamond', 'Diamond'], ['border', 'Border']], 'stripes')], desc: 'Sofa, two lounge chairs and a table' },
+  coffee_table: { name: 'Coffee table', cat: 'seating', kind: 'box', builder: 'coffee_table', size: { w: 4, d: 2.2, h: 1.4 }, resize: 'wd', min: { w: 1.5, d: 1.5 }, max: { w: 8, d: 5 }, params: [sel('material', 'Material', [['teak', 'Teak'], ['walnut', 'Dark wood'], ['stone', 'Stone'], ['concrete', 'Concrete'], ['glass', 'Glass & metal']], 'teak')] },
+  side_table: { name: 'Side table', cat: 'seating', kind: 'box', builder: 'side_table', size: { w: 1.6, d: 1.6, h: 1.8 }, resize: 'none', params: [sel('material', 'Finish', [['black', 'Black metal'], ['teak', 'Teak'], ['white', 'White']], 'black')] },
+  daybed: { name: 'Canopy daybed', cat: 'seating', kind: 'box', builder: 'daybed', size: { w: 6.5, d: 6.5, h: 7.5 }, resize: 'none', params: [sel('frame', 'Frame', [['wicker', 'Wicker'], ['teak', 'Teak'], ['modern', 'Charcoal'], ['white', 'White']], 'teak'), col('color', 'Cushions', CUSHIONS, '#e9e6df'), col('accent', 'Pillows', CUSHIONS, '#2f4f6f'), tog('canopy', 'Canopy', true)] },
+  egg_chair: { name: 'Hanging egg chair', cat: 'seating', kind: 'box', builder: 'egg_chair', size: { w: 3.6, d: 3.6, h: 6.8 }, resize: 'none', params: [sel('color', 'Basket', [['black', 'Black'], ['natural', 'Natural'], ['white', 'White']], 'natural'), col('cushion', 'Cushion', CUSHIONS, '#e9e6df')] },
+  porch_swing: { name: 'Swing bench', cat: 'seating', kind: 'box', builder: 'porch_swing', size: { w: 7, d: 5, h: 8.3 }, resize: 'none', params: [sel('frame', 'Frame', [['teak', 'Wood'], ['white', 'White']], 'teak'), col('cushion', 'Cushion', CUSHIONS, '#d9d3c4'), tog('canopy', 'Canopy', true), col('canopyColor', 'Canopy', [['#3d6f8a', 'Blue'], ['#d9c9a3', 'Sand'], ['#2d5a3d', 'Green'], ['#c84b3a', 'Red']], '#3d6f8a')] },
+  rocking_chair: { name: 'Rocking chair', cat: 'seating', kind: 'box', builder: 'rocking_chair', size: { w: 2.2, d: 3.2, h: 3.6 }, resize: 'none', params: [col('color', 'Color', CHAIRC, '#f1efe9')] },
+  bar_set: { name: 'Bar-height table set', cat: 'seating', kind: 'box', builder: 'bar_set', size: { w: 6, d: 6, h: 3.6 }, resize: 'none', params: [sel('color', 'Finish', [['black', 'Black'], ['teak', 'Teak']], 'black'), rng('stools', 'Stools', 2, 6, 1, 4)] },
+  picnic_table: { name: 'Picnic table', cat: 'seating', kind: 'box', builder: 'picnic_table', size: { w: 6, d: 5.4, h: 2.6 }, resize: 'w', min: { w: 4 }, max: { w: 10 }, params: [sel('color', 'Finish', [['natural', 'Natural wood'], ['red', 'Barn red'], ['green', 'Green']], 'natural')] },
+  outdoor_rug: { name: 'Outdoor rug', cat: 'seating', kind: 'box', builder: 'outdoor_rug', size: { w: 8, d: 10, h: 0 }, resize: 'wd', ground: true, min: { w: 2, d: 2 }, max: { w: 16, d: 16 }, params: [sel('pattern', 'Pattern', [['stripes', 'Stripes'], ['diamond', 'Diamond'], ['border', 'Border']], 'stripes'), col('color', 'Color', [['#2f4f6f', 'Navy'], ['#7b8a6a', 'Sage'], ['#b5543c', 'Terracotta'], ['#3a3a3a', 'Charcoal'], ['#c9a24a', 'Mustard']], '#2f4f6f')] },
+  deck_box: { name: 'Storage deck box', cat: 'seating', kind: 'box', builder: 'deck_box', size: { w: 4.5, d: 2, h: 2.1 }, resize: 'none', params: [sel('color', 'Color', [['gray', 'Gray'], ['brown', 'Brown']], 'gray')] },
+  bean_bags: { name: 'Bean bag loungers', cat: 'seating', kind: 'box', builder: 'bean_bags', size: { w: 6.4, d: 3.4, h: 2 }, resize: 'none', params: [col('color', 'First', CHAIRC, '#c84b3a'), col('color2', 'Second', CHAIRC, '#3f6f8a')] },
   // ---------- plants ----------
   tree_shade: { name: 'Shade tree', cat: 'plants', kind: 'box', builder: 'tree', size: { w: 20, d: 20, h: 22 }, resize: 'diam', hEditable: true, min: { w: 6, h: 8 }, max: { w: 50, h: 45 }, defaults: { kind: 'oak' }, params: [sel('kind', 'Tree', [['oak', 'Live oak'], ['maple', 'Red maple']], 'oak')], desc: 'Canopy width shown; drag to grow it' },
   tree_orn: { name: 'Ornamental tree', cat: 'plants', kind: 'box', builder: 'tree', size: { w: 10, d: 10, h: 13 }, resize: 'diam', hEditable: true, min: { w: 4, h: 5 }, max: { w: 25, h: 25 }, defaults: { kind: 'crape' },
@@ -116,6 +144,7 @@ export const TYPES = {
   agave: { name: 'Agave & yucca', cat: 'plants', kind: 'box', builder: 'agave', size: { w: 3.5, d: 3.5, h: 2.5 }, resize: 'diam', min: { w: 1 }, max: { w: 8 }, params: [sel('variety', 'Plant', [['agave', 'Agave'], ['sotol', 'Sotol'], ['yucca', 'Yucca']], 'agave')] },
   flowers: { name: 'Flower cluster', cat: 'plants', kind: 'box', builder: 'flowers', size: { w: 3, d: 3, h: 1 }, resize: 'diam', min: { w: 1 }, max: { w: 8 }, params: [sel('color', 'Colors', [['mixed', 'Mixed'], ['pink', 'Pinks'], ['yellow', 'Yellows'], ['purple', 'Purples'], ['white', 'White']], 'mixed')] },
   boulder: { name: 'Boulder', cat: 'plants', kind: 'box', builder: 'boulder', size: { w: 3, d: 2.5, h: 1.6 }, resize: 'wd', hEditable: true, min: { w: 0.8, d: 0.8, h: 0.4 }, params: [sel('stone', 'Stone', [['limestone', 'Limestone'], ['granite', 'Granite'], ['sandstone', 'Sandstone']], 'limestone')] },
+  bird_feeder: { name: 'Bird feeder', cat: 'plants', kind: 'box', builder: 'bird_feeder', size: { w: 1.8, d: 1.2, h: 6.4 }, resize: 'none' },
   bird_bath: { name: 'Bird bath', cat: 'plants', kind: 'box', builder: 'bird_bath', size: { w: 2.2, d: 2.2, h: 3 }, resize: 'none' },
   hedge: { name: 'Draw a hedge', cat: 'plants', kind: 'poly', builder: 'hedge', draw: true, size: { w: 3, h: 4 }, wEditable: true, hEditable: true, min: { w: 1, h: 1 }, max: { w: 8, h: 14 },
     params: [sel('variety', 'Plant', [['boxwood', 'Boxwood'], ['privet', 'Privet'], ['holly', 'Holly'], ['flowering', 'Flowering'], ['cypress', 'Italian cypress row']], 'privet'), tog('smooth', 'Curved', true)], desc: 'Click points along the hedge line' },
@@ -149,6 +178,12 @@ export const TYPES = {
   playset: { name: 'Swing set & fort', cat: 'play', kind: 'box', builder: 'playset', size: { w: 18, d: 14, h: 10 }, resize: 'w', min: { w: 12 }, max: { w: 26 }, params: [col('accent', 'Accent', [['#2d8a4e', 'Green'], ['#2f6fb0', 'Blue'], ['#e3b23c', 'Yellow'], ['#c84b3a', 'Red']], '#2d8a4e')] },
   sandbox: { name: 'Sandbox', cat: 'play', kind: 'box', builder: 'sandbox', size: { w: 6, d: 6, h: 1 }, resize: 'wd', min: { w: 3, d: 3 } },
   cornhole: { name: 'Cornhole', cat: 'play', kind: 'box', builder: 'cornhole', size: { w: 2, d: 31, h: 1 }, resize: 'none', params: [col('color', 'Boards', [['#2f5d8a', 'Blue'], ['#c84b3a', 'Red'], ['#2d5a3d', 'Green']], '#2f5d8a')], desc: 'Regulation 27 ft between board fronts' },
+  movie_screen: { name: 'Outdoor movie screen', cat: 'play', kind: 'box', builder: 'movie_screen', size: { w: 12, d: 2.5, h: 9 }, resize: 'w', min: { w: 6 }, max: { w: 20 }, params: [tog('projector', 'Projector stand', true)], desc: 'The projector stand sits in front at about 1.1 × the screen width. It glows after dark.' },
+  half_court: { name: 'Basketball half court', cat: 'play', kind: 'box', builder: 'basketball_hoop', size: { w: 20, d: 20, h: 10 }, resize: 'wd', min: { w: 10, d: 10 }, max: { w: 30, d: 30 }, ground: false, defaults: { court: true } },
+  basketball_hoop: { name: 'Basketball hoop', cat: 'play', kind: 'box', builder: 'basketball_hoop', size: { w: 6, d: 4, h: 10 }, resize: 'none', defaults: { court: false } },
+  putting_green: { name: 'Putting green', cat: 'play', kind: 'box', builder: 'putting_green', size: { w: 14, d: 9, h: 0 }, resize: 'wd', ground: true, min: { w: 5, d: 4 }, max: { w: 30, d: 24 }, params: [rng('holes', 'Holes', 1, 5, 1, 3)] },
+  playhouse: { name: 'Playhouse', cat: 'play', kind: 'box', builder: 'playhouse', size: { w: 5, d: 5, h: 7.8 }, resize: 'none', params: [sel('color', 'Walls', [['blue', 'Blue'], ['yellow', 'Yellow'], ['white', 'White'], ['green', 'Green']], 'blue'), col('roof', 'Roof', [['#c84b3a', 'Red'], ['#3a3a3a', 'Black'], ['#2d5a3d', 'Green']], '#c84b3a')] },
+  ladder_toss: { name: 'Ladder toss', cat: 'play', kind: 'box', builder: 'ladder_toss', size: { w: 3, d: 17, h: 4.2 }, resize: 'none', params: [sel('color', 'Color', [['white', 'White'], ['blue', 'Blue']], 'white')] },
   soccer_goal: { name: 'Soccer goal', cat: 'play', kind: 'box', builder: 'soccer_goal', size: { w: 12, d: 4, h: 6 }, resize: 'w', min: { w: 4 }, max: { w: 24 } },
 };
 

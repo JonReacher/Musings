@@ -340,6 +340,7 @@ export const BUILDERS = {
     poolShell(g, circlePts(R, 56), H, p.style, true);
     if (p.ladder !== false) poolLadder(g, 0, R, H);
     if (p.pump !== false) { B(g, 1.2, 1.1, 1.0, std('#2e3d4f', { roughness: 0.5 }), R * 0.72, 0, R * 0.72 + 0.8, { ry: PI / 4 }); }
+    if (p.floats) floatsHook(g, R, H);
     return g;
   },
   pool_oval(p) {
@@ -347,7 +348,8 @@ export const BUILDERS = {
     const { w, d, h } = p;
     const outline = p.shape === 'rectangle' ? roundedRectPts(w, d, 0.4, 2) : stadium(w, d, 14);
     poolShell(g, outline, h, p.style, false);
-    poolLadder(g, 0, d / 2, h, w > d ? 0 : 0);
+    if (w >= d) poolLadder(g, 0, d / 2, h, 0); else poolLadder(g, w / 2, 0, h, Math.PI / 2);
+    if (p.floats) floatsHook(g, Math.min(w, d) * 0.3, h);
     return g;
   },
   stock_tank(p) {
@@ -1065,13 +1067,17 @@ export const BUILDERS = {
   },
 };
 
+// set by models_more.js (avoids a circular import)
+let floatsHook = () => {};
+export function setFloatsHook(fn) { floatsHook = fn; }
+
 // ---------------- shared sub-builders ----------------
 let _water;
 export function waterMat() {
   if (!_water) _water = new THREE.MeshStandardMaterial({ color: '#ffffff', map: tex('water'), roughness: 0.08, metalness: 0.0, transparent: true, opacity: 0.9, emissive: '#0a3550', emissiveIntensity: 0.25 });
   return _water;
 }
-function poolShell(g, outline, H, style = 'gray', round = true) {
+export function poolShell(g, outline, H, style = 'gray', round = true) {
   const wallCol = { gray: '#8e9498', blue: '#2f5f99', resin: '#d8cfbf', wood: '#7a5a3e', white: '#e8e8e4' }[style] || '#8e9498';
   const wallM = style === 'wood' ? std('#ffffff', { map: tex('deck', 'walnut'), side: DS }) : std(wallCol, { roughness: 0.55, metalness: style === 'gray' ? 0.35 : 0.1, side: DS });
   const liner = std('#5db4dc', { roughness: 0.6, side: DS });
@@ -1102,9 +1108,9 @@ function poolShell(g, outline, H, style = 'gray', round = true) {
     acc += seg;
   }
 }
-function poolLadder(g, x, z, H) {
+export function poolLadder(g, x, z, H, ry = 0) {
   const m = std('#cfd2d4', { metalness: 0.6, roughness: 0.35 });
-  const l = new THREE.Group(); l.position.set(x, 0, z); g.add(l);
+  const l = new THREE.Group(); l.position.set(x, 0, z); l.rotation.y = ry; g.add(l);
   for (const s of [-1, 1]) {
     beam(l, [s * 0.9, 0, 2.2], [s * 0.9, H + 1.2, 0.0], 0.15, m, true);
     beam(l, [s * 0.9, 0, -2.0], [s * 0.9, H + 1.2, 0.0], 0.15, m, true);
