@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { app, fmtFt, parseFt, polyArea, polyLength } from './core.js';
 import { S, applySun, buildContext, bearingToWorld } from './scene.js';
-import { E, on, emit, select, getItem, makeItem, addItem, updateItem, removeItem, duplicateItem, startDraw, cancelDraw, finishDraw, undoDrawPoint, startMeasure, stopMeasure, clearMeasures, undo, redo, commit, nudge, rotateSelected, clearances, itemStats, groundPoint, footprint, refreshGizmo } from './editor.js';
+import { E, on, emit, select, getItem, makeItem, addItem, updateItem, removeItem, duplicateItem, startDraw, cancelDraw, finishDraw, undoDrawPoint, startMeasure, stopMeasure, clearMeasures, undo, redo, commit, nudge, rotateSelected, clearances, itemStats, groundPoint, footprint, refreshGizmo, setItems, setMoveLock } from './editor.js';
 import { TYPES, CATEGORIES, defaultsOf } from './catalog.js';
 import { SURFACES } from './models_items.js';
-import { setView, flyTo, PHOTO_POSES, fitPhotoFov, focusItem, isTyping, refreshRoofs } from './views.js';
+import { setView, flyTo, PHOTO_POSES, fitPhotoFov, focusItem, isTyping, refreshRoofs, viewFov, setViewFov, FOV_DEFAULT } from './views.js';
+import { arrange, countOverlaps } from './arrange.js';
+import { buildBom, unitPrice, totals, money } from './bom.js';
 import { thumb } from './thumbs.js';
 import { store, currentLayout, syncCurrent, switchLayout, newLayout, duplicateLayout, renameLayout, deleteLayout, exportLayouts, importLayouts, addExampleLayouts, saveSoon, canPersist } from './store.js';
 
@@ -50,17 +52,77 @@ export function initUI() {
   on('commit', () => { syncCurrent(); updateUndo(); if (!app.selectedId) renderInspector(); });
   on('mode', () => { updateHint(); $('#measureBtn').classList.toggle('on', E.mode === 'measure'); });
   on('drawProgress', updateHint);
-  on('view', (v) => { $$('.seg button[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v)); updateHint(); });
+  on('view', (v) => { $$('.seg button[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v)); updateHint(); syncFov(); });
+  on('moveLock', applyLockUI);
+  on('lockedOut', () => toast('Moves are locked. Press L or the lock button to unlock.'));
   on('layouts', () => { updateLayoutBtn(); renderInspector(); });
   on('cursor', (p) => {
     const el = $('#cursorpos');
     if (p.z < -1 || p.z > 50 || p.x < -11.5 || p.x > 40) { el.textContent = ''; return; }
-    el.textContent = `${fmtFt(Math.max(0, p.z))} out from the house, ${fmtFt(Math.max(0, p.x + 11.5))} from the right fence`;
+    el.textContent = `${fmtFt(Math.max(0, p.z))} out from house, ${fmtFt(Math.max(0, p.x + 11.5))} from right fence`;
   });
   updateLayoutBtn();
   updateUndo();
+  setMoveLock(!!app.settings.moveLock);
+  applyLockUI();
   updateHint();
   updateTimeUI();
+  syncFov();
+}
+
+// ---------------- move lock ----------------
+function applyLockUI() {
+  const b = $('#lockBtn');
+  b.classList.toggle('on', E.moveLock);
+  b.setAttribute('aria-pressed', String(E.moveLock));
+  b.querySelector('span').textContent = E.moveLock ? 'Moves locked' : 'Lock moves';
+  b.title = E.moveLock ? 'Moving is locked: dragging only moves the camera. Click to unlock (L)' : 'Lock moving so dragging only moves the camera (L)';
+  $('#lockShackle').setAttribute('d', E.moveLock ? 'M8 11V7a4 4 0 0 1 8 0v4' : 'M8 11V7a4 4 0 0 1 7.7-1.5');
+  document.body.classList.toggle('move-locked', E.moveLock);
+  updateHint();
+}
+function toggleMoveLock() {
+  setMoveLock(!E.moveLock);
+  app.settings.moveLock = E.moveLock;
+  saveSoon();
+  toast(E.moveLock ? 'Moves locked. Drag anywhere to look around.' : 'Moves unlocked');
+}
+
+// ---------------- field of view ----------------
+function syncFov() {
+  const box = $('#fovBox');
+  if (!box) return;
+  const off = S.camMode === 'plan' || S.camMode === 'photo';
+  box.classList.toggle('off', off);
+  $('#fovRange').disabled = off;
+  const v = Math.round(off ? viewFov('orbit') : viewFov());
+  $('#fovRange').value = v;
+  $('#fovVal').textContent = v + '°';
+  box.title = off ? 'Field of view works in the 3D and walk views' : `Field of view for the ${S.camMode === 'walk' ? 'walk' : '3D'} view. Lower is like a zoom lens, higher is wide-angle. Double-click to reset.`;
+}
+
+// ---------------- auto-arrange ----------------
+let arrangeSeed = 0;
+function buildArrangeMenu() {
+  const m = $('#arrangeMenu');
+  m.innerHTML = '';
+  const n = app.items.filter((i) => !i.existing).length;
+  const overlaps = n ? countOverlaps() : 0;
+  m.append(h('div', { class: 'mh' }, !n ? 'Add a few things first, then come back here.' : overlaps ? `${overlaps} of your additions ${overlaps === 1 ? 'is' : 'are'} crowding something` : 'Nothing is overlapping right now'));
+  const mi = (label, sub, fn, dis) => m.append(h('button', { class: 'mi', role: 'menuitem', disabled: dis, style: dis ? 'opacity:.45' : null, onclick: () => { if (dis) return; closeMenus(); fn(); } }, h('span', { class: 'tick' }), h('span', { class: 'tx' }, label, h('small', {}, sub))));
+  mi('Fix overlaps', 'Moves only what collides, by as little as it can', () => runArrange('fix'), !n || !overlaps);
+  mi('Try a new arrangement', 'Lays everything out again. Click again for another idea.', () => runArrange('new'), !n);
+  m.append(h('hr'), h('div', { class: 'mh', style: 'max-width:300px' }, 'Things on a patio, rug or bed move with it. Fences, paths, string lights and anything locked stay put. Undo puts it all back.'));
+}
+function runArrange(mode) {
+  if (E.mode === 'draw') cancelDraw();
+  if (E.mode === 'measure') stopMeasure();
+  const res = arrange(mode, mode === 'new' ? ++arrangeSeed : 1);
+  if (!res.moved) { toast(mode === 'fix' ? 'Everything already has room' : 'Nothing could be moved'); return; }
+  setItems(res.items);
+  commit();
+  const miss = res.unplaced.length ? ` ${res.unplaced.map(typeName).slice(0, 2).join(' and ')}${res.unplaced.length > 2 ? ' and others' : ''} didn’t fit, so ${res.unplaced.length === 1 ? 'it stayed' : 'they stayed'} put.` : '';
+  toast(mode === 'fix' ? `Moved ${res.moved} thing${res.moved === 1 ? '' : 's'} so nothing overlaps.${miss}` : `New arrangement ${arrangeSeed}. Click Arrange again for another.${miss}`);
 }
 
 // ---------------- catalog ----------------
@@ -123,7 +185,7 @@ function addFromCatalog(type, at) {
   const [x, z] = at || viewCenterGround();
   const it = makeItem(type, { x, z });
   addItem(it);
-  toast(`Added ${t.name.toLowerCase()}. Drag it where you want it.`);
+  toast(E.moveLock ? `Added ${t.name.toLowerCase()}. Unlock moves (L) to drag it into place.` : `Added ${t.name.toLowerCase()}. Drag it where you want it.`);
 }
 function wireDrop() {
   const stage = $('#stage');
@@ -200,13 +262,13 @@ function renderInspector() {
     if (t.kind === 'box') {
       const deg = Math.round((((it.rot || 0) * 180) / Math.PI % 360 + 360) % 360);
       sz.append(h('div', { class: 'row' }, h('label', {}, 'Rotation'), h('div', { class: 'ctl' },
-        h('button', { class: 'btn outline', title: 'Rotate 15° left (Shift+R)', 'aria-label': 'Rotate 15° left', onclick: () => rotateSelected(-15) }, '⟲'),
+        h('button', { class: 'btn outline', title: 'Rotate 15° left (Shift+R)', 'aria-label': 'Rotate 15° left', onclick: () => rotateSelected(-15, { force: true }) }, '⟲'),
         h('input', { class: 'field', value: deg + '°', 'aria-label': 'Rotation in degrees', style: 'text-align:center', onchange: (ev) => { const v = parseFloat(ev.target.value); if (!isNaN(v)) updateItem(it.id, { rot: (v * Math.PI) / 180 }, { rebuild: false, c: true }); } }),
-        h('button', { class: 'btn outline', title: 'Rotate 15° right (R)', 'aria-label': 'Rotate 15° right', onclick: () => rotateSelected(15) }, '⟳'))));
+        h('button', { class: 'btn outline', title: 'Rotate 15° right (R)', 'aria-label': 'Rotate 15° right', onclick: () => rotateSelected(15, { force: true }) }, '⟳'))));
     } else {
       sz.append(h('div', { class: 'row' }, h('label', {}, 'Turn'), h('div', { class: 'ctl' },
-        h('button', { class: 'btn outline', onclick: () => rotateSelected(-15) }, '⟲ 15°'),
-        h('button', { class: 'btn outline', onclick: () => rotateSelected(15) }, '⟳ 15°'))));
+        h('button', { class: 'btn outline', onclick: () => rotateSelected(-15, { force: true }) }, '⟲ 15°'),
+        h('button', { class: 'btn outline', onclick: () => rotateSelected(15, { force: true }) }, '⟳ 15°'))));
     }
   }
   body.append(sz);
@@ -227,7 +289,7 @@ function renderInspector() {
   body.append(h('div', { class: 'actions' },
     h('button', { class: 'btn outline', onclick: () => duplicateItem(it.id), title: 'Ctrl+D' }, 'Duplicate'),
     h('button', { class: 'btn outline', onclick: () => focusItem(it), title: 'F' }, 'Zoom to'),
-    h('button', { class: 'btn outline', onclick: () => { updateItem(it.id, { locked: true }, { rebuild: false, c: true }); } }, 'Lock'),
+    h('button', { class: 'btn outline', title: 'Lock just this item in place', onclick: () => { updateItem(it.id, { locked: true }, { rebuild: false, c: true }); } }, 'Lock in place'),
     h('button', { class: 'btn outline danger', onclick: () => removeItem(it.id), title: 'Delete' }, 'Remove')));
   const sc = ins.querySelector('.scroll'); if (sc) sc.scrollTop = scrollTop;
 }
@@ -284,6 +346,7 @@ function renderOverview(ins) {
   };
   if (added.length) body.append(h('div', { class: 'sect' }, h('h3', {}, 'In this layout'), h('div', { class: 'list', style: 'padding:0' }, added.map(row))));
   body.append(totalsSection(added));
+  body.append(costSection());
   body.append(h('div', { class: 'sect' }, h('h3', {}, 'Your yard today'), h('div', { class: 'list', style: 'padding:0' }, existing.map(row))));
   body.append(h('div', { class: 'note' }, 'Measured from your photos and your 29 × 10 ft patio, so the fence lines, shed and patio roof are close estimates. Unlock any of them to nudge it into place.'));
   if (store.layouts.length > 1 && !added.length) body.prepend(h('div', { class: 'note', style: 'border-style:solid;color:var(--bark)' }, `There ${store.layouts.length === 2 ? 'is 1 more layout' : 'are ' + (store.layouts.length - 1) + ' more layouts'} in the layout menu at the top left, including example ideas to pull apart and remix.`));
@@ -324,6 +387,107 @@ function totalsSection(added) {
   return h('div', { class: 'sect' }, h('h3', {}, 'Materials, roughly'), box);
 }
 
+function costSection() {
+  const bom = buildBom(app.items);
+  if (!bom.length) return h('div', {});
+  const st = app.settings;
+  const mode = st.estMode || 'diy';
+  const cont = st.contingency ?? 10;
+  const tot = totals(bom, mode, st.prices || {});
+  const box = h('div', { class: 'est-sum' });
+  for (const g of bom) box.append(h('span', {}, g.name), h('span', {}, money(tot.byCat[g.cat])));
+  box.append(h('span', { class: 'tot' }, `Total with ${cont}% extra`), h('span', { class: 'tot' }, money(tot.total * (1 + cont / 100))));
+  return h('div', { class: 'sect' }, h('h3', {}, mode === 'diy' ? 'Cost if you do it yourself' : 'Cost if you hire it out'), box,
+    h('button', { class: 'btn outline', style: 'width:100%;justify-content:center;margin-top:10px', onclick: showEstimate }, 'Open the full estimate'));
+}
+
+// ---------------- estimate ----------------
+const fmtQty = (q) => (Number.isInteger(q) ? q.toLocaleString('en-US') : String(Math.round(q * 100) / 100));
+const fmtPrice = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(2));
+function showEstimate() {
+  closeMenus();
+  $('#modalCard').className = 'card wide';
+  renderEstimate();
+  $('#modal').classList.add('open');
+}
+function renderEstimate() {
+  const c = $('#modalCard');
+  const keepScroll = c.querySelector('.est-body')?.scrollTop || 0;
+  const st = app.settings;
+  st.prices ||= {};
+  const mode = st.estMode || 'diy';
+  const cont = st.contingency ?? 10;
+  const bom = buildBom(app.items);
+  const tot = totals(bom, mode, st.prices);
+  const grand = tot.total * (1 + cont / 100);
+  const L = currentLayout();
+  const nItems = bom.reduce((n, g) => n + g.entries.reduce((m, e) => m + (e.item ? e.count : 0), 0), 0);
+  const lname = L ? L.name.replace(/^Idea: (.)/, (m, ch) => ch.toUpperCase()) : 'This layout';
+  const edited = Object.keys(st.prices).length;
+  c.innerHTML = '';
+  c.append(h('div', { class: 'est-h' },
+    h('h2', {}, 'Cost estimate'),
+    h('p', {}, `${lname}, ${nItems} item${nItems === 1 ? '' : 's'}. Typical US prices before tax and delivery, so treat it as a ballpark. Click any unit price to use your own quote; it applies to every layout.`),
+    h('div', { class: 'est-total' }, h('b', {}, money(grand)), h('span', {}, `${mode === 'diy' ? 'doing it yourself' : 'hired out, installed'}, with ${cont}% extra`))));
+  const seg = h('div', { class: 'seg' }, [['diy', 'Do it yourself'], ['pro', 'Hired out']].map(([v, l]) => h('button', { class: mode === v ? 'on' : '', onclick: () => { st.estMode = v; saveSoon(); renderEstimate(); renderInspector(); } }, l)));
+  c.append(h('div', { class: 'est-bar' }, seg, h('span', { class: 'grow' }),
+    edited ? h('button', { class: 'btn outline', onclick: () => { st.prices = {}; saveSoon(); renderEstimate(); renderInspector(); toast('Back to the standard prices'); } }, `Reset ${edited} edited price${edited === 1 ? '' : 's'}`) : null,
+    h('button', { class: 'btn outline', disabled: !bom.length, onclick: () => downloadCsv(bom, mode, cont) }, 'Download CSV'),
+    h('button', { class: 'btn solid', onclick: () => $('#modal').classList.remove('open') }, 'Done')));
+  const body = h('div', { class: 'est-body' });
+  if (!bom.length) body.append(h('div', { class: 'empty', style: 'padding:28px 0' }, 'Nothing to price yet. Add things from the catalog and they’ll show up here with quantities and costs.'));
+  for (const g of bom) {
+    const tb = h('table', { class: 'est' }, h('colgroup', {}, ['27%', '33%', '12%', '16%', '12%'].map((w) => h('col', { style: `width:${w}` }))));
+    for (const e of g.entries) {
+      e.lines.forEach((l, i) => {
+        const k = mode + ':' + l.key;
+        const v = unitPrice(l, mode, st.prices);
+        const inp = h('input', { class: 'price' + (k in st.prices ? ' edited' : ''), value: fmtPrice(v), 'aria-label': `Unit price for ${l.label}`, inputmode: 'decimal',
+          onkeydown: (ev) => { if (ev.key === 'Enter') ev.target.blur(); },
+          onchange: (ev) => {
+            const n = parseFloat(ev.target.value.replace(/[$,\s]/g, ''));
+            const def = mode === 'diy' ? l.diy : l.pro;
+            if (isNaN(n) || n < 0) { ev.target.value = fmtPrice(v); return; }
+            if (Math.abs(n - def) < 0.005) delete st.prices[k]; else st.prices[k] = Math.round(n * 100) / 100;
+            saveSoon(); renderEstimate(); renderInspector();
+          } });
+        const nm = e.name + (e.count > 1 ? ` (${e.count})` : '');
+        const solo = e.lines.length === 1 && l.label.toLowerCase().startsWith(e.name.toLowerCase());
+        tb.append(h('tr', { class: i === 0 ? 'first' : '' },
+          solo ? h('td', { class: 'it', colspan: 2 }, l.label) : h('td', { class: 'it' }, i === 0 ? nm : ''),
+          solo ? null : h('td', { class: 'part' }, l.label),
+          h('td', { class: 'num' }, `${fmtQty(l.qty)} ${l.unit}`),
+          h('td', { class: 'num pc' }, h('span', {}, '$'), inp, h('span', { class: 'per' }, l.unit === 'each' ? 'each' : `/ ${l.unit.replace('lin ft', 'ft')}`)),
+          h('td', { class: 'num' }, money(l.qty * v))));
+      });
+    }
+    body.append(h('div', { class: 'est-cat' }, h('div', { class: 'est-cat-h' }, h('h3', {}, g.name), h('span', {}, money(tot.byCat[g.cat]))), tb));
+  }
+  c.append(body);
+  const contIn = h('input', { value: cont, 'aria-label': 'Extra for surprises, percent', onchange: (ev) => { const v = parseFloat(ev.target.value); if (!isNaN(v) && v >= 0 && v <= 100) { st.contingency = v; saveSoon(); } renderEstimate(); renderInspector(); } });
+  c.append(h('div', { class: 'est-foot' },
+    h('span', {}, 'Subtotal'), h('span', {}, money(tot.total)),
+    h('span', {}, 'Extra for surprises, waste and small parts ', contIn, ' %'), h('span', {}, money(tot.total * cont / 100)),
+    h('span', { class: 'big' }, 'Total'), h('span', { class: 'big' }, money(grand))));
+  body.scrollTop = keepScroll;
+}
+function downloadCsv(bom, mode, cont) {
+  const st = app.settings;
+  const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = [['Category', 'Item', 'Material or part', 'Quantity', 'Unit', 'Unit price', 'Line total']];
+  let sub = 0;
+  for (const g of bom) for (const e of g.entries) for (const l of e.lines) { const v = unitPrice(l, mode, st.prices || {}); sub += l.qty * v; rows.push([g.name, e.name + (e.count > 1 ? ` (${e.count})` : ''), l.label, l.qty, l.unit, v.toFixed(2), (l.qty * v).toFixed(2)]); }
+  rows.push([], ['', '', 'Subtotal', '', '', '', sub.toFixed(2)], ['', '', `Extra (${cont}%)`, '', '', '', (sub * cont / 100).toFixed(2)], ['', '', 'Total', '', '', '', (sub * (1 + cont / 100)).toFixed(2)], ['', '', mode === 'diy' ? 'Do-it-yourself prices' : 'Hired-out prices']);
+  const csv = rows.map((r) => r.map(q).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  const L = currentLayout();
+  a.download = `${(L ? L.name.replace(/^Idea: /, '') : 'backyard').replace(/[^\w\- ]+/g, '').trim() || 'backyard'} estimate.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('Saved the estimate as a CSV');
+}
+
 // ---------------- hint bar ----------------
 function updateHint() {
   const el = $('#hint');
@@ -344,6 +508,10 @@ function updateHint() {
   if (S.camMode === 'walk') { el.innerHTML = `<span><b>Walking.</b> ${k('W')}${k('A')}${k('S')}${k('D')} to move, drag to look around, scroll to step.</span>`; return; }
   if (S.camMode === 'photo') { el.innerHTML = ''; return; }
   const it = getItem(app.selectedId);
+  if (it && !it.locked && E.moveLock) {
+    el.append(h('span', { html: `<b>Moves are locked.</b> Dragging only moves the camera. Sizes and options on the right still work.` }), h('button', { onclick: toggleMoveLock }, 'Unlock'));
+    return;
+  }
   if (it && !it.locked) {
     const t = TYPES[it.type];
     if (t.kind === 'box') el.innerHTML = `<span>Drag to move. Gold handles resize${t.noRotate ? '' : ', the white ring rotates'}. ${k('R')} turns 15°, ${k('Del')} removes, hold ${k('Alt')} to skip snapping.</span>`;
@@ -363,8 +531,8 @@ function openMenu(menu, anchor) {
   if (was) return;
   const r = anchor.getBoundingClientRect();
   menu.classList.add('open');
-  const mw = menu.offsetWidth;
-  menu.style.top = r.bottom + 6 + 'px';
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.top = (r.bottom + 6 + mh > window.innerHeight - 8 ? Math.max(8, r.top - mh - 6) : r.bottom + 6) + 'px';
   menu.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.left)) + 'px';
 }
 function buildLayoutMenu() {
@@ -379,6 +547,7 @@ function buildLayoutMenu() {
   mi('New layout from the yard as it is', () => { newLayout(); toast('New layout started'); });
   mi('Duplicate this layout', () => { duplicateLayout(); toast('Copied. Changes here won’t touch the original.'); });
   mi('Rename this layout…', () => promptRename());
+  mi('Cost estimate…', showEstimate);
   mi('Delete this layout', () => { if (store.layouts.length < 2) { toast('Keep at least one layout'); return; } const name = currentLayout().name; if (confirm(`Delete “${name}”? This can’t be undone.`)) { deleteLayout(); toast(`Deleted ${name}`); } });
   m.append(h('hr'));
   mi('Export layouts to a file', () => { exportLayouts(); toast('Saved backyard-layouts.json'); });
@@ -399,6 +568,8 @@ function buildViewsMenu() {
   mi('Standing on the patio', () => flyTo('patio'));
   mi('From the back fence', () => flyTo('back'));
   mi('From the left side', () => flyTo('left'));
+  mi('From the right side', () => flyTo('right'));
+  mi('Straight down', () => flyTo('above'));
   m.append(h('hr'));
   mi('Walk from the back door', () => setView('walk', { pos: [15, 5.4, 2], yaw: 0 }));
   mi('Top-down plan', () => setView('plan'));
@@ -436,7 +607,12 @@ function wireTopbar() {
   $('#layoutBtn').addEventListener('click', (ev) => { buildLayoutMenu(); openMenu($('#layoutMenu'), ev.currentTarget); });
   $('#viewsBtn').addEventListener('click', (ev) => { buildViewsMenu(); openMenu($('#viewsMenu'), ev.currentTarget); });
   $('#settingsBtn').addEventListener('click', (ev) => { buildSettings(); openMenu($('#settingsPop'), ev.currentTarget); const p = $('#settingsPop'); p.style.left = Math.min(window.innerWidth - p.offsetWidth - 10, ev.currentTarget.getBoundingClientRect().right - p.offsetWidth) + 'px'; });
-  document.addEventListener('pointerdown', (ev) => { if (!ev.target.closest('.menu') && !ev.target.closest('#layoutBtn,#viewsBtn,#settingsBtn')) closeMenus(); });
+  document.addEventListener('pointerdown', (ev) => { if (!ev.target.closest('.menu') && !ev.target.closest('#layoutBtn,#viewsBtn,#settingsBtn,#arrangeBtn')) closeMenus(); });
+  $('#arrangeBtn').addEventListener('click', (ev) => { buildArrangeMenu(); openMenu($('#arrangeMenu'), ev.currentTarget); });
+  $('#lockBtn').addEventListener('click', toggleMoveLock);
+  $('#costBtn').addEventListener('click', showEstimate);
+  $('#fovRange').addEventListener('input', (ev) => { setViewFov(+ev.target.value); $('#fovVal').textContent = ev.target.value + '°'; saveSoon(); });
+  $('#fovBox').addEventListener('dblclick', () => { setViewFov(S.camMode === 'walk' ? FOV_DEFAULT.walk : FOV_DEFAULT.orbit); syncFov(); saveSoon(); });
   $('#undoBtn').addEventListener('click', undo);
   $('#redoBtn').addEventListener('click', redo);
   $$('.seg button[data-view]').forEach((b) => b.addEventListener('click', () => { if (E.mode === 'draw' && b.dataset.view === 'walk') cancelDraw(); setView(b.dataset.view); }));
@@ -489,10 +665,15 @@ function showHelp() {
     ['<kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>', '3D, plan and walk views'],
     ['<kbd>M</kbd>', 'Measure between two points'],
     ['<kbd>G</kbd>', 'Show the 1 ft grid'],
+    ['<kbd>L</kbd>', 'Lock moving, so dragging only moves the camera'],
+    ['Arrange', 'Spread out what you’ve added so nothing overlaps, or try a fresh layout of the same things'],
+    ['FOV slider', 'Narrow or widen the camera lens; double-click it to reset'],
+    ['Estimate', 'Materials list and rough cost by category, with your own prices'],
     ['<kbd>F</kbd>', 'Zoom to the selected item'],
     ['<kbd>Esc</kbd>', 'Deselect, or stop drawing or measuring'],
     ['Mouse in 3D', 'Drag empty ground to orbit, right-drag to pan, scroll to zoom'],
   ];
+  c.className = 'card';
   c.innerHTML = '';
   c.append(h('h2', {}, 'Getting around'),
     h('p', {}, 'Left and right mean as seen standing on your patio looking out. Your layouts save in this browser as you go; use Export in the layout menu to keep a copy or move them to another computer.'),
@@ -558,6 +739,7 @@ function wireKeys() {
     if (k === 'f' || k === 'F') { focusItem(getItem(app.selectedId)); return; }
     if (k === 'm' || k === 'M') { E.mode === 'measure' ? stopMeasure() : startMeasure(); return; }
     if (k === 'g' || k === 'G') { toggleGrid(); return; }
+    if (k === 'l' || k === 'L') { toggleMoveLock(); return; }
     if (k === '1') setView('orbit'); if (k === '2') setView('plan'); if (k === '3') setView('walk');
     if (k.startsWith('Arrow') && app.selectedId && S.camMode !== 'walk') {
       ev.preventDefault();
