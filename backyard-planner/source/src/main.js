@@ -10,6 +10,10 @@ import { applySettings } from './ui.js';
 import { initUI, setPhotos, wirePhotoBar, updateCompass, layoutPhotoOverlay } from './ui.js';
 import { thumb } from './thumbs.js';
 import { TYPES } from './catalog.js';
+import { updateScreens } from './models_more.js';
+import { arrange, countOverlaps } from './arrange.js';
+import { buildBom, totals } from './bom.js';
+import { setMoveLock, makeItem, commit } from './editor.js';
 
 function readAssets() {
   try { return JSON.parse(document.getElementById('assets').textContent); } catch (e) { return { photos: [], fence: null }; }
@@ -58,6 +62,7 @@ async function boot() {
     updateWalk(dt);
     tick(t);
     updateCompass();
+    updateScreens();
     render(t);
     requestAnimationFrame(loop);
   };
@@ -67,7 +72,7 @@ async function boot() {
     document.getElementById('loading').classList.add('done');
     setTimeout(() => flyTo('overview', 1600), 150);
   });
-  window.__yard = { app, S, store, switchLayout, setView, applySettings, select, E, flyTo, thumbAll: () => Promise.all(Object.keys(TYPES).map((t) => new Promise((res) => thumb(t, (u) => res([t, u]))))) };
+  window.__yard = { app, S, store, switchLayout, setView, applySettings, select, E, flyTo, arrange, countOverlaps, buildBom, totals, setMoveLock, makeItem, setItems, commit, TYPES, thumbAll: () => Promise.all(Object.keys(TYPES).map((t) => new Promise((res) => thumb(t, (u) => res([t, u]))))) };
 }
 
 boot().catch((e) => {

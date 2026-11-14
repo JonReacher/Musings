@@ -33,13 +33,13 @@ export function setView(mode, opts = {}) {
     S.camera = S.persp;
   }
   if (mode === 'orbit') {
-    S.persp.fov = 50; S.persp.updateProjectionMatrix();
+    S.persp.fov = viewFov('orbit'); S.persp.updateProjectionMatrix();
     if (opts.pos) { S.persp.position.set(...opts.pos); S.controls.target.set(...opts.target); }
     else if (saved.orbit && prev !== 'orbit') { S.persp.position.copy(saved.orbit.pos); S.controls.target.copy(saved.orbit.target); }
     S.controls.update();
   }
   if (mode === 'walk') {
-    S.persp.fov = 62; S.persp.updateProjectionMatrix();
+    S.persp.fov = viewFov('walk'); S.persp.updateProjectionMatrix();
     const start = opts.pos || [14.5, 5.4, 8.5];
     S.persp.position.set(start[0], start[1], start[2]);
     walk.yaw = opts.yaw ?? 0; walk.pitch = -0.08;
@@ -54,6 +54,18 @@ export function setView(mode, opts = {}) {
     fitPhotoFov();
   }
   emit('view', mode);
+}
+// Field of view: one setting for the 3D view and one for walking, both adjustable from the toolbar
+export const FOV_DEFAULT = { orbit: 50, walk: 65 };
+export function viewFov(mode = S.camMode) {
+  const st = app.settings || {};
+  const key = mode === 'walk' ? 'fovWalk' : 'fov';
+  return Math.max(20, Math.min(110, st[key] || FOV_DEFAULT[mode === 'walk' ? 'walk' : 'orbit']));
+}
+export function setViewFov(v) {
+  if (S.camMode !== 'orbit' && S.camMode !== 'walk') return;
+  app.settings[S.camMode === 'walk' ? 'fovWalk' : 'fov'] = Math.round(v);
+  S.persp.fov = viewFov(); S.persp.updateProjectionMatrix();
 }
 export function fitPhotoFov() {
   const w = S.container.clientWidth, h = S.container.clientHeight;
@@ -116,11 +128,14 @@ export function updateWalk(dt) {
 }
 
 // Camera presets for the 3D view
+// Eye height is 5.5 ft; the patio slab sits about 6 in above the lawn.
 export const PRESETS = {
   overview: { pos: [9, 72, 76], target: [14, 0, 22] },
-  patio: { pos: [14.5, 14, -6], target: [14.5, 0, 30] },
-  back: { pos: [14, 18, 74], target: [14, 2, 14] },
-  left: { pos: [62, 30, 26], target: [12, 0, 22] },
+  patio: { pos: [14.5, 6.1, 4.5], target: [14.5, 3.2, 30] },
+  back: { pos: [14, 24, 66], target: [14, 1, 18] },
+  left: { pos: [64, 30, 30], target: [14, 0, 24] },
+  right: { pos: [-36, 30, 34], target: [14, 0, 22] },
+  above: { pos: [14.2, 110, 22.4], target: [14.2, 0, 22] },
 };
 export function flyTo(preset, ms = 700) {
   const p = PRESETS[preset] || preset;

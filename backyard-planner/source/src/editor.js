@@ -3,7 +3,8 @@ import { app, uid, hashStr, optimize, disposeObject, fmtFt, polyArea, polyLength
 import { S } from './scene.js';
 import { TYPES, buildFor, defaultsOf } from './catalog.js';
 
-export const E = { mode: 'select', drag: null, draw: null, measures: [], history: [], hIndex: -1, snap: 0.5, angleSnap: 15 };
+export const E = { mode: 'select', drag: null, draw: null, measures: [], history: [], hIndex: -1, snap: 0.5, angleSnap: 15, moveLock: false };
+export function setMoveLock(v) { E.moveLock = !!v; if (E.drag) { E.drag = null; setControls(true); } refreshGizmo(); emit('moveLock', E.moveLock); }
 const listeners = {};
 export function on(evt, fn) { (listeners[evt] ||= []).push(fn); }
 export function emit(evt, data) { (listeners[evt] || []).forEach((f) => f(data)); }
@@ -247,17 +248,18 @@ export function refreshGizmo() {
     if (it.locked) { labels.set('sel-name', [it.x, y, it.z], '🔒 ' + (it.name || t.name), 'lbl lbl-lock'); return; }
     const c = Math.cos(it.rot || 0), s = Math.sin(it.rot || 0);
     const tf = (lx, lz) => [it.x + lx * c + lz * s, it.z - lx * s + lz * c];
-    if (t.resize === 'wd' || t.resize === 'w') {
+    const live = !E.moveLock; // the move lock hides handles so nothing can be grabbed by accident
+    if (live && (t.resize === 'wd' || t.resize === 'w')) {
       for (const side of t.resize === 'w' ? ['+x', '-x'] : ['+x', '-x', '+z', '-z']) {
         const [lx, lz] = side === '+x' ? [it.w / 2, 0] : side === '-x' ? [-it.w / 2, 0] : side === '+z' ? [0, it.d / 2] : [0, -it.d / 2];
         const [x, z] = tf(lx, lz);
         addHandle(boxHandleGeo, handleMat, x, y, z, { kind: 'edge', side });
       }
-    } else if (t.resize === 'diam') {
+    } else if (live && t.resize === 'diam') {
       const [x, z] = tf(it.w / 2, 0);
       addHandle(boxHandleGeo, handleMat, x, y, z, { kind: 'diam' });
     }
-    if (!t.noRotate) {
+    if (!t.noRotate && live) {
       const off = it.d / 2 + 2.2;
       const [x, z] = tf(0, off);
       const [ex, ez] = tf(0, it.d / 2);
@@ -280,8 +282,8 @@ export function refreshGizmo() {
     const closed = t.kind === 'area';
     addLine(pts.map(([x, z]) => [x, y, z]), closed);
     if (it.locked) { const [cx, cz] = centroid(pts); labels.set('sel-name', [cx, y, cz], '🔒 ' + (it.name || t.name), 'lbl lbl-lock'); return; }
-    pts.forEach(([x, z], i) => addHandle(handleGeo, handleMat, x, y, z, { kind: 'vertex', i }, 0.42));
-    const n = closed ? pts.length : pts.length - 1;
+    if (!E.moveLock) pts.forEach(([x, z], i) => addHandle(handleGeo, handleMat, x, y, z, { kind: 'vertex', i }, 0.42));
+    const n = E.moveLock ? 0 : closed ? pts.length : pts.length - 1;
     for (let i = 0; i < n; i++) {
       const a = pts[i], b = pts[(i + 1) % pts.length];
       addHandle(handleGeo, handleMatMid, (a[0] + b[0]) / 2, y, (a[1] + b[1]) / 2, { kind: 'mid', i }, 0.3);
@@ -392,7 +394,7 @@ export function initPointer(dom) {
     if (h && it) { startHandleDrag(ev, it, h.userData.handle); return; }
     const hit = pickItem(ev);
     // big flat things (patios, beds, paths) only drag once selected, so they don't hijack orbiting
-    if (hit && !hit.locked && (app.selectedId === hit.id || !groundish(hit))) {
+    if (hit && !hit.locked && !E.moveLock && (app.selectedId === hit.id || !groundish(hit))) {
       if (app.selectedId !== hit.id) select(hit.id);
       const p = groundPoint(ev, 0);
       if (p) {
@@ -458,7 +460,7 @@ function hoverCursor(ev) {
   const h = pickHandle(ev);
   if (h) { dom.style.cursor = h.userData.handle.kind === 'rot' ? 'grab' : h.userData.handle.kind === 'edge' || h.userData.handle.kind === 'diam' ? 'ew-resize' : 'move'; return; }
   const it = pickItem(ev);
-  dom.style.cursor = it && !it.locked ? (it.id === app.selectedId ? 'move' : 'pointer') : '';
+  dom.style.cursor = it && !it.locked ? (it.id === app.selectedId && !E.moveLock ? 'move' : 'pointer') : '';
 }
 
 function startHandleDrag(ev, it, h) {
@@ -692,12 +694,14 @@ function drawMeasureOverlay() {
 export function nudge(dx, dz) {
   const it = getItem(app.selectedId);
   if (!it || it.locked) return;
+  if (E.moveLock) { emit('lockedOut'); return; }
   if (TYPES[it.type].kind === 'box') updateItem(it.id, { x: it.x + dx, z: it.z + dz }, { rebuild: false, c: true });
   else updateItem(it.id, { pts: it.pts.map(([x, z]) => [x + dx, z + dz]) }, { c: true });
 }
-export function rotateSelected(deg) {
+export function rotateSelected(deg, { force = false } = {}) {
   const it = getItem(app.selectedId);
   if (!it || it.locked || TYPES[it.type].noRotate) return;
+  if (E.moveLock && !force) { emit('lockedOut'); return; }
   if (TYPES[it.type].kind === 'box') updateItem(it.id, { rot: (it.rot || 0) + deg * Math.PI / 180 }, { rebuild: false, c: true });
   else {
     const [cx, cz] = centroid(it.pts); const a = -deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
