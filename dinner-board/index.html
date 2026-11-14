@@ -1,0 +1,1426 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Family Dinner Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: dinner library on the left, the week as seven cards, grocery run underneath.
+   Look: quiet neutral surfaces, one fresh-herb green accent, soft depth, generous radius. */
+:root{
+  --paper:#f4f5f3; --card:#ffffff; --ink:#15181a; --muted:#69707a; --line:#e4e6e3; --soft:#f0f2ef;
+  --accent:#1e7a55; --accent-ink:#ffffff; --mustard:#e09a1a; --costco:#2a63c4; --heb:#d0352b; --aldi:#d07a12; --wmt:#7454c4; --danger:#c8392b;
+  --c-tex:#d4553a; --c-asia:#16897f; --c-ital:#4f8f2f; --c-amer:#c98410; --c-comf:#9a6440;
+  --c-ind:#e0731b; --c-haw:#c24a85; --c-latin:#738a1f; --c-snack:#6a5cc0;
+  --shadow:0 1px 2px rgba(16,24,20,.04),0 4px 14px rgba(16,24,20,.06);
+  --shadow-lg:0 24px 60px rgba(16,24,20,.18);
+  --f-display:"Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-body:"Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --r:14px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0f1211; --card:#171b19; --ink:#eef1ee; --muted:#9aa39e; --line:#272d2a; --soft:#1d2220;
+  --accent:#4cc38a; --accent-ink:#06140d; --mustard:#f0b445; --costco:#7fa8f2; --heb:#f2796d; --aldi:#f2a54e; --wmt:#b39cf2; --danger:#f07a6a;
+  --c-tex:#f0866a; --c-asia:#4fc7bb; --c-ital:#93cc6c; --c-amer:#ecb34a; --c-comf:#d39b76;
+  --c-ind:#f49a50; --c-haw:#ec8abb; --c-latin:#bbcd5e; --c-snack:#aa9ef0;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25); --shadow-lg:0 24px 60px rgba(0,0,0,.55); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0f1211; --card:#171b19; --ink:#eef1ee; --muted:#9aa39e; --line:#272d2a; --soft:#1d2220;
+  --accent:#4cc38a; --accent-ink:#06140d; --mustard:#f0b445; --costco:#7fa8f2; --heb:#f2796d; --aldi:#f2a54e; --wmt:#b39cf2; --danger:#f07a6a;
+  --c-tex:#f0866a; --c-asia:#4fc7bb; --c-ital:#93cc6c; --c-amer:#ecb34a; --c-comf:#d39b76;
+  --c-ind:#f49a50; --c-haw:#ec8abb; --c-latin:#bbcd5e; --c-snack:#aa9ef0;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25); --shadow-lg:0 24px 60px rgba(0,0,0,.55); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:end;gap:12px 24px;max-width:1500px;margin:0 auto 18px}
+.top h1{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,4vw,40px);letter-spacing:-.02em;margin:0;line-height:1}
+.top .wk{color:var(--muted);font-size:14px;margin-top:6px}
+.top .grow{flex:1}
+.ctrls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--card)}
+.stepper button{border:0;background:none;width:34px;height:34px;font-size:18px;border-radius:999px}
+.stepper button:hover{background:color-mix(in oklab,var(--accent) 12%,transparent)}
+.stepper span{min-width:84px;text-align:center;font-size:14px}
+.totpill{background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:7px 16px;font-weight:700;display:flex;gap:8px;align-items:baseline}
+.totpill small{font-weight:400;opacity:.85}
+.ghost{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 14px;font-size:13px}
+.ghost:hover{border-color:var(--accent)}
+.ghost.warn{border-color:var(--danger);color:var(--danger)}
+
+/* main layout */
+.main{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;max-width:1500px;margin:0 auto}
+.board-wrap{min-width:0}
+.shelf{min-width:0}
+@media (min-width:1000px){
+  .main{grid-template-columns:300px minmax(0,1fr)}
+  .shelf{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);display:flex;flex-direction:column}
+}
+@media (max-width:999px){.shelf{order:2}.board-wrap{order:1}}
+
+/* shelf */
+.shelf .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);display:flex;flex-direction:column;min-height:0;flex:1}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;border:0;background:none;padding:12px 8px;font-weight:700;color:var(--muted);border-bottom:3px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--mustard)}
+.shelf .tools{display:flex;gap:8px;padding:10px}
+.shelf .tools input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--paper)}
+.newbtn{flex:none;border:0;background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:7px 12px;font-weight:700;font-size:13px;white-space:nowrap}
+.newbtn:hover{filter:brightness(1.08)}
+.copyfrom{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:12px;padding:10px;border-radius:8px;background:var(--paper);font-size:13px}
+.copyfrom label{font-weight:700}
+.copyfrom select{border:1px solid var(--line);border-radius:6px;background:var(--card);padding:4px 6px;max-width:100%}
+.copyfrom span{color:var(--muted);font-size:12px}
+.footbtns{display:flex;gap:8px}
+.dupbtn{border:1px solid var(--line);background:none;border-radius:7px;padding:6px 12px;font-size:13px}
+.dupbtn:hover{border-color:var(--accent);color:var(--accent)}
+.hint{font-size:12.5px;color:var(--muted);padding:0 12px 8px}
+.liblist{overflow:auto;padding:4px 10px 12px;display:flex;flex-direction:column;gap:6px;min-height:0;max-height:520px}
+@media (min-width:1000px){.liblist{max-height:none;flex:1}}
+.mcard{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;border:1px solid transparent;cursor:grab;user-select:none}
+.mcard:hover{border-color:var(--line);background:var(--paper)}
+.mcard.picked,.schip.picked{border-color:var(--mustard);background:color-mix(in oklab,var(--mustard) 14%,var(--card))}
+.tile{flex:none;width:40px;height:40px;border-radius:9px;display:grid;place-items:center;color:var(--hue);
+  background:color-mix(in oklab,var(--hue) 16%,var(--card))}
+.tile svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.mmeta{flex:1;min-width:0}
+.mname{font-weight:700;font-size:14px;line-height:1.25}
+.msub{font-size:12px;color:var(--muted)}
+.ibtn{flex:none;border:1px solid var(--line);background:var(--card);border-radius:6px;font-size:12px;padding:3px 8px;color:var(--muted)}
+.ibtn:hover{color:var(--accent);border-color:var(--accent)}
+.addnew{margin:4px 10px 12px;border:1px dashed var(--line);background:none;border-radius:8px;padding:8px;color:var(--muted);font-size:13px}
+.addnew:hover{border-color:var(--accent);color:var(--accent)}
+
+/* pick banner */
+.pickbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;
+  background:var(--ink);color:var(--paper);border-radius:999px;padding:9px 10px 9px 18px;display:flex;gap:12px;align-items:center;font-size:14px;
+  box-shadow:0 8px 30px rgba(0,0,0,.25);max-width:calc(100% - 32px)}
+.pickbar button{border:0;border-radius:999px;padding:5px 12px;background:var(--paper);color:var(--ink);font-size:13px}
+
+/* board */
+.sech{display:flex;align-items:baseline;gap:12px;margin:0 0 10px;flex-wrap:wrap}
+.sech h2{font-family:var(--f-display);font-weight:800;font-size:22px;margin:0;letter-spacing:-.01em}
+.sech .sub{color:var(--muted);font-size:13px}
+.board{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:560px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:860px){.board{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:1380px){.board{grid-template-columns:repeat(7,minmax(0,1fr))}}
+.day{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:8px;min-height:200px;transition:border-color .15s,background .15s}
+.day.today{border-top:4px solid var(--mustard);padding-top:7px}
+.day.over,.picking .day:hover{border-color:var(--accent);background:color-mix(in oklab,var(--accent) 7%,var(--card))}
+.picking .day{cursor:copy}
+.day header{display:flex;align-items:baseline;gap:6px}
+.dname{font-family:var(--f-display);font-weight:800;font-size:17px}
+.ddate{color:var(--muted);font-size:12.5px}
+.dcost{margin-left:auto;font-size:12.5px;color:var(--muted)}
+.entree{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;cursor:grab}
+.entree .ename{font-weight:700;font-size:14px;line-height:1.25}
+.eacts{grid-column:1/-1;display:flex;gap:6px}
+.xbtn{border:0;background:none;color:var(--muted);font-size:16px;line-height:1;padding:2px 6px;border-radius:5px}
+.xbtn:hover{color:var(--danger);background:color-mix(in oklab,var(--danger) 12%,transparent)}
+.empty{border:1.5px dashed var(--line);border-radius:8px;color:var(--muted);font-size:13px;display:grid;place-items:center;padding:18px 8px;text-align:center}
+.slabel{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.dsides{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:5px}
+.schip{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);background:var(--paper);border-radius:999px;font-size:12.5px;padding:2px 2px 2px 10px;cursor:grab;user-select:none}
+.schip .xbtn{font-size:14px;padding:1px 6px}
+.addside{margin-top:auto;border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:5px 6px;font-size:12.5px;color:var(--muted);width:100%}
+.libsides{display:flex;flex-direction:column;gap:6px}
+.libsides .schip{justify-content:space-between;border-radius:8px;padding:6px 6px 6px 10px;font-size:13.5px;background:var(--card)}
+.libsides .schip:hover{background:var(--paper)}
+.libsides .schip .c{color:var(--muted);font-size:12px;margin-left:auto;margin-right:6px}
+
+/* auto-fill */
+.gen{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:10px}
+.genrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.glabel{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-right:2px}
+.seg{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.gbtn{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700}
+.gbtn:hover{border-color:var(--accent)}
+.gbtn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.gbtn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.gdiv{width:1px;height:22px;background:var(--line);margin:0 4px}
+.genhint{font-size:12.5px;color:var(--muted);margin-top:7px;max-width:90ch}
+.dsel{border:0;background:none;padding:2px 6px 2px 0;border-radius:6px;display:flex;align-items:baseline;gap:6px;text-align:left}
+.dsel::before{content:"";width:13px;height:13px;border:1.5px solid var(--muted);border-radius:4px;align-self:center;flex:none;opacity:.6}
+.dsel[aria-pressed="true"]::before{background:var(--accent);border-color:var(--accent);opacity:1}
+.day.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.badges{display:flex;gap:4px;flex-wrap:wrap}
+.badge{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:4px;padding:1px 6px;background:color-mix(in oklab,var(--accent) 14%,var(--card));color:var(--accent)}
+.lunchbox{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;font-size:12.5px;color:var(--costco);cursor:pointer}
+.lunchbox input{accent-color:var(--costco);align-self:center}
+.lunchbox span{color:var(--muted);font-size:11.5px}
+.badge.lunch{background:color-mix(in oklab,var(--costco) 16%,var(--card));color:var(--costco)}
+.badge.dbl{background:color-mix(in oklab,var(--mustard) 25%,var(--card));color:var(--ink)}
+.entree.left{cursor:default}
+.entree.left .tile{background:none;border:1.5px dashed var(--hue,var(--muted))}
+.tagset{display:flex;flex-wrap:wrap;gap:4px 12px;width:100%}
+.tagset label{display:flex;gap:4px;align-items:center}
+
+/* shopping */
+.shop{margin-top:28px}
+.sumrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.sum{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px}
+.sum .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.sum .v{font-family:var(--f-display);font-weight:800;font-size:26px;font-variant-numeric:tabular-nums}
+.sum.costco .v{color:var(--costco)}
+.stores{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:900px){.stores{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.store{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;min-width:0}
+.store h3{font-family:var(--f-display);font-size:18px;margin:0 0 4px;display:flex;align-items:baseline;gap:8px}
+.store h3 .mono{margin-left:auto;font-size:15px}
+.store.s-C h3,.s-C,.tag.s-C{color:var(--costco)} .store.s-H h3,.s-H{color:var(--heb)} .store.s-A h3,.s-A{color:var(--aldi)} .store.s-W h3,.s-W{color:var(--wmt)}
+.tri{width:15px;height:15px;fill:none;stroke:var(--mustard);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;vertical-align:-2px;margin-right:4px;flex:none}
+.warnline{display:flex;align-items:flex-start;font-size:11.5px;color:var(--ink);font-weight:400;margin-top:2px;background:color-mix(in oklab,var(--mustard) 16%,transparent);border-radius:4px;padding:1px 6px;width:fit-content;max-width:100%}
+.rowsub .warnline{flex-basis:100%}
+.store .price{flex-direction:column;align-items:flex-end;gap:3px}
+.pline{display:flex;align-items:center;gap:3px;white-space:nowrap}
+.minin{width:52px!important}
+.catalog{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px}
+.catalog summary{cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;list-style:none}
+.catalog summary::before{content:"▸";color:var(--muted)}
+.catalog[open] summary::before{content:"▾"}
+.ch2{font-family:var(--f-display);font-weight:800;font-size:18px}
+.catalog .sub{color:var(--muted);font-size:12.5px}
+.cattools{margin:10px 0 6px}
+.cattools input{border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--paper);width:min(320px,100%)}
+.ctwrap{overflow-x:auto;max-height:560px;overflow-y:auto}
+.ct{border-collapse:collapse;font-size:13px;width:100%;min-width:760px}
+.ct th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card)}
+.ct td{padding:5px 6px;border-bottom:1px dashed var(--line);white-space:nowrap}
+.ct td:first-child{white-space:normal}
+.ct .cu{color:var(--muted);font-size:11.5px}
+.ct input{width:66px;border:1px solid var(--line);border-radius:5px;background:var(--paper);padding:2px 4px;text-align:right;font-family:var(--f-mono);font-size:12px}
+.ct select{border:1px solid var(--line);border-radius:5px;background:var(--paper);font-size:12px;padding:1px 2px}
+.bystore{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:13px;margin-top:4px}
+.bystore>span{display:flex;justify-content:space-between;gap:6px}
+.rowsub{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:3px;font-size:12px;color:var(--muted)}
+.ssel{border:1px solid var(--line);border-radius:5px;background:var(--paper);font-size:11.5px;padding:1px 2px;max-width:130px}
+.eprice{display:flex;align-items:center;gap:2px;white-space:nowrap}
+.eprice input{width:62px;border:1px solid var(--line);border-radius:5px;background:var(--paper);padding:2px 4px;text-align:right;font-family:var(--f-mono);font-size:12px}
+.aisle{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:12px 0 4px;border-bottom:1px solid var(--line);padding-bottom:3px}
+.rows{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:4px 12px;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.row:last-child{border-bottom:0}
+.row label{display:flex;gap:8px;align-items:flex-start;min-width:0;cursor:pointer}
+.row input[type=checkbox]{margin-top:3px;accent-color:var(--accent)}
+.iname{font-weight:700}
+.uses{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
+.qty{text-align:right;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.qty .need{font-weight:500}
+.qty .buy{font-size:11.5px;color:var(--muted)}
+.price{display:flex;align-items:center;gap:2px;font-size:12px;color:var(--muted);white-space:nowrap}
+.price input{width:58px;border:1px solid var(--line);border-radius:5px;background:var(--paper);padding:2px 4px;text-align:right;font-family:var(--f-mono);font-size:12px}
+.cost{text-align:right;min-width:58px;font-weight:500}
+.row.have .iname,.row.have .qty,.row.have .cost{text-decoration:line-through;color:var(--muted)}
+.tag{border:1px solid currentColor;border-radius:4px;font-size:10.5px;padding:0 5px;font-weight:700;letter-spacing:.03em;background:none;line-height:1.6}
+.tag.c{color:var(--costco)} .tag.h{color:var(--muted)}
+.reason{display:block;font-size:11.5px;color:var(--costco);font-weight:400;margin-top:1px}
+.price select{border:1px solid var(--line);border-radius:5px;background:var(--paper);font-size:11.5px;padding:1px 2px;max-width:120px}
+.sum .sub2{font-size:11.5px;color:var(--muted)}
+@media (max-width:520px){.row{grid-template-columns:minmax(0,1fr) auto}.store .price{grid-column:1;padding-left:24px;align-items:flex-start}.cost{grid-column:2}}
+.note{font-size:12.5px;color:var(--muted);max-width:75ch;margin-top:12px}
+.copyfb{width:100%;height:160px;margin-top:10px;font-family:var(--f-mono);font-size:12px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px}
+
+/* editor sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,16,12,.45);z-index:40;display:flex;align-items:flex-start;justify-content:center;
+  padding:calc(24px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));overflow:auto}
+.sheet{background:var(--card);border-radius:14px;width:100%;max-width:620px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.sheet .hd{display:flex;gap:10px;align-items:center}
+.sheet .hd input{flex:1;min-width:0;font-family:var(--f-display);font-weight:800;font-size:22px;border:0;border-bottom:2px solid var(--line);background:none;padding:2px 0}
+.sheet .hd input:focus{border-bottom-color:var(--accent);outline:none}
+.done{border:0;background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:8px 16px;font-weight:700}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px;font-size:13px;color:var(--muted);align-items:center}
+.meta select{border:1px solid var(--line);border-radius:6px;background:var(--paper);padding:3px 6px;font-size:13px}
+.ingtwrap{overflow-x:auto;margin-top:8px}
+.ingt{width:100%;border-collapse:collapse;font-size:13.5px}
+.ingt td{padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:middle}
+.ingt td.n{width:100%}
+.ingt input[type=number]{width:70px;border:1px solid var(--line);border-radius:5px;background:var(--paper);padding:3px 5px;text-align:right;font-family:var(--f-mono)}
+.ingt .u{color:var(--muted);white-space:nowrap}
+.ingt .c{text-align:right;white-space:nowrap}
+.addrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.addrow input,.addrow select{border:1px solid var(--line);border-radius:7px;background:var(--paper);padding:6px 9px;min-width:0}
+.addrow #ed-add{flex:1 1 220px}
+.addrow .go{border:1px solid var(--accent);color:var(--accent);background:none;border-radius:7px;padding:6px 14px;font-weight:700}
+.newitem{background:var(--paper);border-radius:8px;padding:10px;margin-top:8px;font-size:13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.newitem input,.newitem select{border:1px solid var(--line);border-radius:6px;background:var(--card);padding:4px 7px;width:90px}
+.defsides{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center}
+.sheet .foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:10px;flex-wrap:wrap}
+.sheet .foot .tot{font-size:14px}
+.delbtn{border:1px solid var(--line);background:none;border-radius:7px;padding:6px 12px;font-size:13px;color:var(--danger)}
+.delbtn.arm{background:var(--danger);color:var(--card);border-color:var(--danger)}
+
+
+/* ===== modern polish ===== */
+body{font-size:15px;letter-spacing:-.003em;-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--f-mono);font-weight:500;letter-spacing:-.01em}
+.top{padding:4px 2px 6px}
+.top h1{font-weight:700;letter-spacing:-.035em;font-size:clamp(28px,4vw,40px)}
+.top .wk{font-size:14px}
+.stepper{background:var(--card);border-color:var(--line);box-shadow:var(--shadow)}
+.stepper span{font-weight:600}
+.totpill{border-radius:999px;padding:8px 16px;box-shadow:0 6px 16px color-mix(in oklab,var(--accent) 30%,transparent);white-space:nowrap}
+.ghost{background:var(--card);border-color:var(--line);font-weight:500}
+.ghost.warn{background:var(--danger);border-color:var(--danger);color:#fff}
+.sech h2{font-weight:700;letter-spacing:-.025em;font-size:22px}
+/* library */
+.shelf .panel{border-color:var(--line);box-shadow:var(--shadow);border-radius:var(--r);overflow:hidden}
+.tabs{padding:6px;gap:4px;border-bottom:1px solid var(--line)}
+.tabs button{border:0;border-radius:9px;padding:8px;font-weight:600;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--soft);color:var(--ink);border:0}
+.shelf .tools input{border-radius:10px;background:var(--soft);border-color:transparent}
+.shelf .tools input:focus{border-color:var(--accent);background:var(--card)}
+.newbtn{border-radius:10px;font-weight:600}
+.mcard{border-radius:12px;padding:8px}
+.mcard:hover{background:var(--soft);border-color:transparent}
+.mname{font-weight:600}
+.tile{border-radius:12px}
+.cbtns{display:flex;flex-direction:column;gap:4px;flex:none}
+.ibtn{border-radius:8px;font-weight:500;background:var(--card)}
+.rbtn{background:color-mix(in oklab,var(--accent) 10%,var(--card));border-color:transparent;color:var(--accent);font-weight:600}
+.rbtn:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+/* generator bar */
+.gen{border-radius:var(--r);box-shadow:var(--shadow);border-color:var(--line);padding:12px 14px}
+.gbtn{border-radius:999px;background:var(--soft);border-color:transparent;font-weight:600;padding:7px 14px}
+.gbtn:hover{border-color:var(--line);background:var(--card)}
+.gbtn[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.gbtn.primary{background:var(--accent);color:var(--accent-ink)}
+.gbtn.primary:hover{filter:brightness(1.06);background:var(--accent)}
+/* days */
+.board{gap:12px}
+.day{border-radius:var(--r);box-shadow:var(--shadow);border-color:var(--line);padding:12px;transition:border-color .15s,box-shadow .15s,transform .15s}
+.day:hover{box-shadow:0 2px 4px rgba(16,24,20,.05),0 10px 24px rgba(16,24,20,.08)}
+.day.today{border-top:1px solid var(--accent);padding-top:12px;box-shadow:0 0 0 1px var(--accent),var(--shadow)}
+.day header{flex-wrap:wrap;row-gap:0}
+.dname{font-weight:700;letter-spacing:-.02em;font-size:17px}
+.ddate{white-space:nowrap}
+.dcost{white-space:nowrap}
+@media (min-width:1380px){.day header .dcost{flex-basis:100%;margin-left:0}}
+.day.today .dname{color:var(--accent)}
+.day.today .dname::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:3px}
+.eacts{flex-wrap:wrap}
+.entree .ename{font-weight:600}
+.empty{border-radius:10px;background:var(--soft);border:1.5px dashed var(--line)}
+.schip{background:var(--soft);border-color:transparent}
+.libsides .schip{background:var(--card);border-color:var(--line)}
+.addside{border-radius:9px;background:var(--soft);border-color:transparent}
+.badge{border-radius:999px;padding:2px 8px;letter-spacing:.03em}
+.day.over,.picking .day:hover{background:color-mix(in oklab,var(--accent) 6%,var(--card))}
+.rico{border:0;background:none;color:var(--accent);padding:1px 3px;border-radius:6px;display:inline-grid;place-items:center;margin-left:2px}
+.rico svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
+.rico:hover{background:color-mix(in oklab,var(--accent) 14%,transparent)}
+/* grocery */
+.sum{border-radius:var(--r);box-shadow:var(--shadow);border-color:var(--line);padding:12px 16px}
+.sum .k{letter-spacing:.06em}
+.sum .v{font-weight:700;letter-spacing:-.03em}
+.store{border-radius:var(--r);box-shadow:var(--shadow);border-color:var(--line);padding:16px 18px;color:var(--ink)}
+.store h3{font-weight:700;letter-spacing:-.02em;font-size:18px;display:flex;align-items:center;gap:8px}
+.store h3::before{content:"";width:10px;height:10px;border-radius:50%;background:currentColor;flex:none}
+.store.s-C,.store.s-H,.store.s-A,.store.s-W{color:var(--ink)}
+.store .iname{color:var(--ink)}
+.row{padding:8px 0;border-bottom:1px solid var(--line)}
+.price input,.eprice input,.ct input,.ingt input[type=number]{border-radius:7px;background:var(--soft);border-color:transparent}
+.price input:focus,.eprice input:focus,.ct input:focus,.ingt input[type=number]:focus{border-color:var(--accent);background:var(--card)}
+.ssel,.price select,.ct select,.meta select{border-radius:7px;background:var(--soft);border-color:transparent}
+.warnline{border-radius:6px}
+.catalog{border-radius:var(--r);box-shadow:var(--shadow);border-color:var(--line)}
+.ch2{font-weight:700;letter-spacing:-.02em}
+.note b{color:var(--ink)}
+/* sheets */
+.scrim{background:rgba(12,16,14,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.sheet{border-radius:20px;padding:22px;box-shadow:var(--shadow-lg);border:1px solid var(--line)}
+.sheet .hd input{font-weight:700;letter-spacing:-.02em}
+.done{border-radius:10px;font-weight:600}
+.delbtn,.dupbtn{border-radius:9px}
+.pickbar{background:var(--ink);color:var(--paper)}
+/* recipe viewer */
+.rsheet{max-width:840px}
+.rtitle{flex:1;min-width:0;margin:0;font-weight:700;font-size:26px;letter-spacing:-.03em;line-height:1.15;text-wrap:balance}
+.rdesc{font-size:16.5px;line-height:1.6;margin:14px 0 14px;max-width:62ch;color:var(--ink)}
+.rmeta{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:13.5px;color:var(--muted)}
+.rmeta a{color:var(--accent);font-weight:500}
+.rmeta .stepper span{min-width:84px;color:var(--ink)}
+.rnote{margin:14px 0 0;padding:10px 14px;background:color-mix(in oklab,var(--mustard) 13%,var(--card));border-radius:10px;font-size:13.5px}
+.rcols{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:22px;margin-top:18px}
+@media (max-width:680px){.rcols{grid-template-columns:1fr}}
+.rcols section:first-child{background:var(--soft);border-radius:14px;padding:14px 16px}
+.rh{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 8px;font-weight:600}
+.rcols h4{font-size:13.5px;margin:14px 0 4px;font-weight:600}
+.rcols h4:first-of-type{margin-top:0}
+.ring{list-style:none;margin:0;padding:0}
+.ring li{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}
+.ring li:last-child{border-bottom:0}
+.ra{flex:none;min-width:80px;font-family:var(--f-mono);font-weight:500;color:var(--accent)}
+.rsteps{list-style:none;counter-reset:st;margin:0;padding:0;font-size:14.5px}
+.rsteps li{counter-increment:st;display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;margin-bottom:12px;line-height:1.55}
+.rsteps li::before{content:counter(st);width:24px;height:24px;border-radius:50%;background:color-mix(in oklab,var(--accent) 12%,var(--card));color:var(--accent);font:600 12.5px/24px var(--f-body);text-align:center}
+@media (max-width:640px){.ctrls{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}.ctrls .stepper{justify-content:space-between}.ctrls .totpill{justify-content:center;padding:8px 10px}.ctrls .ghost{text-align:center}}
+
+/* choose-a-dinner, confirm taps, lock */
+.ename{font:inherit;font-weight:600;font-size:14px;line-height:1.25;text-align:left;border:0;background:none;padding:0;color:inherit;cursor:pointer}
+.ename:hover{color:var(--accent)}
+button.empty{width:100%;display:flex;flex-direction:column;gap:2px;font:inherit;cursor:pointer;color:var(--muted)}
+button.empty b{color:var(--accent);font-weight:600;font-size:14px}
+button.empty span{font-size:12px}
+button.empty:hover{border-color:var(--accent);background:color-mix(in oklab,var(--accent) 6%,var(--card))}
+.chsheet{max-width:560px;display:flex;flex-direction:column;max-height:calc(100dvh - 48px)}
+.chsheet #chq{margin:14px 0 8px;width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 14px;background:var(--soft);font-size:16px}
+.chsheet #chq:focus{border-color:var(--accent);background:var(--card);outline:none}
+.chlist{overflow:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:2px;margin:0 -8px;padding:0 8px 4px;min-height:200px}
+.chrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;background:none;border-radius:12px;padding:9px 8px;font:inherit;color:inherit;cursor:pointer}
+.chrow:hover,.chrow:focus-visible{background:var(--soft)}
+.chrow.cur{background:color-mix(in oklab,var(--accent) 9%,var(--card))}
+.chmeta{display:flex;flex-direction:column;min-width:0;flex:1}
+.chcur{font-size:11.5px;font-weight:600;color:var(--accent)}
+@media (max-width:640px){.scrim{padding:10px 8px}.chsheet{max-height:calc(100dvh - 20px);border-radius:18px}.chrow{padding:11px 8px}}
+.gbtn.arm,.gbtn.primary.arm{background:var(--danger);color:#fff;border-color:var(--danger)}
+.genhint.armed{color:var(--danger);font-weight:600}
+.gbtn:disabled,.ghost:disabled{opacity:.45;cursor:not-allowed}
+.lockbtn{display:inline-flex;align-items:center;gap:6px}
+.lockbtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.lockbtn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.board.locked .xbtn,.board.locked .addside,.board.locked .chbtn,.board.locked button.empty span{display:none}
+.board.locked .ename{cursor:default;pointer-events:none}
+.board.locked button.empty{pointer-events:none}
+.board.locked button.empty b{color:var(--muted)}
+.board.locked .schip,.board.locked .entree{cursor:default}
+@media (max-width:640px){
+  .ctrls{grid-template-columns:1fr 1fr}
+  .ctrls .lockbtn{justify-content:center}
+  .sumrow{grid-template-columns:1fr 1fr}
+  .sumrow .sum:nth-child(2){grid-column:1/-1;order:-1}
+  .sumrow .sum:first-child{order:-2;grid-column:1/-1}
+  .bystore{grid-template-columns:1fr 1fr;gap:4px 16px}
+  .bystore>span{min-width:0}
+}
+.sum{min-width:0}
+.bystore>span{min-width:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top">
+  <div>
+    <h1>Family Dinner Board</h1>
+    <div class="wk" id="wk"></div>
+  </div>
+  <div class="grow"></div>
+  <div class="ctrls">
+    <div class="stepper" aria-label="People eating">
+      <button data-act="ppl" data-d="-1" aria-label="Fewer people">−</button>
+      <span id="ppl"></span>
+      <button data-act="ppl" data-d="1" aria-label="More people">+</button>
+    </div>
+    <div class="totpill"><span class="mono" id="tot"></span><small>this week</small></div>
+    <button class="ghost lockbtn" data-act="lock" id="lockbtn" aria-pressed="false"></button>
+    <button class="ghost" data-act="clearweek" id="clearweek">Clear week</button>
+    <button class="ghost" data-act="reset" id="resetbtn">Reset all</button>
+  </div>
+</header>
+
+<div class="main">
+  <aside class="shelf"><div class="panel" id="shelf"></div></aside>
+  <div class="board-wrap">
+    <div class="sech"><h2>This week</h2><span class="sub">Tap “Choose dinner” or a dinner’s name to pick from the full list. On a computer you can also drag dinners from the left. Add sides with the menu at the bottom of each day.</span></div>
+    <div class="gen" id="gen"></div>
+    <div class="board" id="board"></div>
+    <section class="shop">
+      <div class="sech"><h2>Grocery run</h2><span class="sub">Tick what you already have and it drops out of the total.</span>
+        <button class="ghost" data-act="copy" style="margin-left:auto">Copy list</button></div>
+      <div class="sumrow" id="sums"></div>
+      <div class="stores" id="stores"></div>
+      <div id="copyfb"></div>
+      <details class="catalog"><summary><span class="ch2">Items, prices &amp; minimums</span><span class="sub">Every ingredient, including ones not on this week's list. Edits apply everywhere.</span></summary>
+        <div class="cattools"><input id="catq" type="search" placeholder="Search items" aria-label="Search items"></div>
+        <div class="ctwrap" id="catbody"></div>
+      </details>
+      <p class="note"><b>Lunches.</b> Each Sunday–Thursday dinner has a “Pack work lunch” checkbox that adds one serving for the next workday. It starts ticked for dinners marked “Lunch” (untick “Pack work lunch” on any day to skip it). A leftover night before a workday adds its lunches to the batch cooked the night before. The grocery list shows these as “+lunch”.</p>
+      <p class="note"><b>Minimums.</b> Each item can have a minimum buy (the smallest package outside Costco, like a 1 lb pack of ground beef or an 8-count of naan), and Costco items buy whole packs. When that leaves some unused, the item gets a warning triangle with how much is left over and roughly what it costs. Set minimums on the list, in a dinner’s Ingredients panel, or under Items, prices &amp; minimums.</p>
+      <p class="note"><b>How the store is picked.</b> An item goes on the Costco list only when this week's dinners use most of a Costco pack, so nothing big has to be stored: at least 75% of the pack for fresh meat, produce and frozen food, 50% for fridge items that keep for weeks (eggs, cheese, butter, bacon), and 15% for shelf-stable pantry items. Everything else goes to the store you usually buy it from (H‑E‑B unless set otherwise; meat is never assigned to Walmart). Change an item's store from its menu on the list or in a dinner's Ingredients panel.</p>
+      <p class="note">Prices are rough estimates, not live prices. Costco chicken, eggs and rotisserie chicken were checked against Nov 2026 sources; the rest are my best guesses. Type over any price, here or in a dinner's Ingredients panel, and it updates everywhere that item is used. Costco prices are entered per pack. Per‑dinner costs count only what each meal uses; the trip total is what you'll actually pay, with whole packs, cans and bunches.</p>
+    </section>
+  </div>
+</div>
+
+<div id="pickbar"></div>
+<div id="modal"></div>
+<datalist id="catlist"></datalist>
+
+<script>
+(function(){
+const KEY='dinnerboard.v2';
+const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const CUISINE={tex:'Tex-Mex',asia:'Asian',ital:'Italian',amer:'American',comf:'Comfort',ind:'Indian',haw:'Hawaiian',latin:'Latin',snack:'Snack board'};
+const AISLES=['Produce','Meat','Deli','Dairy & Eggs','Bakery','Pantry','Frozen'];
+const DISCRETE=new Set(['each','can','jar','packet','box','pkg','loaf','head','bunch','pack','ear','pint','stalk','clove','slice']);
+const ICONS={
+ pizza:'<path d="M12 21 3.5 6.5C8.5 3.8 15.5 3.8 20.5 6.5Z"/><circle cx="10" cy="10" r="1.2"/><circle cx="14" cy="9" r="1.2"/><circle cx="12" cy="14" r="1.2"/>',
+ bowl:'<path d="M3 11h18a9 7 0 0 1-18 0Z"/><path d="M8 7c0-1.5 1-1.5 1-3M12 7c0-1.5 1-1.5 1-3M16 7c0-1.5 1-1.5 1-3"/>',
+ pot:'<path d="M5 9h14v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3Z"/><path d="M3 9h18M9 6h6M2.5 12H5M19 12h2.5"/>',
+ taco:'<path d="M3 17a9 9 0 0 1 18 0Z"/><path d="M6 13c1.5-1 2.5 1 4 0s2.5 1 4 0 2.5 1 4 0"/>',
+ sandwich:'<path d="M4 10c0-3 3.5-5 8-5s8 2 8 5Z"/><path d="M3 13h18M5 16h14v2a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1Z"/>',
+ plate:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/>',
+ salad:'<path d="M3 12h18a9 7 0 0 1-18 0Z"/><path d="M8 12c-1-3 1-5 3-5M13 12c0-3 2-4 4-4M11 12c0-2 1-3 2-3"/>',
+ egg:'<path d="M12 3c3.5 0 6 5 6 9a6 6 0 0 1-12 0c0-4 2.5-9 6-9Z"/><circle cx="12" cy="13" r="2.5"/>',
+ board:'<rect x="3" y="7" width="15" height="11" rx="2"/><path d="M18 11h3v3h-3"/><circle cx="8" cy="12" r="1.5"/><path d="M12 10l3 4h-4Z"/>',
+ skillet:'<circle cx="10" cy="13" r="6.5"/><path d="M15 8.5 21 4"/>',
+ pie:'<path d="M3 13h18l-2 6H5Z"/><path d="M4 13c1-4 4-6 8-6s7 2 8 6M9 10l1 2M14 10l-1 2"/>'
+};
+// id: [name, unit, H-E-B/Aldi price per unit, aisle, keeps, Costco price per unit, Costco pack size in units]
+// keeps: M fresh meat · R fresh produce/bread · F fridge, lasts weeks · Z freezer · P shelf-stable
+const CATALOG={
+ chix:['Chicken breast','lb',3.99,'Meat','M',2.99,6.5], thigh:['Chicken thighs, boneless','lb',3.49,'Meat','M',2.99,5],
+ rot:['Rotisserie chicken','each',7.98,'Meat','M',4.99,1], gbeef:['Ground beef 93/7','lb',7.49,'Meat','M',6.49,4],
+ gturkey:['Ground turkey','lb',4.99,'Meat','M',3.99,4], stew:['Beef chuck stew meat','lb',8.49,'Meat','M'],
+ steak:['Petite sirloin','lb',8.49,'Meat','M'], pork:['Pork shoulder','lb',2.99,'Meat','M',2.29,8],
+ bacon:['Bacon','lb',5.99,'Meat','F',4.75,4], sausage:['Italian sausage','lb',4.99,'Meat','M'],
+ pepperoni:['Pepperoni','oz',0.35,'Deli','F'], salami:['Salami','oz',0.75,'Deli','F',0.60,16],
+ prosc:['Prosciutto','oz',1.15,'Deli','F'], boardch:['Charcuterie cheese assortment','oz',null,'Deli','F',0.55,24],
+ eggs:['Eggs','each',0.19,'Dairy & Eggs','F',0.16,24], butter:['Butter','lb',4.49,'Dairy & Eggs','F',3.75,4],
+ milk:['Milk','cup',0.21,'Dairy & Eggs','R'], cream:['Heavy cream','cup',1.40,'Dairy & Eggs','F'],
+ cheddar:['Shredded cheddar / Mexican blend','oz',0.25,'Dairy & Eggs','F',0.20,40], mozz:['Shredded mozzarella','oz',0.25,'Dairy & Eggs','F',0.20,40],
+ parm:['Parmesan','oz',0.60,'Dairy & Eggs','F',0.45,24], sourcr:['Sour cream','oz',0.15,'Dairy & Eggs','F'],
+ slices:['Cheese slices','each',0.20,'Dairy & Eggs','F'], ccheese:['Cream cheese','oz',0.22,'Dairy & Eggs','F'],
+ mozzpearl:['Mozzarella pearls','oz',0.40,'Dairy & Eggs','F'], piecrust:['Refrigerated pie crust (2-pk)','pkg',2.79,'Dairy & Eggs','F'],
+ onion:['Yellow onion','each',0.80,'Produce','P'], garlic:['Garlic','clove',0.06,'Produce','P'],
+ pepper:['Bell pepper','each',1.00,'Produce','R'], tomato:['Tomato','each',0.70,'Produce','R'],
+ cherry:['Cherry tomatoes','pint',2.49,'Produce','R'], romaine:['Romaine hearts','each',1.00,'Produce','R'],
+ mix:['Spring mix','oz',0.40,'Produce','R',0.31,16], greens:['Supergreens blend','oz',0.50,'Produce','R',0.34,16],
+ cabbage:['Green cabbage','head',2.00,'Produce','R'], broc:['Broccoli','lb',1.99,'Produce','R',1.65,3],
+ babypot:['Baby potatoes','lb',1.80,'Produce','P'], pico:['Pico de gallo','oz',0.22,'Produce','R'], russet:['Russet potatoes','lb',0.70,'Produce','P'],
+ sweetpot:['Sweet potatoes','lb',1.19,'Produce','P'], carrot:['Carrots','lb',1.00,'Produce','R'],
+ squash:['Yellow squash / zucchini','each',0.90,'Produce','R'], celery:['Celery','stalk',0.20,'Produce','R'],
+ cilantro:['Cilantro','bunch',0.79,'Produce','R'], lime:['Lime','each',0.35,'Produce','R'],
+ lemon:['Lemon','each',0.60,'Produce','R'], avocado:['Avocado','each',1.00,'Produce','R',0.80,6],
+ jalap:['Jalapeño','each',0.15,'Produce','R'], corn:['Sweet corn','ear',0.50,'Produce','R'],
+ kale:['Kale','bunch',1.99,'Produce','R'], scallion:['Green onions','bunch',0.89,'Produce','R'],
+ cuke:['Cucumber','each',0.80,'Produce','R'], mint:['Fresh mint','bunch',1.49,'Produce','R'],
+ rice:['Jasmine rice (dry)','cup',0.45,'Pantry','P',0.30,56], blackb:['Black beans','can',0.85,'Pantry','P'],
+ refried:['Refried beans','can',1.25,'Pantry','P'], kidney:['Kidney beans','can',0.85,'Pantry','P'],
+ pinto:['Pinto beans','can',0.85,'Pantry','P'], cornc:['Canned corn','can',0.79,'Pantry','P'],
+ dicedt:['Diced tomatoes','can',0.85,'Pantry','P'], rotel:['Diced tomatoes & green chiles','can',0.99,'Pantry','P'],
+ tsauce:['Tomato sauce (8 oz)','can',0.50,'Pantry','P'], tpaste:['Tomato paste','can',0.75,'Pantry','P'],
+ encsauce:['Red enchilada sauce (28 oz)','can',3.49,'Pantry','P'], salsa:['Salsa','jar',2.48,'Pantry','P'],
+ tacoseas:['Taco seasoning','packet',0.65,'Pantry','P'], ranchpk:['Ranch seasoning','packet',1.29,'Pantry','P'],
+ fajseas:['Fajita seasoning','packet',0.79,'Pantry','P'], broth:['Chicken broth','cup',0.50,'Pantry','P',0.40,24],
+ beefbroth:['Beef broth','cup',0.55,'Pantry','P'], spag:['Spaghetti','lb',1.15,'Pantry','P'],
+ fett:['Fettuccine','lb',1.25,'Pantry','P'], rotini:['Rotini','lb',1.15,'Pantry','P'],
+ marinara:['Marinara (24 oz)','jar',2.49,'Pantry','P'], pizzasauce:['Pizza sauce','oz',0.16,'Pantry','P'],
+ tikka:['Tikka masala simmer sauce','jar',2.99,'Pantry','P'], ramen:['Ramen, premium instant','pack',1.25,'Pantry','P',0.89,18],
+ teri:['Teriyaki sauce','tbsp',0.12,'Pantry','P'], soy:['Soy sauce','tbsp',0.06,'Pantry','P'],
+ gochu:['Gochujang','tbsp',0.18,'Pantry','P'], honey:['Honey','tbsp',0.15,'Pantry','P',0.10,192],
+ sesoil:['Sesame oil','tbsp',0.18,'Pantry','P'], oil:['Olive oil','tbsp',0.14,'Pantry','P',0.10,135],
+ vegoil:['Vegetable oil','tbsp',0.04,'Pantry','P'], flour:['Flour','cup',0.20,'Pantry','P'],
+ bsugar:['Brown sugar','tbsp',0.04,'Pantry','P'], ketchup:['Ketchup','tbsp',0.04,'Pantry','P'],
+ mustard:['Mustard','tbsp',0.04,'Pantry','P'], worc:['Worcestershire','tsp',0.05,'Pantry','P'],
+ chilip:['Chili powder','tbsp',0.15,'Pantry','P'], cumin:['Ground cumin','tbsp',0.20,'Pantry','P'],
+ smoke:['Liquid smoke','tsp',0.10,'Pantry','P'], seasalt:['Coarse sea salt','tbsp',0.10,'Pantry','P'],
+ buffalo:['Buffalo sauce','tbsp',0.10,'Pantry','P'], ranch:['Ranch dressing','tbsp',0.10,'Pantry','P'],
+ dressing:['Salad dressing','tbsp',0.12,'Pantry','P'], italdress:['Italian dressing','tbsp',0.10,'Pantry','P'],
+ mayo:['Mayonnaise','tbsp',0.08,'Pantry','P'], panko:['Panko breadcrumbs','cup',0.80,'Pantry','P'],
+ creamchix:['Cream of chicken soup','can',1.09,'Pantry','P'], tomsoup:['Tomato soup','can',1.29,'Pantry','P'],
+ olives:['Black olives','can',1.49,'Pantry','P'], pepperonc:['Pepperoncini','jar',2.49,'Pantry','P'],
+ pickles:['Pickles','jar',2.79,'Pantry','P'], sundried:['Sun-dried tomatoes','oz',0.60,'Pantry','P'],
+ crackers:['Avocado oil crackers','box',3.29,'Pantry','P'], chips:['Tortilla chips','oz',0.20,'Pantry','P',0.15,40],
+ jiffy:['Cornbread mix','box',0.85,'Pantry','P'],
+ naan:['Naan','each',1.00,'Bakery','R',0.70,8], flourtort:['Flour tortillas','each',0.20,'Bakery','R'],
+ corntort:['Corn tortillas','each',0.07,'Bakery','R'], buns:['Hamburger buns','each',0.31,'Bakery','R'],
+ brioche:['Brioche buns','each',0.60,'Bakery','R'], bread:['Sandwich bread','slice',0.12,'Bakery','R'],
+ sourdough:['Italian or sourdough bread','slice',0.22,'Bakery','R'], croissant:['Croissants','each',0.90,'Bakery','R',0.60,12],
+ fries:['Frozen fries','lb',1.80,'Frozen','Z',1.40,5], spfries:['Sweet potato fries','lb',2.50,'Frozen','Z'],
+ stirfry:['Stir-fry vegetables','lb',2.00,'Frozen','Z'], peascarrots:['Peas & carrots','lb',1.60,'Frozen','Z'],
+ mixveg:['Mixed vegetables','lb',1.50,'Frozen','Z'], garlicbread:['Garlic bread','loaf',2.99,'Frozen','Z'],
+ cpizza:['Refrigerated take-and-bake pizza','each',null,'Frozen','R',12.99,1],
+ ravioli:['Refrigerated ravioli (20 oz)','pkg',4.49,'Dairy & Eggs','F'],
+ // added with the recipes
+ ghee:['Ghee','tbsp',0.45,'Pantry','P'], gginger:['Ground ginger','tsp',0.08,'Pantry','P'], cayenne:['Cayenne pepper','tsp',0.06,'Pantry','P'],
+ cinnamon:['Ground cinnamon','tsp',0.05,'Pantry','P'], turmeric:['Ground turmeric','tsp',0.07,'Pantry','P'], paprika:['Paprika','tsp',0.05,'Pantry','P'],
+ smpaprika:['Smoked paprika','tsp',0.08,'Pantry','P'], curry:['Curry powder','tsp',0.08,'Pantry','P'], sugar:['White sugar','tbsp',0.03,'Pantry','P'],
+ italseas:['Italian seasoning','tsp',0.06,'Pantry','P'], oregano:['Dried oregano','tsp',0.05,'Pantry','P'], thyme:['Dried thyme','tsp',0.06,'Pantry','P'],
+ basil:['Dried basil','tsp',0.05,'Pantry','P'], rosemary:['Dried rosemary','tsp',0.06,'Pantry','P'], bay:['Bay leaves','each',0.10,'Pantry','P'],
+ garlicpow:['Garlic powder','tsp',0.04,'Pantry','P'], onionpow:['Onion powder','tsp',0.04,'Pantry','P'], ricevin:['Rice vinegar','tbsp',0.08,'Pantry','P'],
+ cidervin:['Apple cider vinegar','tbsp',0.04,'Pantry','P'], cornstarch:['Cornstarch','tbsp',0.04,'Pantry','P'], relish:['Sweet relish','tbsp',0.08,'Pantry','P'],
+ vegbroth:['Vegetable broth','cup',0.50,'Pantry','P'], tsauce15:['Tomato sauce (15 oz)','can',0.89,'Pantry','P'], crushedt:['Crushed tomatoes (28 oz)','can',1.79,'Pantry','P'],
+ greenchile:['Diced green chiles (4 oz)','can',0.99,'Pantry','P'], ginger:['Fresh ginger (grated)','tbsp',0.15,'Produce','R'], mushroom:['Mushrooms','oz',0.25,'Produce','R'],
+ parsley:['Fresh parsley','bunch',0.99,'Produce','R'], redonion:['Red onion','each',1.00,'Produce','P'], grapes:['Grapes','lb',2.00,'Produce','R'],
+ peas:['Frozen peas','lb',1.60,'Frozen','Z'], buttermilk:['Buttermilk','cup',0.60,'Dairy & Eggs','F'],
+ provolone:['Provolone','oz',0.45,'Deli','F'], artichoke:['Marinated artichoke hearts','jar',2.99,'Pantry','P'], roastedpep:['Roasted red peppers','jar',2.49,'Pantry','P'],
+ kalamata:['Kalamata olives','jar',3.49,'Pantry','P'], rwvin:['Red wine vinegar','tbsp',0.05,'Pantry','P'], dijon:['Dijon mustard','tsp',0.05,'Pantry','P']
+};
+// where each item is bought when it isn't a Costco pack: H H-E-B · A Aldi · W Walmart · C Costco only
+const HOME={steak:'A',sourdough:'A',crackers:'A',babypot:'A',prosc:'A',gochu:'W',salsa:'W',boardch:'C',cpizza:'C'};
+// smallest amount you can buy outside Costco (package size); Costco minimum is its pack size
+const MINS={gbeef:1,naan:8,eggs:12,milk:8,cream:2,sourcr:16,cheddar:8,mozz:8,ccheese:8,mozzpearl:8,slices:16,broth:4,beefbroth:4,bacon:.75,sausage:1,gturkey:1,pepperoni:6,prosc:3,mix:5,greens:5,corntort:30,flourtort:10,buns:8,brioche:4,bread:20,sourdough:16,croissant:6,fries:2,spfries:1.5,stirfry:1,peascarrots:1,mixveg:1,chips:13,ravioli:1,mushroom:8,buttermilk:2};
+const TRI='<svg class="tri" viewBox="0 0 24 24" role="img" aria-label="Buying more than needed"><path d="M12 3.5 2.5 20.5h19Z"/><path d="M12 10v4.5M12 17.4v.2"/></svg>';
+const SNAME={C:'Costco',H:'H‑E‑B',A:'Aldi',W:'Walmart'};
+const SORDER=['C','H','A','W'];
+const storesFor=it=>it.st==='C'?['C']:[...(it.cp!=null&&it.cpk>0?['C']:[]),'H','A',...((it.a==='Meat'||it.a==='Deli')?[]:['W'])];
+const THRESH={M:.75,R:.75,Z:.75,F:.5,P:.15};
+const KEEPS={M:'Fresh meat',R:'Fresh (fridge/counter)',F:'Fridge, keeps weeks',Z:'Freezer',P:'Shelf-stable'};
+// [id, name, cuisine, icon, ingredients for 4, default sides, tags: H hot day · W warm · C cold · E easy · L reheats well · D always cook double · P packs for lunch]
+const MEALS=[
+ ['cpizza','Costco take-and-bake pizza','ital','pizza','cpizza 1','salad','HWCE'],
+ ['pizza','Pizza on homemade naan','ital','pizza','naan 6,pizzasauce 8,mozz 10,pepperoni 4','salad','WE'],
+ ['tikka','Chicken tikka masala, rice & naan','ind','bowl','chix 2,tikka 2,cream .5,onion 1,rice 2,naan 4,cilantro .5','','WCELDP'],
+ ['ramen','Ramen & supergreens','asia','bowl','ramen 4,eggs 4,scallion 1,gochu 2','greens','CWE'],
+ ['beefstew','Instant Pot beef stew','comf','pot','stew 2,russet 1.5,carrot 1,onion 1,celery 3,garlic 3,tpaste 1,beefbroth 4,flour .25','cornbread','CLDP'],
+ ['korean','Instant Pot Korean chicken','asia','bowl','thigh 2,gochu 3,soy 4,honey 3,garlic 4,sesoil 1,scallion 1,rice 2','steambroc','WCELDP'],
+ ['chixtacos','Chicken tacos','tex','taco','thigh 1.5,tacoseas 1,corntort 12,cheddar 6,romaine 1,tomato 2,sourcr 4,salsa .5,pico 8','sprice,blackb','HWE'],
+ ['tacos','Ground beef tacos','tex','taco','gbeef 1.5,tacoseas 1,corntort 12,cheddar 6,romaine 1,tomato 2,sourcr 4,salsa .5,pico 8','sprice,blackb','HWE'],
+ ['friedrice','Egg fried rice','asia','skillet','rice 2,eggs 4,peascarrots 1,scallion 1,soy 3,sesoil 1,vegoil 2','','HWELP'],
+ ['taquitos','Buffalo chicken taquitos','amer','taco','chix 1.5,ccheese 4,buffalo 4,cheddar 4,flourtort 12,ranch 4','corn','W'],
+ ['mojito','Mojito chicken & roasted baby potatoes','latin','plate','chix 2,lime 3,mint .5,garlic 4,oil 3,babypot 2','','HWP'],
+ ['rotis','Rotisserie chicken','comf','plate','rot 1','mashed,broc','HWCEP'],
+ ['vegchili','Vegetarian chili & rice','tex','pot','kidney 1,blackb 1,pinto 1,dicedt 2,tsauce 1,onion 1,pepper 1,chilip 2,cumin 1,cheddar 4,rice 1.5','cornbread','CELP'],
+ ['sloppy','Homemade sloppy joes & fries','amer','sandwich','gbeef 1.5,onion 1,pepper 1,ketchup 6,tsauce 1,bsugar 2,worc 2,mustard 1,buns 6','fries','WCELP'],
+ ['bfd','Breakfast for dinner','amer','egg','eggs 10,bacon 1,babypot 2,oil 2,sourdough 6,butter .1','','WCE'],
+ ['tacosoup','Turkey taco soup & tortilla chips','tex','pot','gturkey 1.5,onion 1,blackb 1,pinto 1,cornc 1,rotel 2,tacoseas 1,ranchpk 1,broth 2,cheddar 4,sourcr 4,chips 6','','CELP'],
+ ['nachos','Chicken nachos','tex','plate','chix 1.5,chips 12,cheddar 10,blackb 1,jalap 2,tomato 2,avocado 2,sourcr 4,salsa .5','','HWE'],
+ ['spag','Spaghetti & salad','ital','bowl','spag 1,gbeef 1,marinara 1.5,onion .5,garlic 3,parm 2','salad,garlicbread','WCELP'],
+ ['antipasto','Antipasto pasta salad','ital','salad','rotini 1,salami 6,mozzpearl 8,cherry 1,olives 1,pepperonc .5,cuke 1,italdress 8','garlicbread','HELP'],
+ ['antisalad','Antipasto salad','ital','salad','','garlicbread','HE'],
+ ['charcut','Charcuterie board','snack','board','prosc 4,salami 6,boardch 12,cuke 1,carrot .5,cherry 1,crackers 2,pickles .5,sundried 3','','HE'],
+ ['enchiladas','Chicken enchiladas','tex','plate','chix 1.5,encsauce 1,corntort 12,cheddar 10,onion .5,sourcr 4','sprice,refried','WCLP'],
+ ['potpie','Chicken pot pie','comf','pie','chix 1.5,mixveg 1,creamchix 2,milk .5,onion .5,piecrust 1','salad','CLP'],
+ ['kalua','Kalua pig, rice & cabbage','haw','plate','pork 3,smoke 2,seasalt 1.5,rice 2,cabbage .5','','WCELDP'],
+ ['cabstew','Unstuffed peppers','comf','pot','gbeef 1.5,cabbage 1,dicedt 2,onion 1,garlic 3,beefbroth 3','cornbread','CELP'],
+ ['fajitas','Fajitas','tex','taco','steak 1.5,pepper 3,onion 1,fajseas 1,flourtort 10,sourcr 4,avocado 2,lime 2,cheddar 4,pico 8','sprice,blackb','HW'],
+ ['teriyaki','Teriyaki chicken, stir-fry veggies & rice','asia','bowl','thigh 2,teri 6,stirfry 1.5,sesoil 1,rice 2','','HWELP'],
+ ['chixsalad','Chicken on a salad','amer','salad','thigh 1.5,mix 10,cherry 1,cuke 1,cheddar 3,avocado 1,ranch 6','','HEP'],
+ ['buffsalad','Buffalo chicken salad','amer','salad','thigh 1.5,buffalo 4,mix 10,cherry 1,cuke 1,celery 2,cheddar 3,ranch 6','','HEP'],
+ ['chixsalsand','Chicken salad sandwiches','amer','sandwich','rot 1,mayo 6,celery 2,croissant 6,romaine 1','','HELP'],
+ ['blt','BLT sandwiches','amer','sandwich','bacon 1,bread 8,tomato 2,romaine 1,mayo 4','spfries','HWE'],
+ ['stuffed','Steak-stuffed peppers','tex','plate','pepper 4,steak 1,rice 1,onion .5,rotel 1,cheddar 6','salad','WCLP'],
+ ['classicstuffed','Classic stuffed peppers','amer','plate','','salad','WCLP'],
+ ['alfredo','Chicken fettuccine Alfredo','ital','bowl','fett 1,chix 1.5,cream 2,butter .25,parm 4,garlic 3','steambroc,garlicbread','WCELP'],
+ ['grilled','Grilled cheese & tomato soup','amer','sandwich','bread 8,slices 8,butter .15,tomsoup 3','','CE'],
+ ['zuppa','Zuppa Toscana','ital','pot','sausage 1,bacon .5,russet 2,kale 1,onion 1,garlic 3,broth 6,cream 1','garlicbread','CLP'],
+ ['chixsand','Air-fried chicken sandwiches & fries','amer','sandwich','chix 1.5,flour .5,eggs 2,panko 1,brioche 4,pickles .25,mayo 4','fries','W'],
+ ['burgers','Hamburgers & fries','amer','sandwich','gbeef 2,buns 6,slices 6,tomato 1,romaine 1,onion .5,pickles .25,ketchup 3,mustard 2','fries','HWE'],
+ ['ravioli','Ravioli (store-bought)','ital','bowl','ravioli 2,marinara 1,parm 2','salad,garlicbread','WCE'],
+ ['meatloaf','Meatloaf','comf','plate','gbeef 2,eggs 2,panko .75,onion 1,ketchup 6,bsugar 2,worc 2,milk .25','mashed,steambroc','WCLP']
+];
+const SIDES=[
+ ['greens','Supergreens','greens 5,oil 1,lemon .5'],
+ ['mashed','Mashed potatoes','russet 2.5,butter .25,milk .5'],
+ ['sprice','Spanish rice','rice 1.5,tsauce 1,broth 2,onion .5'],
+ ['refried','Refried beans','refried 2'],
+ ['blackb','Black beans','blackb 2'],
+ ['broc','Roasted broccoli','broc 1.5,oil 2'],
+ ['steambroc','Steamed broccoli','broc 1.5,butter .05'],
+ ['fries','French fries','fries 2'],
+ ['spfries','Sweet potato fries','spfries 1.5'],
+ ['sweetpot','Roasted sweet potatoes','sweetpot 2,oil 2'],
+ ['peponion','Roasted bell peppers & onions','pepper 3,onion 1,oil 2'],
+ ['carrots','Roasted carrots','carrot 2,oil 1,honey 1'],
+ ['squash','Roasted squash & zucchini','squash 4,oil 2'],
+ ['cornbread','Cornbread','jiffy 2,eggs 2,milk .67'],
+ ['salad','Salad','mix 8,cherry .5,cuke 1,dressing 4'],
+ ['garlicbread','Garlic bread','garlicbread 1'],
+ ['corn','Corn on the cob','corn 4,butter .05']
+];
+// Recipes. Each ingredient line: [amount, unit, text, round, catalogId, catalogQty]
+// amount/unit are for the recipe's own "serves"; catalogQty is that line's grocery amount (in the catalog item's unit) for the same "serves".
+// round: "w" whole number, "h" nearest half. A line with no catalogId isn't shopped (salt, water, optional garnish).
+const RCP={
+pizza:{serves:4,time:'20 min',desc:'Warm, pillowy naan turns into a crisp-edged crust under bubbling mozzarella and curled-up pepperoni. Ready faster than delivery, and everyone gets their own.',
+ ing:[['',[[4,'','naan flatbreads','w','naan',4],[1,'Tbsp','olive oil','','oil',1],[1,'cup','pizza sauce','','pizzasauce',8],[2,'cup','shredded mozzarella','','mozz',8],[3,'oz','sliced pepperoni (about 24 slices)','','pepperoni',3],[1,'tsp','Italian seasoning','','italseas',1],[null,'','Optional: peppers, onions, olives, mushrooms']]]],
+ steps:['Heat the oven to 425°F.','Set the naan on a baking sheet and brush the tops with olive oil.','Spread sauce on each, leaving a thin edge, then top with mozzarella, pepperoni and any other toppings.','Bake 8–10 minutes, until the cheese bubbles and the edges crisp.','Sprinkle with Italian seasoning, slice and serve.']},
+
+tikka:{serves:6,time:'1 hr 20 min',desc:'Tender chicken simmered in a silky tomato-cream sauce warmed with cumin, ginger, cinnamon and a little cayenne heat. Spoon it over fluffy rice and scoop up every drop with warm naan.',src:['Allrecipes','https://www.allrecipes.com/recipe/228293/curry-stand-chicken-tikka-masala-sauce/'],
+ ing:[['Tikka masala',[[2,'Tbsp','ghee (clarified butter)','','ghee',2],[1,'','onion, finely chopped','w','onion',1],[4,'clove','garlic, minced','','garlic',4],[1,'Tbsp','ground cumin','','cumin',1],[1,'tsp','salt, plus more to taste'],[1,'tsp','ground ginger','','gginger',1],[1,'tsp','cayenne pepper','','cayenne',1],[0.5,'tsp','ground cinnamon','','cinnamon',0.5],[0.25,'tsp','ground turmeric','','turmeric',0.25],[1,'can','(14–15 oz) tomato sauce','h','tsauce15',1],[1,'cup','heavy cream','','cream',1],[1,'Tbsp','sugar, plus more to taste','','sugar',1],[2,'tsp','paprika','','paprika',2],[1,'Tbsp','vegetable oil','','vegoil',1],[2,'lb','boneless, skinless chicken breasts (about 4), in bite-size pieces','','chix',2],[0.5,'tsp','curry powder','','curry',0.5]]],
+      ['Rice & naan',[[2.25,'cup','jasmine rice, uncooked','','rice',2.25],[6,'','naan','w','naan',6]]]],
+ steps:['Start the rice so it is ready with the curry.','Melt the ghee in a large skillet over medium heat. Cook the onion until translucent, about 5 minutes.','Add the garlic for 1 minute, then the cumin, salt, ginger, cayenne, cinnamon and turmeric. Toast about 2 minutes, until fragrant.','Stir in the tomato sauce, bring to a boil, then simmer on low 10 minutes.','Stir in the cream, sugar and paprika and simmer 10–15 minutes, stirring often, until thick.','Meanwhile, heat the oil in a second skillet over medium heat. Sear the chicken with the curry powder about 3 minutes, until browned but still pink inside.','Add the chicken and its juices to the sauce and simmer about 30 minutes, until cooked through. Adjust salt and sugar.','Warm the naan in a dry skillet or a 350°F oven and serve with the rice.']},
+
+ramen:{serves:4,time:'25 min',desc:'A steaming bowl of slurpable noodles in a garlicky, gingery broth with a gochujang kick, crowned with jammy soft-boiled eggs and fresh green onion.',
+ ing:[['',[[4,'','eggs','w','eggs',4],[1,'Tbsp','sesame oil','','sesoil',1],[2,'clove','garlic, minced','','garlic',2],[1,'Tbsp','fresh ginger, grated','','ginger',1],[6,'cup','chicken broth','','broth',6],[2,'Tbsp','soy sauce','','soy',2],[2,'Tbsp','gochujang','','gochu',2],[4,'pack','instant ramen noodles (use half the seasoning packets, or none)','w','ramen',4],[4,'','green onions, sliced','w','scallion',0.5]]]],
+ steps:['Soft-boil the eggs: lower them into boiling water for 6½ minutes, then move to ice water. Peel and halve.','Warm the sesame oil in a pot over medium heat. Cook the garlic and ginger 1 minute.','Add the broth, soy sauce and gochujang. Simmer 5 minutes.','Cook the noodles in a separate pot of boiling water according to the package and drain.','Divide the noodles into bowls, ladle the broth over, and top with eggs and green onions.']},
+
+beefstew:{serves:6,time:'1 hr 15 min',desc:'Fall-apart chunks of beef in a rich, glossy gravy with buttery potatoes and sweet carrots. All the slow-simmered Sunday flavor, done in about an hour.',note:'Pressure time stays 35 minutes at any size. Keep at least 1½ cups of liquid so the pot comes to pressure, and don’t fill past the 2/3 line.',
+ ing:[['',[[2,'lb','beef chuck stew meat, in 1½-inch cubes','','stew',2],[1,'tsp','salt'],[0.5,'tsp','black pepper'],[3,'Tbsp','all-purpose flour','','flour',0.1875],[2,'Tbsp','vegetable oil','','vegoil',2],[1,'','yellow onion, diced','w','onion',1],[3,'clove','garlic, minced','','garlic',3],[2,'Tbsp','tomato paste','','tpaste',0.2],[3,'cup','beef broth','','beefbroth',3],[1,'Tbsp','Worcestershire sauce','','worc',3],[1,'tsp','dried thyme','','thyme',1],[2,'','bay leaves','w','bay',2],[1.5,'lb','baby gold potatoes, halved','','babypot',1.5],[4,'','carrots, in 1-inch chunks','w','carrot',0.67],[1,'cup','frozen peas','','peas',0.33]]]],
+ steps:['Toss the beef with the salt, pepper and flour.','Set the Instant Pot to Sauté, heat the oil, and brown the beef in batches, about 3 minutes each. Set aside.','Cook the onion 3 minutes, then stir in the garlic and tomato paste for 1 minute.','Pour in about a cup of broth and scrape up the browned bits (this prevents a burn warning).','Return the beef with the rest of the broth, the Worcestershire, thyme and bay leaves. Set the potatoes and carrots on top.','Seal and cook on High Pressure 35 minutes. Natural release 10 minutes, then quick-release.','Remove the bay leaves, stir in the peas, and simmer on Sauté 2–3 minutes to thicken.']},
+
+korean:{serves:4,time:'35 min',desc:'Sticky, sweet-and-spicy chicken glazed in soy, brown sugar and gochujang with plenty of garlic and ginger. Pile it over rice and shower it with green onions.',note:'Pressure time stays 9 minutes at any size. Keep at least 1 cup of total liquid so the pot comes to pressure.',
+ ing:[['Chicken & sauce',[[2,'lb','boneless, skinless chicken thighs','','thigh',2],[0.5,'cup','low-sodium soy sauce','','soy',8],[0.25,'cup','brown sugar','','bsugar',4],[2,'Tbsp','gochujang','','gochu',2],[1,'Tbsp','rice vinegar','','ricevin',1],[1,'Tbsp','sesame oil','','sesoil',1],[4,'clove','garlic, minced','','garlic',4],[1,'Tbsp','fresh ginger, grated','','ginger',1],[0.5,'cup','water'],[1,'Tbsp','cornstarch, stirred into 2 Tbsp cold water','','cornstarch',1],[4,'','green onions, sliced','w','scallion',0.5]]],
+      ['Rice',[[1.5,'cup','jasmine rice, uncooked','','rice',1.5]]]],
+ steps:['Start the rice.','In the Instant Pot, whisk the soy sauce, brown sugar, gochujang, vinegar, sesame oil, garlic, ginger and water.','Add the chicken and turn to coat.','Seal and cook on High Pressure 9 minutes. Natural release 5 minutes, then quick-release.','Move the chicken to a board and chop or shred it.','Switch to Sauté, whisk in the cornstarch slurry, and simmer 1–2 minutes until glossy.','Return the chicken to the sauce and serve over rice with green onions.']},
+
+chixtacos:{serves:6,time:'4–8 hrs, slow cooker',desc:'Juicy thighs slow-cooked in taco seasoning until they shred at a touch. Tuck the tender, saucy chicken into warm tortillas and load on every topping.',src:['the Pinterest pin','https://www.pinterest.com/pin/64950419599136137/'],
+ ing:[['Chicken',[[3,'lb','boneless chicken thighs (about 12)','','thigh',3],[1,'cup','water'],[2,'packet','taco seasoning','h','tacoseas',2]]],
+      ['For serving',[[18,'','small corn tortillas','w','corntort',18],[2.25,'cup','shredded cheddar','','cheddar',9],[1.5,'','romaine hearts, shredded','h','romaine',1.5],[3,'','tomatoes, diced','w','tomato',3],[0.75,'cup','sour cream','','sourcr',6],[1.5,'cup','salsa','','salsa',0.75],[2,'','avocados, mashed into guacamole','w','avocado',2]]]],
+ steps:['Put the chicken in the slow cooker with the water and taco seasoning.','Cook on High 4–5 hours or Low about 8 hours.','Shred with two forks and stir into the juices.','Warm the tortillas and serve with all the toppings.']},
+
+tacos:{serves:4,time:'20 min',desc:'Classic Tuesday-night tacos: savory, well-seasoned ground beef in crunchy shells with cool lettuce, juicy tomato, melty cheddar and a dollop of sour cream.',
+ ing:[['',[[1,'lb','ground beef','','gbeef',1],[2,'Tbsp','taco seasoning (about 1 packet)','','tacoseas',1],[0.667,'cup','water'],[8,'','taco shells or small tortillas','w','corntort',8],[1,'cup','shredded lettuce','','romaine',0.33],[1,'cup','shredded cheddar','','cheddar',4],[1,'','tomato, diced','w','tomato',1],[0.5,'cup','sour cream','','sourcr',4],[0.5,'cup','salsa','','salsa',0.25]]]],
+ steps:['Brown the beef in a skillet over medium-high heat, breaking it up, 6–8 minutes. Drain the fat.','Stir in the taco seasoning and water and simmer 3–5 minutes until thickened.','Warm the shells or tortillas.','Fill with beef and top with lettuce, cheese, tomato, sour cream and salsa.']},
+
+friedrice:{serves:4,time:'20 min',desc:'Crispy-edged rice tossed in a ripping-hot pan with fluffy scrambled egg, sweet peas and carrots, and a toasty hit of soy and sesame. Better than takeout.',note:'Use rice cooked the day before and chilled; fresh rice turns mushy. For 6 or more, fry in two batches.',
+ ing:[['',[[4,'cup','cold cooked rice (from about 1⅓ cups uncooked)','','rice',1.33],[4,'','eggs','w','eggs',4],[3,'Tbsp','vegetable oil, divided','','vegoil',3],[2,'clove','garlic, minced','','garlic',2],[1,'cup','frozen peas and carrots','','peascarrots',0.33],[4,'','green onions, sliced','w','scallion',0.5],[3,'Tbsp','soy sauce','','soy',3],[1,'tsp','sesame oil','','sesoil',0.33],[0.25,'tsp','white or black pepper']]]],
+ steps:['Break up any clumps in the cold rice.','Beat the eggs. Heat 1 Tbsp oil in a large skillet or wok over medium-high heat, scramble until just set, and move to a plate.','Add the rest of the oil. Stir-fry the garlic and green onion whites 30 seconds, then the peas and carrots 2 minutes.','Add the rice, spread it out, and let it sit 1 minute to crisp before tossing. Repeat for 3–4 minutes.','Toss in the soy sauce, sesame oil and pepper, then fold the eggs back in and top with the green onion greens.']},
+
+taquitos:{serves:4,time:'40 min',desc:'Crunchy golden rolls stuffed with creamy, tangy buffalo chicken and melted cheddar. Dunk them in cool ranch.',note:'3 taquitos per person.',src:['Recipe Diaries','https://www.recipe-diaries.com/baked-bufffalo-chicken-taquitos/'],
+ ing:[['',[[0.67,'lb','chicken breast, cooked and shredded (about 2 cups)','','chix',0.67],[3,'oz','cream cheese, softened','','ccheese',3],[2,'Tbsp','buffalo sauce','','buffalo',2],[0.25,'cup','shredded cheddar','','cheddar',1],[12,'','six-inch flour tortillas','w','flourtort',12],[null,'','Cooking spray'],[0.25,'cup','ranch dressing, for dipping','','ranch',4]]]],
+ steps:['If the chicken is raw, simmer it in salted water 15 minutes until cooked through, then shred.','Heat the oven to 425°F and lightly grease a baking sheet.','Mix the cream cheese, buffalo sauce, chicken and cheddar.','Spread 2–3 Tbsp of filling in a thin line on each tortilla and roll up tightly. Place seam-side down.','Spray the tops and bake 15–20 minutes, until golden. Serve with ranch.']},
+
+mojito:{serves:4,time:'1 hr, plus 30 min to marinate',desc:'Bright, zesty chicken soaked in lime, fresh mint, garlic and a touch of honey, seared until charred at the edges. Golden, crispy baby potatoes on the side.',
+ ing:[['Mojito marinade',[[0.25,'cup','fresh lime juice, plus 1 tsp zest (about 2 limes)','','lime',2],[0.25,'cup','olive oil','','oil',4],[0.25,'cup','fresh mint, chopped, plus more to garnish','','mint',0.5],[1,'Tbsp','honey','','honey',1],[4,'clove','garlic, minced','','garlic',4],[1,'tsp','salt'],[0.5,'tsp','ground cumin','','cumin',0.17]]],
+      ['Chicken',[[1.5,'lb','boneless, skinless chicken breasts or thighs','','chix',1.5]]],
+      ['Roasted baby potatoes',[[1.5,'lb','baby potatoes, halved','','babypot',1.5],[2,'Tbsp','olive oil','','oil',2],[1,'tsp','salt'],[0.5,'tsp','garlic powder','','garlicpow',0.5],[1,'tsp','dried rosemary','','rosemary',1]]]],
+ steps:['Whisk the marinade, add the chicken, and refrigerate 30 minutes to 4 hours (longer and the lime turns it mushy).','Heat the oven to 425°F. Toss the potatoes with oil and seasonings and roast cut-side down 30–35 minutes, flipping once.','Grill or sear the chicken in an oiled skillet over medium-high heat 5–7 minutes per side, to 165°F inside.','Rest 5 minutes, slice, and serve with the potatoes, extra mint and lime wedges.']},
+
+rotis:{serves:4,time:'15 min',desc:'Juicy, golden store-bought rotisserie chicken, warmed through and carved at the table. The easiest comfort dinner there is.',note:'One rotisserie chicken feeds about 4.',
+ ing:[['',[[1,'','store-bought rotisserie chicken','w','rot',1]]]],
+ steps:['If the chicken has cooled, warm it in a 350°F oven, loosely covered with foil, for 15 minutes.','Carve into legs, thighs, wings and sliced breast, and spoon the pan juices over.']},
+
+vegchili:{serves:6,time:'45 min',desc:'A hearty pot of three kinds of beans, sweet corn and smoky spices simmered in tomatoes until thick. So satisfying nobody misses the meat.',
+ ing:[['Chili',[[1,'Tbsp','olive oil','','oil',1],[1,'','onion, diced','w','onion',1],[1,'','bell pepper, diced','w','pepper',1],[3,'clove','garlic, minced','','garlic',3],[2,'Tbsp','chili powder','','chilip',2],[1,'tsp','ground cumin','','cumin',0.33],[1,'tsp','smoked paprika','','smpaprika',1],[0.5,'tsp','dried oregano','','oregano',0.5],[1,'can','(15 oz) black beans, drained','h','blackb',1],[1,'can','(15 oz) kidney beans, drained','h','kidney',1],[1,'can','(15 oz) pinto beans, drained','h','pinto',1],[1,'can','(28 oz) crushed tomatoes','h','crushedt',1],[1,'can','(4 oz) diced green chiles','h','greenchile',1],[1,'cup','vegetable broth','','vegbroth',1],[1,'cup','corn','','cornc',0.67],[1,'tsp','salt'],[1.5,'cup','shredded cheddar, for topping','','cheddar',6]]],
+      ['Rice',[[1.5,'cup','long-grain rice, uncooked','','rice',1.5]]]],
+ steps:['Cook the rice: bring 2 cups water per cup of rice to a boil with a pinch of salt, stir in the rice, cover, and simmer on low 18 minutes. Rest 5 minutes.','Heat the oil in a large pot over medium heat. Cook the onion and pepper 5 minutes, then the garlic 1 minute.','Stir in the chili powder, cumin, paprika and oregano and toast 1 minute.','Add the beans, tomatoes, green chiles, broth, corn and salt. Simmer uncovered 20–25 minutes, stirring now and then, until thick.','Serve over rice topped with cheddar.']},
+
+sloppy:{serves:4,time:'25 min',desc:'Messy in the best way: tangy-sweet, saucy ground beef piled high on soft toasted buns. Grab extra napkins.',
+ ing:[['',[[1,'lb','ground beef','','gbeef',1],[0.5,'','onion, finely diced','','onion',0.5],[0.5,'','green bell pepper, finely diced','','pepper',0.5],[2,'clove','garlic, minced','','garlic',2],[0.75,'cup','ketchup','','ketchup',12],[0.25,'cup','water'],[1,'Tbsp','brown sugar','','bsugar',1],[1,'Tbsp','Worcestershire sauce','','worc',3],[1,'tsp','yellow mustard','','mustard',0.33],[0.5,'tsp','chili powder','','chilip',0.17],[0.5,'tsp','salt'],[4,'','hamburger buns','w','buns',4]]]],
+ steps:['Brown the beef with the onion and pepper over medium-high heat, 7–8 minutes. Drain the fat, then add the garlic for 1 minute.','Stir in the ketchup, water, brown sugar, Worcestershire, mustard, chili powder and salt.','Simmer 10 minutes, until thick.','Toast the buns and pile on the filling.']},
+
+bfd:{serves:4,time:'45 min',desc:'Soft, buttery scrambled eggs, shatteringly crisp bacon, crunchy roasted potatoes and toasted sourdough. Breakfast just tastes better at dinnertime.',
+ ing:[['Potatoes',[[1.5,'lb','baby potatoes, halved','','babypot',1.5],[2,'Tbsp','olive oil','','oil',2],[1,'tsp','salt'],[0.5,'tsp','garlic powder','','garlicpow',0.5],[0.5,'tsp','paprika','','paprika',0.5]]],
+      ['Bacon',[[12,'slice','bacon','w','bacon',0.75]]],
+      ['Scrambled eggs',[[8,'','eggs','w','eggs',8],[2,'Tbsp','milk','','milk',0.125],[1,'Tbsp','butter, plus more for toast','','butter',0.1],[0.25,'tsp','salt']]],
+      ['Toast',[[8,'slice','sourdough bread','w','sourdough',8]]]],
+ steps:['Heat the oven to 400°F. Toss the potatoes with the oil and seasonings and roast 35–40 minutes, flipping once.','Bake the bacon on a foil-lined sheet on another rack 15–20 minutes, until crisp. Drain on paper towels.','Whisk the eggs with the milk and salt. Melt the butter in a nonstick skillet over medium-low heat and stir slowly until softly set, 3–4 minutes.','Toast and butter the sourdough and serve everything together.']},
+
+tacosoup:{serves:8,time:'30 min',desc:'A cozy, brick-red soup packed with ground turkey, beans and sweet corn in a taco-spiced tomato broth. Crunch tortilla chips on top and add a cool swirl of sour cream.',src:['iFoodReal','https://ifoodreal.com/turkey-taco-soup/'],
+ ing:[['Soup',[[2,'lb','ground turkey','','gturkey',2],[1,'Tbsp','oil, for the pan','','vegoil',1],[2,'Tbsp','taco seasoning','','tacoseas',1],[3,'can','(15 oz) tomato sauce','h','tsauce15',3],[2,'can','(15 oz) kidney beans, drained','h','kidney',2],[3,'cup','corn','','cornc',2],[2,'Tbsp','onion powder','','onionpow',6],[1,'Tbsp','honey or maple syrup','','honey',1],[1,'tsp','salt'],[4,'cup','low-sodium chicken broth or water','','broth',4]]],
+      ['For serving',[[12,'oz','tortilla chips','','chips',12],[1,'cup','sour cream','','sourcr',8],[2,'','avocados, diced','w','avocado',2],[2,'','limes, in wedges','w','lime',2],[null,'','Cilantro and green onions']]]],
+ steps:['Heat the oil in a Dutch oven over medium-high heat. Brown the turkey 5–7 minutes, breaking it up.','Add the taco seasoning and cook 1 minute, stirring.','Stir in the tomato sauce, beans, corn, onion powder, honey, salt and broth.','Cover, bring to a boil, then simmer on low 20–60 minutes (longer deepens the flavor).','Serve with tortilla chips, sour cream, avocado and lime. Slow cooker: brown the turkey first, then cook everything on Low 7–8 hours.']},
+
+nachos:{serves:4,time:'25 min',desc:'A sheet pan of crunchy chips buried under seasoned chicken, black beans and gooey melted cheese, then piled with fresh, cool toppings. Dinner you eat with your hands.',
+ ing:[['',[[12,'oz','tortilla chips','','chips',12],[0.67,'lb','chicken breast, cooked and shredded (about 2 cups)','','chix',0.67],[1,'Tbsp','taco seasoning','','tacoseas',0.5],[0.25,'cup','salsa, plus more to serve','','salsa',0.375],[1,'can','(15 oz) black beans, drained','h','blackb',1],[2,'cup','shredded Mexican-blend cheese','','cheddar',8],[1,'','jalapeño, sliced','w','jalap',1],[1,'','tomato, diced','w','tomato',1],[2,'','green onions, sliced','w','scallion',0.25],[0.5,'cup','sour cream','','sourcr',4],[1,'','avocado, diced','w','avocado',1]]]],
+ steps:['If the chicken is raw, simmer it in salted water 15 minutes until cooked, then shred.','Heat the oven to 400°F and line a sheet pan with parchment.','Warm the chicken with the taco seasoning and ¼ cup salsa, 2–3 minutes.','Layer half the chips, chicken, beans and cheese, then repeat. Scatter on the jalapeño.','Bake 8–10 minutes, until melted, then top with tomato, green onion, sour cream, avocado and more salsa.']},
+
+spag:{serves:4,time:'35 min',desc:'Twirls of spaghetti in a hearty, garlicky meat sauce under a snowfall of parmesan. The dinner everybody asks for again.',
+ ing:[['',[[1,'lb','spaghetti','','spag',1],[1,'lb','ground beef or Italian sausage','','gbeef',1],[1,'','small onion, diced','w','onion',1],[3,'clove','garlic, minced','','garlic',3],[1,'jar','(24 oz) marinara sauce','h','marinara',1],[1,'tsp','Italian seasoning','','italseas',1],[0.5,'tsp','salt, plus more for the pasta water'],[0.33,'cup','grated parmesan, to serve','','parm',1]]]],
+ steps:['Bring a large pot of well-salted water to a boil.','Brown the meat with the onion over medium-high heat, 7–8 minutes. Drain the fat and add the garlic for 1 minute.','Stir in the marinara and Italian seasoning and simmer on low 10–15 minutes.','Cook the spaghetti to al dente, save ½ cup pasta water, and drain.','Toss the pasta with the sauce, loosening with pasta water, and serve with parmesan.']},
+
+antipasto:{serves:6,time:'25 min, plus chilling',desc:'Our pasta salad: spiral pasta tossed with salami, pepperoni, creamy mozzarella pearls, olives, tangy pepperoncini and crisp veggies in zippy Italian dressing. Even better the next day.',
+ ing:[['',[[1,'lb','rotini','','rotini',1],[6,'oz','salami, cut into strips','','salami',6],[3,'oz','pepperoni, quartered','','pepperoni',3],[8,'oz','mozzarella pearls','','mozzpearl',8],[1,'pint','cherry tomatoes, halved','','cherry',1],[1,'can','(2¼ oz) sliced black olives, drained','h','olives',1],[0.5,'cup','pepperoncini, sliced','','pepperonc',0.25],[1,'','cucumber, diced','w','cuke',1],[0.25,'','red onion, thinly sliced','','redonion',0.25],[0.75,'cup','Italian dressing','','italdress',12],[0.33,'cup','grated parmesan','','parm',1]]]],
+ steps:['Cook the rotini in salted water to al dente, drain, and rinse with cold water to cool.','Toss the pasta with the salami, pepperoni, mozzarella, tomatoes, olives, pepperoncini, cucumber and onion.','Pour on the dressing and parmesan and toss well.','Chill at least 30 minutes. Stir and add a splash more dressing before serving.']},
+
+charcut:{serves:4,time:'20 min',desc:'A grazing board heaped with silky prosciutto, peppery salami, creamy and sharp cheeses, crisp veggies, briny pickles and sweet grapes with a drizzle of honey. Dinner, no cooking.',note:'As a full dinner, plan about 3 oz meat and 3 oz cheese per person.',
+ ing:[['Meat & cheese',[[4,'oz','prosciutto','','prosc',4],[8,'oz','salami','','salami',8],[12,'oz','assorted cheeses (brie, aged cheddar, gouda)','','boardch',12]]],
+      ['Everything else',[[8,'oz','crackers (2 boxes)','','crackers',2],[1,'cup','cherry tomatoes','','cherry',0.5],[1,'cup','baby carrots','','carrot',0.5],[1,'','cucumber, sliced','w','cuke',1],[1,'','bell pepper, in strips','w','pepper',1],[0.5,'cup','pickles or cornichons','','pickles',0.25],[2,'oz','oil-packed sun-dried tomatoes','','sundried',2],[0.5,'cup','olives','','olives',1],[1,'cup','grapes','','grapes',0.33],[2,'Tbsp','honey','','honey',2]]]],
+ steps:['Take the cheese out 30 minutes ahead so it softens.','Slice the cheddar and gouda; leave the brie whole with a knife.','Place the cheeses first, then small bowls for pickles, olives, sun-dried tomatoes and honey.','Fold or ribbon the meats into the gaps, then fill every space with crackers, veggies and grapes.']},
+
+enchiladas:{serves:8,time:'1 hr',desc:'Soft flour tortillas rolled around seasoned chicken, black beans and green chiles, smothered in homemade red chile sauce and baked under bubbling cheese.',note:'1 large enchilada per person (2 for big eaters). A full batch fills a 9×13; a half batch fits an 8×8.',src:['Gimme Some Oven','https://www.gimmesomeoven.com/best-chicken-enchiladas-ever/'],
+ ing:[['Red enchilada sauce',[[2,'Tbsp','olive or avocado oil','','oil',2],[2,'Tbsp','all-purpose flour','','flour',0.125],[0.25,'cup','chili powder','','chilip',4],[0.5,'tsp','garlic powder','','garlicpow',0.5],[0.5,'tsp','ground cumin','','cumin',0.17],[0.25,'tsp','dried oregano','','oregano',0.25],[2,'cup','chicken broth','','broth',2],[0.5,'tsp','salt, or to taste']]],
+      ['Enchiladas',[[2,'Tbsp','olive or avocado oil','','oil',2],[1,'','small white onion, diced','w','onion',1],[1.5,'lb','chicken breasts, in ½-inch pieces','','chix',1.5],[1,'can','(4 oz) diced green chiles','h','greenchile',1],[1,'can','(15 oz) black beans, drained','h','blackb',1],[8,'','large flour tortillas','w','flourtort',8],[3,'cup','shredded Mexican-blend cheese','','cheddar',12],[1,'cup','sour cream, to serve','','sourcr',8]]]],
+ steps:['Sauce: heat the oil in a small saucepan over medium-high heat, whisk in the flour for 1 minute, then the chili powder, garlic powder, cumin and oregano for 1 minute.','Whisk in the broth until smooth and simmer 10–15 minutes until slightly thick. Salt to taste.','Heat the oven to 350°F. Cook the onion in the oil 3 minutes, add the chicken and green chiles with salt and pepper, and cook 6–8 minutes. Stir in the beans.','Spread 2 Tbsp sauce on each tortilla, add filling and about ⅓ cup cheese, roll up, and place seam-side down in a greased dish.','Pour on the remaining sauce and cheese and bake uncovered 20 minutes. Serve with sour cream.']},
+
+potpie:{serves:8,time:'1 hr 10 min',desc:'A flaky, golden double crust over a creamy filling of tender chicken, mushrooms, carrots and sweet peas. Pure cold-night comfort.',note:'A full batch is one deep 9-inch pie. For 2–4 people, bake a half batch in a small pie dish, or bake the whole pie for leftovers.',src:["Natasha’s Kitchen",'https://natashaskitchen.com/chicken-pot-pie-recipe/'],
+ ing:[['',[[2,'','refrigerated pie crusts (one 2-pack)','h','piecrust',1],[1.33,'lb','chicken breast, cooked and shredded (about 4 cups)','','chix',1.33],[6,'Tbsp','butter','','butter',0.375],[1,'','yellow onion, chopped','w','onion',1],[2,'','carrots, thinly sliced','w','carrot',0.33],[8,'oz','mushrooms, sliced','','mushroom',8],[3,'clove','garlic, minced','','garlic',3],[0.33,'cup','all-purpose flour','','flour',0.33],[2,'cup','chicken broth','','broth',2],[0.5,'cup','heavy cream','','cream',0.5],[2,'tsp','salt, or to taste'],[1,'cup','frozen peas','','peas',0.33],[0.25,'cup','fresh parsley, chopped','','parsley',0.5],[1,'','egg, beaten','w','eggs',1]]]],
+ steps:['If the chicken is raw, simmer it in salted water 15 minutes until cooked, then shred. Heat the oven to 425°F.','Melt the butter in a Dutch oven over medium heat. Cook the onion and carrots 8 minutes, then the mushrooms and garlic 5 minutes.','Stir in the flour for 2 minutes. Add the broth and cream, simmer until thick, and season.','Stir in the chicken, peas and parsley and let cool slightly.','Line the pie dish with one crust, add the filling, top with the second crust, crimp, and cut 5 slits. Brush with egg.','Bake 30–35 minutes until golden (shield the edges with foil if needed). Rest 15 minutes before slicing.']},
+
+kalua:{serves:8,time:'12–16 hrs, slow cooker',desc:'Smoky, salty, melt-in-your-mouth Hawaiian pulled pork with just three ingredients and almost no work. Serve it over steamed rice with tender sautéed cabbage.',src:['Skinnytaste','https://www.skinnytaste.com/crock-pot-kalua-pork/'],
+ ing:[['Kalua pig',[[2.5,'lb','trimmed pork shoulder (blade roast)','','pork',2.5],[1,'Tbsp','liquid smoke (mesquite)','','smoke',3],[1.5,'Tbsp','coarse Hawaiian or sea salt','','seasalt',1.5]]],
+      ['Rice & cabbage',[[3,'cup','jasmine rice, uncooked','','rice',3],[1,'head','green cabbage, sliced','h','cabbage',1],[2,'Tbsp','vegetable oil','','vegoil',2]]]],
+ steps:['Put the pork in the slow cooker and poke it all over with a knife.','Rub with the salt, drizzle with liquid smoke, and cook on Low 12–16 hours, until very tender.','Shred with two forks, discarding fat. Save a little cooking liquid to keep it moist.','Cook the rice.','Sauté the cabbage in the oil over medium-high heat 6–8 minutes, until tender, then stir in a few spoonfuls of the pork juices.','Serve the pork over rice with the cabbage.']},
+
+cabstew:{serves:6,time:'50 min',desc:'All the cozy flavor of stuffed peppers without the stuffing: browned ground beef, sweet bell peppers, tender cabbage and rice simmered together in a rich, Italian-seasoned tomato broth. One pot, and it tastes even better the next day.',
+ ing:[['',[[1,'Tbsp','olive oil','','oil',1],[1,'lb','ground beef','','gbeef',1],[1,'','onion, diced','w','onion',1],[3,'clove','garlic, minced','','garlic',3],[2,'','bell peppers (any color), diced','w','pepper',2],[6,'cup','green cabbage, chopped (about ¾ small head)','','cabbage',0.75],[2,'can','(14.5 oz) diced tomatoes','h','dicedt',2],[1,'can','(8 oz) tomato sauce','h','tsauce',1],[4,'cup','beef broth','','beefbroth',4],[0.75,'cup','long-grain rice, uncooked','','rice',0.75],[1,'tsp','paprika','','paprika',1],[1,'tsp','Italian seasoning','','italseas',1],[1,'tsp','salt'],[0.5,'tsp','black pepper'],[null,'','Optional: shredded cheddar or parmesan on top']]]],
+ steps:['Heat the oil in a large pot over medium-high heat. Brown the beef with the onion 7–8 minutes and drain the fat. Add the garlic for 1 minute.','Add the bell peppers and cook 3 minutes, until they start to soften.','Stir in the cabbage, tomatoes, tomato sauce, broth, rice, paprika, Italian seasoning, salt and pepper.','Bring to a boil, then cover and simmer on low 20–25 minutes, stirring now and then, until the rice and cabbage are tender.','Taste for salt and serve in bowls, with cheese on top if you like.']},
+
+classicstuffed:{serves:4,time:'1 hr',desc:'Sweet bell peppers packed with seasoned ground beef, rice and tomatoes, baked until tender and finished under a bubbling blanket of melted cheese. The old-school family favorite.',note:'1 pepper (2 halves) per person.',
+ ing:[['',[[4,'','large bell peppers, halved lengthwise and seeded','w','pepper',4],[1,'lb','ground beef','','gbeef',1],[1,'','onion, diced','w','onion',1],[2,'clove','garlic, minced','','garlic',2],[0.5,'cup','long-grain rice, uncooked (makes about 1½ cups cooked)','','rice',0.5],[1,'can','(10 oz) diced tomatoes & green chiles','h','rotel',1],[1,'can','(8 oz) tomato sauce','h','tsauce',1],[1,'tsp','Italian seasoning','','italseas',1],[1,'tsp','salt'],[0.25,'tsp','black pepper'],[1.5,'cup','shredded cheddar or Mexican-blend cheese','','cheddar',6]]]],
+ steps:['Cook the rice according to the package. Heat the oven to 375°F.','Brown the beef with the onion over medium-high heat 7–8 minutes, drain, and add the garlic for 1 minute.','Stir in the cooked rice, diced tomatoes, half the tomato sauce, the Italian seasoning, salt and pepper. Stir in half the cheese.','Set the pepper halves cut-side up in a baking dish, fill them with the beef mixture, and spoon the rest of the tomato sauce over the top. Add ¼ cup water to the dish.','Cover with foil and bake 30 minutes, then uncover, top with the remaining cheese, and bake 10–15 minutes more, until the peppers are tender and the cheese bubbles.']},
+
+antisalad:{serves:4,time:'20 min',desc:'A big, colorful Italian deli salad: crisp romaine piled with salami, pepperoni, mozzarella and provolone, briny olives and artichokes, sweet roasted peppers and tangy pepperoncini, tossed in a bright homemade red-wine vinaigrette.',
+ ing:[['Salad',[[8,'cup','chopped romaine (about 2–3 hearts)','','romaine',2.5],[4,'oz','salami, cut into strips','','salami',4],[3,'oz','pepperoni, sliced','','pepperoni',3],[4,'oz','fresh mozzarella pearls','','mozzpearl',4],[4,'oz','provolone, cubed','','provolone',4],[1,'cup','cherry tomatoes, halved','','cherry',0.5],[0.5,'cup','Kalamata olives','','kalamata',0.5],[0.5,'cup','marinated artichoke hearts, quartered','','artichoke',0.5],[0.5,'cup','roasted red peppers, sliced','','roastedpep',0.33],[0.25,'cup','pepperoncini','','pepperonc',0.125],[0.25,'','red onion, thinly sliced','','redonion',0.25]]],
+      ['Italian vinaigrette',[[0.33,'cup','olive oil','','oil',5.33],[3,'Tbsp','red wine vinegar','','rwvin',3],[1,'tsp','dried oregano','','oregano',1],[1,'tsp','Dijon mustard','','dijon',1],[1,'clove','garlic, grated','','garlic',1],[0.25,'tsp','salt'],[null,'','Black pepper']]]],
+ steps:['Shake the vinaigrette ingredients together in a jar.','Put the romaine in a large bowl and arrange the meats, cheeses and vegetables on top.','Pour on the dressing and toss just before serving.']},
+
+fajitas:{serves:4,time:'55 min',desc:'Sizzling strips of spice-rubbed chicken roasted with sweet peppers and onions until charred at the edges, finished with a squeeze of lime and wrapped in warm tortillas.',note:'2 fajitas per person. For 8 or more, use two sheet pans so everything roasts instead of steaming.',src:['Budget Bytes','https://www.budgetbytes.com/oven-fajitas/'],
+ ing:[['Fajita seasoning',[[1,'Tbsp','chili powder','','chilip',1],[1.5,'tsp','paprika','','paprika',1.5],[0.5,'tsp','onion powder','','onionpow',0.5],[0.25,'tsp','garlic powder','','garlicpow',0.25],[0.25,'tsp','ground cumin','','cumin',0.083],[0.125,'tsp','cayenne pepper','','cayenne',0.125],[1,'tsp','sugar','','sugar',0.33],[0.5,'tsp','salt']]],
+      ['Fajitas',[[1.5,'','yellow onions (or 2 small)','h','onion',1.5],[3,'','bell peppers, any color','w','pepper',3],[1,'lb','chicken breast','','chix',1],[2,'Tbsp','vegetable oil','','vegoil',2],[1,'','lime','w','lime',1],[8,'','six-inch flour tortillas','w','flourtort',8],[0.5,'cup','sour cream','','sourcr',4],[null,'','Cilantro, optional']]]],
+ steps:['Heat the oven to 400°F and mix the seasoning.','Slice the onions and peppers into ¼-inch strips and the chicken into thin strips. Spread on a large sheet pan.','Drizzle with oil, sprinkle with the seasoning, toss with your hands, and spread out.','Bake 35–40 minutes, stirring once halfway, then squeeze half the lime over the top.','Fill warm tortillas and top with sour cream, cilantro and more lime.']},
+
+teriyaki:{serves:6,time:'1 hr 5 min',desc:'Juicy chicken thighs basted again and again in a homemade sweet-savory teriyaki glaze until sticky and caramelized, with crisp-tender stir-fried veggies and rice.',src:['Allrecipes','https://www.allrecipes.com/recipe/9023/baked-teriyaki-chicken/'],
+ ing:[['Teriyaki chicken',[[0.5,'cup','sugar','','sugar',8],[0.5,'cup','soy sauce','','soy',8],[0.25,'cup','apple cider vinegar','','cidervin',4],[1,'Tbsp','cornstarch','','cornstarch',1],[1,'Tbsp','cold water'],[1,'clove','garlic, minced','','garlic',1],[0.5,'tsp','ground ginger','','gginger',0.5],[0.25,'tsp','black pepper'],[12,'','boneless, skinless chicken thighs (about 3 lb)','w','thigh',3]]],
+      ['Stir-fry veggies & rice',[[2.25,'lb','frozen stir-fry vegetables','','stirfry',2.25],[1.5,'Tbsp','sesame oil','','sesoil',1.5],[2.25,'cup','jasmine rice, uncooked','','rice',2.25]]]],
+ steps:['Heat the oven to 425°F and grease a 9×13 baking dish. Start the rice.','Simmer the sugar, soy sauce, vinegar, cornstarch, water, garlic, ginger and pepper in a small saucepan over low heat 3–5 minutes, until thick.','Lay the chicken in the dish, brush both sides with sauce, and bake 30 minutes.','Flip, brush again, and bake 20–30 minutes more, basting every 10 minutes, until cooked through.','Stir-fry the vegetables in the sesame oil over high heat 5–7 minutes, until hot and crisp-tender. Serve with the chicken and rice, spooning extra glaze over.']},
+
+chixsalad:{serves:4,time:'30 min',desc:'Warm, smoky-spiced chicken sliced over a big, crunchy salad with creamy avocado, cheese and cool ranch.',
+ ing:[['Chicken',[[1.5,'lb','boneless, skinless chicken thighs (or breasts)','','thigh',1.5],[1,'Tbsp','olive oil','','oil',1],[1,'tsp','garlic powder','','garlicpow',1],[1,'tsp','paprika','','paprika',1],[0.5,'tsp','dried oregano','','oregano',0.5],[1,'tsp','salt']]],
+      ['Salad',[[8,'cup','spring mix or chopped romaine','','mix',8],[1,'cup','cherry tomatoes, halved','','cherry',0.5],[1,'','cucumber, sliced','w','cuke',1],[0.5,'cup','shredded carrots','','carrot',0.1],[0.25,'','red onion, thinly sliced','','redonion',0.25],[1,'','avocado, sliced','w','avocado',1],[0.5,'cup','shredded cheese','','cheddar',2],[0.5,'cup','ranch or your favorite dressing','','ranch',8]]]],
+ steps:['Rub the chicken with the oil, then the garlic powder, paprika, oregano and salt.','Cook in a skillet over medium-high heat 5–6 minutes per side, to 165°F inside (or air-fry at 380°F for 12–14 minutes, flipping halfway).','Rest 5 minutes, then slice.','Divide the salad ingredients among plates, top with chicken, and drizzle with dressing.']},
+
+buffsalad:{serves:4,time:'30 min',desc:'Spicy, saucy buffalo chicken on a cool, crunchy bed of greens, celery and cucumber, all drenched in creamy ranch. All the wing-night flavor in a salad.',
+ ing:[['Chicken',[[1.5,'lb','boneless, skinless chicken thighs','','thigh',1.5],[1,'Tbsp','olive oil','','oil',1],[0.5,'tsp','garlic powder','','garlicpow',0.5],[0.5,'tsp','salt'],[0.25,'cup','buffalo sauce','','buffalo',4]]],
+      ['Salad',[[8,'cup','spring mix or chopped romaine','','mix',8],[1,'cup','cherry tomatoes, halved','','cherry',0.5],[1,'','cucumber, sliced','w','cuke',1],[2,'stalk','celery, sliced','w','celery',2],[0.5,'cup','shredded carrots','','carrot',0.1],[0.5,'cup','shredded cheddar or blue cheese crumbles','','cheddar',2],[0.5,'cup','ranch dressing','','ranch',8]]]],
+ steps:['Season the chicken with the oil, garlic powder and salt.','Cook in a skillet over medium-high heat 5–6 minutes per side, to 165°F inside.','Rest 5 minutes, slice, and toss with the buffalo sauce.','Arrange the salad ingredients on plates, add the buffalo chicken, and drizzle with ranch.']},
+
+chixsalsand:{serves:2,time:'10 min',desc:'Creamy, tangy chicken salad with crunchy celery, chopped egg and sweet relish, layered with crisp lettuce on toasted bread. A copycat of the Chick-fil-A classic.',src:['The Frugal Navy Wife','https://www.thefrugalnavywife.com/copycat-chick-fil-chicken-salad-sandwich/'],
+ ing:[['',[[1,'cup','rotisserie chicken, chopped (about ¼ of a bird)','','rot',0.25],[0.25,'cup','celery, diced','','celery',0.5],[1,'','hard-boiled egg, diced','w','eggs',1],[2,'Tbsp','sweet relish','','relish',2],[0.33,'cup','mayonnaise','','mayo',5.33],[null,'','Salt and pepper'],[4,'slice','bread, toasted','w','bread',4],[2,'','lettuce leaves','w','romaine',0.13]]]],
+ steps:['Hard-boil the egg if needed: 10 minutes in boiling water, then into cold water.','Mix the chicken, mayo, relish, egg, celery, salt and pepper.','Put lettuce on half the toast slices and divide the chicken salad among them.','Top with the remaining toast.']},
+
+blt:{serves:4,time:'25 min',desc:'Thick, crackly bacon stacked with juicy ripe tomato and crisp lettuce on toasted bread with a swipe of mayo. Simple and perfect.',
+ ing:[['',[[16,'slice','bacon (about 1 lb)','w','bacon',1],[8,'slice','sandwich bread, toasted','w','bread',8],[2,'','large ripe tomatoes, sliced','w','tomato',2],[8,'','lettuce leaves','w','romaine',0.5],[0.25,'cup','mayonnaise','','mayo',4],[null,'','Salt and pepper for the tomatoes']]]],
+ steps:['Heat the oven to 400°F and bake the bacon on a foil-lined sheet 18–22 minutes, until crisp. Drain.','Toast the bread and spread mayo on each slice.','Season the tomato slices with salt and pepper.','Layer lettuce, tomato and about 4 slices of bacon on half the toast and top with the rest.']},
+
+stuffed:{serves:4,time:'30 min',desc:'Sweet roasted pepper boats loaded with seared sirloin, mushrooms and onions, then blanketed in melted mozzarella. All the flavor of a Philly cheesesteak, no bun needed.',note:'2 pepper halves per person.',src:['The Girl on Bloor','https://thegirlonbloor.com/philly-cheesesteak-stuffed-peppers/'],
+ ing:[['',[[2,'Tbsp','olive oil, divided','','oil',2],[4,'','green bell peppers, halved and seeded','w','pepper',4],[8,'oz','sirloin steak, in thin strips','','steak',0.5],[1.5,'cup','mushrooms, sliced','','mushroom',4],[0.5,'','red bell pepper, sliced','','pepper',0.5],[1,'','small red onion, sliced','w','redonion',1],[2,'cup','shredded mozzarella','','mozz',8],[null,'','Salt and pepper'],[1,'tsp','cornstarch (optional, for tender steak)','','cornstarch',0.33]]]],
+ steps:['Heat the oven to 400°F. Put the pepper halves on a lined sheet, drizzle with half the oil, season, and bake 10 minutes.','Optional: toss the steak with the cornstarch and let sit 10 minutes.','Sear the seasoned steak in the remaining oil over medium-high heat, 1 minute per side, and set aside.','Cook the mushrooms 2 minutes, then the onion and red pepper 2–3 minutes. Season.','Fill the peppers with steak and veggies, top with mozzarella, and bake 10 minutes until melted.']},
+
+alfredo:{serves:4,time:'35 min',desc:'Ribbons of fettuccine coated in a velvety, garlicky parmesan cream sauce and topped with golden seared chicken. Rich, indulgent and gone in minutes.',
+ ing:[['Chicken',[[1,'lb','chicken breasts','','chix',1],[1,'Tbsp','olive oil','','oil',1],[1,'tsp','Italian seasoning','','italseas',1],[0.5,'tsp','salt']]],
+      ['Pasta & sauce',[[1,'lb','fettuccine','','fett',1],[4,'Tbsp','butter','','butter',0.25],[3,'clove','garlic, minced','','garlic',3],[2,'cup','heavy cream','','cream',2],[1.5,'cup','freshly grated parmesan','','parm',4.5],[0.5,'tsp','salt, plus more for the pasta water'],[null,'','Chopped parsley, to garnish']]]],
+ steps:['Bring a large pot of well-salted water to a boil.','Season the chicken and cook in the oil over medium-high heat 6–7 minutes per side, to 165°F. Rest, then slice.','Cook the fettuccine to al dente, save 1 cup pasta water, and drain.','In the same skillet, melt the butter, cook the garlic 1 minute, add the cream, and simmer gently 3–5 minutes.','Off the heat, stir in the parmesan a handful at a time until smooth.','Toss in the pasta, loosen with pasta water, and top with the chicken and parsley.']},
+
+grilled:{serves:4,time:'35 min',desc:'Buttery, golden grilled cheese with gooey pull-apart centers, dunked into a velvety homemade tomato soup. The ultimate rainy-day dinner.',
+ ing:[['Tomato soup',[[2,'Tbsp','butter','','butter',0.125],[1,'','onion, diced','w','onion',1],[2,'clove','garlic, minced','','garlic',2],[1,'can','(28 oz) crushed tomatoes','h','crushedt',1],[2,'cup','chicken or vegetable broth','','broth',2],[1,'tsp','sugar','','sugar',0.33],[0.5,'tsp','dried basil','','basil',0.5],[0.5,'tsp','salt'],[0.5,'cup','heavy cream','','cream',0.5]]],
+      ['Grilled cheese',[[8,'slice','bread','w','bread',8],[8,'slice','cheddar or American cheese','w','slices',8],[3,'Tbsp','butter, softened','','butter',0.19]]]],
+ steps:['Melt the butter in a pot over medium heat and cook the onion 5 minutes, then the garlic 1 minute.','Add the tomatoes, broth, sugar, basil and salt and simmer 15 minutes.','Blend until smooth with an immersion blender, then stir in the cream.','Butter one side of each bread slice and sandwich the cheese inside, buttered sides out.','Cook over medium-low heat 3–4 minutes per side, until golden and melted. Serve with the soup.']},
+
+zuppa:{serves:4,time:'40 min',desc:'The Olive Garden favorite at home: spicy Italian sausage, tender potatoes and silky kale in a creamy, garlicky broth, topped with crispy bacon.',src:['Le Crème de la Crumb','https://www.lecremedelacrumb.com/easy-olive-garden-zuppa-toscana-soup/'],
+ ing:[['',[[1,'lb','spicy Italian sausage (mild for kids)','','sausage',1],[4,'Tbsp','butter','','butter',0.25],[0.5,'','white onion, diced','','onion',0.5],[1,'Tbsp','minced garlic (about 3 cloves)','','garlic',3],[6,'cup','chicken broth','','broth',6],[2,'cup','water'],[2,'lb','yellow or russet potatoes, in 1-inch pieces','','russet',2],[3,'tsp','salt, or to taste'],[1,'tsp','black pepper'],[2,'cup','heavy cream','','cream',2],[4,'cup','chopped kale','','kale',0.5],[4,'oz','bacon, cooked and crumbled, for topping','','bacon',0.25]]]],
+ steps:['Cook the bacon until crisp, crumble, and set aside.','Brown the sausage in a large pot 5–6 minutes and lift it out with a slotted spoon.','Melt the butter in the pot and cook the onion until translucent, then the garlic 1 minute.','Add the broth, water, potatoes, salt and pepper and boil until the potatoes are tender.','Stir in the kale, cream and sausage. Season to taste and top with bacon.']},
+
+chixsand:{serves:4,time:'50 min, plus 30 min to soak',desc:'Buttermilk-soaked chicken with a shatteringly crunchy panko crust, air-fried golden and stacked on a soft brioche bun with pickles and a honey-mustard mayo.',note:'Most air fryers fit 2 cutlets at a time. Keep finished pieces warm in a 200°F oven.',
+ ing:[['Chicken',[[2,'','large chicken breasts (about 1½ lb), each sliced into 2 thin cutlets','w','chix',1.5],[1,'cup','buttermilk','','buttermilk',1],[1,'tsp','salt']]],
+      ['Coating',[[0.5,'cup','all-purpose flour','','flour',0.5],[1,'cup','panko breadcrumbs','','panko',1],[1,'tsp','paprika','','paprika',1],[1,'tsp','garlic powder','','garlicpow',1],[1,'tsp','salt'],[null,'','Cooking spray']]],
+      ['Sandwiches',[[4,'','brioche buns','w','brioche',4],[0.25,'cup','mayonnaise','','mayo',4],[1,'tsp','honey','','honey',0.33],[1,'tsp','yellow mustard','','mustard',0.33],[0.5,'cup','pickle chips','','pickles',0.25],[4,'','lettuce leaves','w','romaine',0.25]]]],
+ steps:['Soak the cutlets in the buttermilk and salt for 30 minutes (or overnight in the fridge).','Mix the flour, panko, paprika, garlic powder and salt. Press each cutlet firmly into the coating.','Spray the basket and both sides of the chicken. Air-fry at 380°F for 10–12 minutes, flipping halfway, until golden and 165°F inside.','Stir together the mayo, honey and mustard, and toast the buns.','Build each sandwich with sauce, chicken, pickles and lettuce.']},
+
+burgers:{serves:4,time:'30 min',desc:'Thick, juicy, well-seasoned patties with a crusty sear and melted cheese, piled with all the classic fixings on toasted buns.',
+ ing:[['',[[1.5,'lb','ground beef (80/20 is juiciest)','','gbeef',1.5],[1,'tsp','salt'],[0.5,'tsp','black pepper'],[1,'tsp','Worcestershire sauce','','worc',1],[4,'slice','cheese','w','slices',4],[4,'','hamburger buns','w','buns',4],[4,'','lettuce leaves','w','romaine',0.25],[1,'','tomato, sliced','w','tomato',1],[0.25,'','red onion, sliced','','redonion',0.25],[0.5,'cup','pickle chips','','pickles',0.25],[3,'Tbsp','ketchup','','ketchup',3],[2,'Tbsp','mustard','','mustard',2]]]],
+ steps:['Mix the Worcestershire into the beef gently and shape 4 patties about ¾ inch thick, a little wider than the buns. Press a shallow dimple in each center.','Season both sides with salt and pepper right before cooking.','Grill or cook in a hot cast-iron skillet over medium-high heat 4–5 minutes per side, to 160°F. Add cheese for the last minute and cover to melt.','Rest 3 minutes, toast the buns, and build with toppings.']},
+
+meatloaf:{serves:6,time:'1 hr 15 min',desc:'Tender, juicy, old-fashioned meatloaf under a sweet-tangy caramelized ketchup glaze. Slice it thick and serve it with mashed potatoes.',
+ ing:[['Meatloaf',[[2,'lb','ground beef','','gbeef',2],[1,'','onion, finely diced','w','onion',1],[2,'','eggs','w','eggs',2],[0.75,'cup','panko breadcrumbs','','panko',0.75],[0.33,'cup','milk','','milk',0.33],[2,'Tbsp','ketchup','','ketchup',2],[1,'Tbsp','Worcestershire sauce','','worc',3],[0.5,'tsp','garlic powder','','garlicpow',0.5],[1,'tsp','salt'],[0.5,'tsp','black pepper']]],
+      ['Glaze',[[0.5,'cup','ketchup','','ketchup',8],[2,'Tbsp','brown sugar','','bsugar',2],[1,'tsp','apple cider vinegar','','cidervin',0.33]]]],
+ steps:['Heat the oven to 350°F and line a baking sheet with foil.','Soak the panko in the milk 5 minutes, then gently mix in the beef, onion, eggs, ketchup, Worcestershire, garlic powder, salt and pepper.','Shape into a 9×5-inch loaf on the sheet.','Stir together the glaze and brush half over the loaf.','Bake 45 minutes, brush with the rest of the glaze, and bake 15–20 minutes more, to 160°F. Rest 10 minutes before slicing.']},
+
+/* ---------- sides ---------- */
+greens:{serves:4,time:'5 min',desc:'A big pile of tender spinach, kale and chard wilted in garlicky olive oil and brightened with lemon.',
+ ing:[['',[[1,'Tbsp','olive oil','','oil',1],[2,'clove','garlic, minced','','garlic',2],[5,'oz','supergreens blend','','greens',5],[0.25,'tsp','salt'],[0.5,'','lemon','','lemon',0.5]]]],
+ steps:['Heat the oil in a large skillet over medium heat and cook the garlic 30 seconds.','Add the greens and salt and toss 2–3 minutes, until just wilted.','Finish with a squeeze of lemon.']},
+mashed:{serves:4,time:'30 min',desc:'Fluffy, buttery, creamy mashed potatoes with a little tang from sour cream.',
+ ing:[['',[[2,'lb','russet or Yukon gold potatoes, peeled, in 2-inch chunks','','russet',2],[4,'Tbsp','butter','','butter',0.25],[0.5,'cup','warm milk','','milk',0.5],[0.25,'cup','sour cream','','sourcr',2],[0.75,'tsp','salt, plus more for the water'],[0.25,'tsp','black pepper']]]],
+ steps:['Cover the potatoes with cold salted water, bring to a boil, and simmer 15 minutes until fork-tender.','Drain and return to the hot pot 1 minute to dry.','Mash with the butter, milk, sour cream, salt and pepper.']},
+sprice:{serves:4,time:'30 min',desc:'Toasty, tomato-red rice simmered with onion, garlic and cumin until fluffy. The perfect partner for anything Tex-Mex.',
+ ing:[['',[[1,'Tbsp','vegetable oil','','vegoil',1],[1,'cup','long-grain rice, uncooked','','rice',1],[0.5,'','onion, finely diced','','onion',0.5],[2,'clove','garlic, minced','','garlic',2],[1,'can','(8 oz) tomato sauce','h','tsauce',1],[1.75,'cup','chicken broth','','broth',1.75],[1,'tsp','ground cumin','','cumin',0.33],[0.5,'tsp','salt']]]],
+ steps:['Heat the oil in a saucepan over medium heat and toast the rice 3–4 minutes, stirring.','Add the onion and garlic for 2 minutes.','Stir in the tomato sauce, broth, cumin and salt, bring to a boil, then cover and simmer on low 20 minutes.','Rest 5 minutes covered, then fluff.']},
+refried:{serves:4,time:'10 min',desc:'Creamy, warm refried beans topped with a melty layer of cheddar.',
+ ing:[['',[[2,'can','(16 oz) refried beans','h','refried',2],[0.25,'cup','shredded cheddar','','cheddar',1],[2,'Tbsp','water or broth, to loosen']]]],
+ steps:['Warm the beans in a small pot over medium-low heat, stirring and loosening with a splash of water.','Top with cheddar, cover a minute to melt, and serve.']},
+blackb:{serves:4,time:'10 min',desc:'Simple, savory black beans warmed with garlic and cumin and finished with fresh lime.',
+ ing:[['',[[2,'can','(15 oz) black beans, with their liquid','h','blackb',2],[0.5,'tsp','garlic powder','','garlicpow',0.5],[1,'tsp','ground cumin','','cumin',0.33],[0.25,'tsp','salt'],[0.5,'','lime','','lime',0.5]]]],
+ steps:['Simmer the beans with the garlic powder, cumin and salt over medium heat 5–8 minutes, mashing a few to thicken.','Squeeze in the lime before serving.']},
+broc:{serves:4,time:'25 min',desc:'Broccoli roasted at high heat until the edges are crisp and nutty-brown, finished with lemon.',
+ ing:[['',[[1.5,'lb','broccoli, cut into florets','','broc',1.5],[2,'Tbsp','olive oil','','oil',2],[0.5,'tsp','garlic powder','','garlicpow',0.5],[0.5,'tsp','salt'],[0.5,'','lemon','','lemon',0.5]]]],
+ steps:['Heat the oven to 425°F.','Toss the florets with the oil, garlic powder and salt and spread on a sheet pan.','Roast 18–22 minutes, until browned at the edges. Squeeze lemon over the top.']},
+steambroc:{serves:4,time:'10 min',desc:'Bright green, tender-crisp broccoli tossed with a little butter and lemon.',
+ ing:[['',[[1.5,'lb','broccoli, cut into florets','','broc',1.5],[1,'Tbsp','butter','','butter',0.06],[0.25,'tsp','salt'],[0.5,'','lemon','','lemon',0.5]]]],
+ steps:['Bring an inch of water to a boil under a steamer basket.','Steam the broccoli, covered, 5–6 minutes, until bright green and just tender.','Toss with the butter, salt and a squeeze of lemon.']},
+fries:{serves:4,time:'25 min',desc:'Hot, golden, crispy fries with fluffy insides and just the right amount of salt.',
+ ing:[['',[[2,'lb','frozen french fries','','fries',2],[null,'','Salt or seasoned salt']]]],
+ steps:['Oven: heat to 425°F, spread the fries in one layer on a sheet pan, and bake 20–25 minutes, flipping halfway (or follow the bag).','Air fryer: 400°F for 15–18 minutes, shaking the basket twice. Cook in batches so they crisp.','Salt right away while hot.']},
+spfries:{serves:4,time:'25 min',desc:'Sweet, crispy sweet potato fries with caramelized edges.',
+ ing:[['',[[1.5,'lb','frozen sweet potato fries','','spfries',1.5],[null,'','Salt']]]],
+ steps:['Oven: heat to 425°F, spread in one layer, and bake 18–22 minutes, flipping halfway (or follow the bag).','Air fryer: 400°F for 12–15 minutes, shaking twice.','Salt while hot.']},
+sweetpot:{serves:4,time:'35 min',desc:'Caramelized cubes of sweet potato, crisp outside and creamy inside, with a touch of smoky paprika.',
+ ing:[['',[[2,'lb','sweet potatoes, in ¾-inch cubes','','sweetpot',2],[2,'Tbsp','olive oil','','oil',2],[0.5,'tsp','paprika','','paprika',0.5],[0.5,'tsp','garlic powder','','garlicpow',0.5],[0.5,'tsp','salt']]]],
+ steps:['Heat the oven to 425°F.','Toss the sweet potatoes with oil and seasonings and spread in one layer.','Roast 25–30 minutes, flipping once, until browned and tender.']},
+peponion:{serves:4,time:'30 min',desc:'Sweet, jammy strips of bell pepper and onion roasted until soft and charred at the edges.',
+ ing:[['',[[3,'','bell peppers, in strips','w','pepper',3],[1,'','onion, in wedges','w','onion',1],[2,'Tbsp','olive oil','','oil',2],[0.5,'tsp','garlic powder','','garlicpow',0.5],[0.5,'tsp','salt']]]],
+ steps:['Heat the oven to 425°F.','Toss the peppers and onion with oil, garlic powder and salt on a sheet pan.','Roast 20–25 minutes, stirring once, until soft and charred in spots.']},
+carrots:{serves:4,time:'30 min',desc:'Tender, honey-glazed roasted carrots with a hint of thyme.',
+ ing:[['',[[1.5,'lb','carrots, in sticks or coins','','carrot',1.5],[1,'Tbsp','olive oil','','oil',1],[1,'Tbsp','honey','','honey',1],[0.5,'tsp','dried thyme','','thyme',0.5],[0.5,'tsp','salt']]]],
+ steps:['Heat the oven to 425°F.','Toss the carrots with oil, honey, thyme and salt on a sheet pan.','Roast 20–25 minutes, stirring once, until tender and caramelized.']},
+squash:{serves:4,time:'25 min',desc:'Golden roasted yellow squash and zucchini with Italian herbs and garlic.',
+ ing:[['',[[4,'','yellow squash or zucchini, in half-moons','w','squash',4],[2,'Tbsp','olive oil','','oil',2],[0.5,'tsp','Italian seasoning','','italseas',0.5],[0.5,'tsp','garlic powder','','garlicpow',0.5],[0.5,'tsp','salt']]]],
+ steps:['Heat the oven to 425°F.','Toss the squash with oil and seasonings and spread in one layer.','Roast 15–20 minutes, until tender and golden at the edges.']},
+cornbread:{serves:8,time:'25 min',desc:'Sweet, tender, golden cornbread squares, perfect with chili and stew. Better with butter and honey.',note:'Each box makes about 6 small squares.',
+ ing:[['',[[2,'box','(8.5 oz) Jiffy cornbread mix','w','jiffy',2],[2,'','eggs','w','eggs',2],[0.67,'cup','milk','','milk',0.67]]]],
+ steps:['Heat the oven to 400°F and grease an 8×8 pan.','Stir together the mix, eggs and milk until just combined (lumps are fine). Let rest 3 minutes.','Bake 18–22 minutes, until golden and a toothpick comes out clean.']},
+salad:{serves:4,time:'10 min',desc:'A crisp, fresh green salad with sweet cherry tomatoes and cool cucumber.',
+ ing:[['',[[8,'oz','spring mix','','mix',8],[1,'cup','cherry tomatoes, halved','','cherry',0.5],[0.5,'','cucumber, sliced','','cuke',0.5],[0.25,'','red onion, thinly sliced','','redonion',0.25],[0.33,'cup','salad dressing','','dressing',5]]]],
+ steps:['Toss the greens, tomatoes, cucumber and onion in a large bowl.','Add the dressing just before serving.']},
+garlicbread:{serves:4,time:'15 min',desc:'Crusty bread with a buttery, garlicky center, baked until golden and crisp.',
+ ing:[['',[[1,'loaf','frozen garlic bread','w','garlicbread',1]]]],
+ steps:['Heat the oven to 425°F (or as the package says).','Bake the halves cut-side up on a sheet 8–12 minutes, until golden. Slice and serve warm.']},
+corn:{serves:4,time:'15 min',desc:'Sweet, juicy corn on the cob dripping with melted butter.',
+ ing:[['',[[4,'ear','sweet corn, husked','w','corn',4],[2,'Tbsp','butter','','butter',0.06],[null,'','Salt']]]],
+ steps:['Bring a large pot of water to a boil.','Add the corn and boil 5–7 minutes, until bright yellow and tender.','Brush with butter and sprinkle with salt.']}
+};
+const RSIDE=new Set(['greens','mashed','sprice','refried','blackb','broc','steambroc','fries','spfries','sweetpot','peponion','carrots','squash','cornbread','salad','garlicbread','corn']);
+// grocery list for 4 people, built from a recipe
+const recipeIng=id=>{const r=RCP[id];if(!r)return null;const k=4/r.serves,agg={},order=[];
+  r.ing.forEach(([,items])=>items.forEach(l=>{const c=l[4];if(!c)return;if(!(c in agg)){agg[c]=0;order.push(c);}agg[c]+=l[5]*k;}));
+  return order.map(c=>({c,q:Math.round(agg[c]*1000)/1000}));};
+
+const parseIng=s=>s?s.split(',').map(p=>{const [c,q]=p.trim().split(' ');return {c,q:+q};}):[];
+function defaults(){
+  const catalog={};for(const k in CATALOG){const [n,u,hp,a,kp,cp,cpk]=CATALOG[k];catalog[k]={n,u,hp,a,k:kp,st:HOME[k]||'H'};if(MINS[k])catalog[k].hpk=MINS[k];if(cp!=null){catalog[k].cp=cp;catalog[k].cpk=cpk;}}
+  const meals={};MEALS.forEach(([id,name,cu,icon,ing,sides,t])=>meals[id]={id,name,cu,icon,t,ing:recipeIng(id)||parseIng(ing),sides:sides?sides.split(','):[]});
+  const sides={};SIDES.forEach(([id,name,ing])=>sides[id]={id,name,ing:recipeIng(id)||parseIng(ing)});
+  const week=['rotis','tacos','teriyaki','spag','korean','pizza','bfd'];
+  const plan=week.map(id=>({meal:id,sides:[...meals[id].sides]}));
+  return {catalog,meals,sides,plan,have:{},people:4,tagv:2,catv:7,storeOv:{}};
+}
+let S=defaults();
+try{const raw=localStorage.getItem(KEY);
+  if(raw){const o=JSON.parse(raw);const d=defaults();S={...d,...o,catalog:{...d.catalog,...(o.catalog||{})}};}
+  else{const old=localStorage.getItem('dinnerboard.v1');
+    if(old){const o=JSON.parse(old);const d=defaults();const cat={...d.catalog};
+      for(const k in (o.catalog||{}))if(!cat[k]){const c=o.catalog[k];cat[k]={n:c.n,u:c.u,hp:c.p,a:c.a||'Pantry',k:'P'};}
+      S={...d,meals:o.meals||d.meals,sides:o.sides||d.sides,plan:o.plan||d.plan,people:o.people||4,have:o.have||{},catalog:cat};}}
+}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+
+const ui={sel:new Set(),msg:'',tab:'meals',q:'',pick:null,edit:null,recipe:null,choose:null,chq:'',arm:null,edNew:false,edName:'',del:false,reset:false,clear:false};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'$'+n.toFixed(2);
+const fq=q=>String(Math.round(q*100)/100);
+const F=()=>S.people/4;
+const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]||ICONS.plate}</svg>`;
+const hue=cu=>`--hue:var(--c-${CUISINE[cu]?cu:'amer'})`;
+let PRICE={},STORE={},ROWS=[];
+const unitP=c=>{if(PRICE[c]!=null)return PRICE[c];const it=S.catalog[c];return it?(it.hp!=null?it.hp:it.cp||0):0;};
+const ingCost=ing=>ing.reduce((t,i)=>t+(S.catalog[i.c]?unitP(i.c)*i.q:0),0)*F();
+const hasT=(m,ch)=>!!m&&(m.t||'').includes(ch);
+const rawCost=ing=>ing.reduce((t,i)=>t+(S.catalog[i.c]?unitP(i.c)*i.q:0),0);
+// work lunch for the next day: the day's own checkbox, or by default on when the dinner packs well
+function lunchOn(plan,d){const p=plan[d];if(d>4)return false;
+  const m=p.leftover?(d>0&&plan[d-1].meal&&S.meals[plan[d-1].meal]):(p.meal&&S.meals[p.meal]);
+  if(!m)return false;return p.lunch!=null?!!p.lunch:hasT(m,'P');}
+// servings for one day: double batch when the next night is leftovers (or a cook-double meal on Saturday), plus work lunches
+function portion(plan,d){
+  const p=plan[d],m=p.meal&&S.meals[p.meal];if(!m)return {dbl:false,lunch:0,factor:0,sideF:F()};
+  const next=plan[d+1];const dbl=!!(next&&next.leftover)||(d===6&&hasT(m,'D')&&!p.single);
+  let lunch=0;
+  if(d<=4&&lunchOn(plan,d))lunch++;
+  if(dbl&&next&&d+1<=4&&lunchOn(plan,d+1))lunch++;
+  return {dbl,lunch,factor:((dbl?2:1)*S.people+lunch)/4,sideF:(dbl?2:1)*F()};
+}
+const dayCost=(p,d)=>{const pr=portion(S.plan,d);let t=0;
+  if(p.meal&&S.meals[p.meal])t+=rawCost(S.meals[p.meal].ing)*pr.factor;
+  p.sides.forEach(s=>{if(S.sides[s])t+=rawCost(S.sides[s].ing)*(p.leftover?F():pr.sideF);});return t;};
+const ALL=[0,1,2,3,4,5,6];
+const sun=new Date();sun.setHours(0,0,0,0);sun.setDate(sun.getDate()-sun.getDay());
+const dstr=d=>{const x=new Date(sun);x.setDate(sun.getDate()+d);return x.toLocaleDateString('en-US',{month:'short',day:'numeric'});};
+const todayIdx=new Date().getDay();
+
+const rbtn=(type,id,name)=>RCP[id]&&(type==='side')===RSIDE.has(id)?`<button class="ibtn rbtn" data-act="recipe" data-type="${type}" data-id="${esc(id)}" aria-label="Recipe for ${esc(name)}">Recipe</button>`:'';
+function renderShelf(){
+  const q=ui.q.toLowerCase();
+  let list='';
+  if(ui.tab==='meals'){
+    list=Object.values(S.meals).filter(m=>m.name.toLowerCase().includes(q)).map(m=>`
+      <div class="mcard${ui.pick&&ui.pick.k==='meal'&&ui.pick.id===m.id?' picked':''}" draggable="true" data-k="meal" data-id="${esc(m.id)}">
+        <div class="tile" style="${hue(m.cu)}">${icon(m.icon)}</div>
+        <div class="mmeta"><div class="mname">${esc(m.name)}</div><div class="msub">${CUISINE[m.cu]||''} · <span class="mono">${money(ingCost(m.ing))}</span>${hasT(m,'E')?' · Easy':''}${hasT(m,'D')?' · Cook ×2':hasT(m,'L')?' · Reheats':''}${hasT(m,'P')?' · Lunch':''}</div></div>
+        <div class="cbtns">${rbtn('meal',m.id,m.name)}<button class="ibtn" data-act="edit" data-type="meal" data-id="${esc(m.id)}">Ingredients</button></div>
+      </div>`).join('')||'<div class="hint">No dinners match.</div>';
+  }else{
+    list='<div class="libsides">'+Object.values(S.sides).filter(s=>s.name.toLowerCase().includes(q)).map(s=>`
+      <div class="schip${ui.pick&&ui.pick.k==='side'&&ui.pick.id===s.id?' picked':''}" draggable="true" data-k="side" data-id="${esc(s.id)}">
+        <span>${esc(s.name)}</span><span class="c mono">${money(ingCost(s.ing))}</span>
+        ${rbtn('side',s.id,s.name)}<button class="ibtn" data-act="edit" data-type="side" data-id="${esc(s.id)}">Ingredients</button>
+      </div>`).join('')+'</div>';
+  }
+  $('shelf').innerHTML=`
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="${ui.tab==='meals'}" data-act="tab" data-t="meals">Dinners (${Object.keys(S.meals).length})</button>
+      <button role="tab" aria-selected="${ui.tab==='sides'}" data-act="tab" data-t="sides">Sides (${Object.keys(S.sides).length})</button>
+    </div>
+    <div class="tools"><input id="search" type="search" placeholder="Search ${ui.tab==='meals'?'dinners':'sides'}" value="${esc(ui.q)}">
+      <button class="newbtn" data-act="${ui.tab==='meals'?'newmeal':'newside'}">+ New ${ui.tab==='meals'?'dinner':'side'}</button></div>
+    <div class="hint">Drag onto a day, or tap one and then tap a day.</div>
+    <div class="liblist">${list}</div>`;
+}
+
+function renderGen(){
+  const g=S.gen,n=ui.sel.size,scope=n?`${n} day${n>1?'s':''}`:'week';
+  const tg=n?[...ui.sel]:ALL,allE=tg.every(d=>g.easyDays.includes(d));
+  const L=!!S.locked,dis=L?' disabled':'';
+  const b=(key,act,label,extra='',cls='gbtn')=>{const armed=ui.arm===key;
+    return `<button class="${cls}${armed?' arm':''}" data-act="${act}"${extra}${dis}>${armed?'Tap again: '+label:label}</button>`;};
+  const w=(k,l,tt)=>b('weather'+k,'weather',l,` data-w="${k}" aria-pressed="${g.weather===k}" title="${tt}"`);
+  const armedMsg=ui.arm?'Tap the same button again to change '+(n?'the selected days':'the whole week')+'. Tap anywhere else to cancel.':'';
+  $('gen').innerHTML=`<div class="genrow">
+    <div class="seg" role="group" aria-label="Weather"><span class="glabel">Weather</span>${w('H','Hot','Light, no-oven and cold dinners')}${w('W','Warm','Anything goes')}${w('C','Cold','Soups, stews and comfort food')}</div>
+    ${b('cheap','cheap','Cheap week',` aria-pressed="${g.cheap}"`)}
+    <span class="gdiv"></span>
+    ${b('easy','easy',(allE?'Easy off':'Make easy')+' · '+(n?scope:'all week'))}
+    ${b('leftover','leftover','Leftovers on selected')}
+    ${b('redo','redo','Redo '+scope,'','gbtn primary')}
+  </div>
+  <div class="genhint${ui.arm?' armed':''}" role="status">${L?'This week is locked, so these buttons are off. Tap <b>Locked</b> at the top to make changes.':armedMsg?esc(armedMsg):ui.msg?esc(ui.msg):'Tap a day’s name to select it. Easy, Leftovers and Redo then apply to the selected days; with nothing selected they apply to the whole week. Each one asks for a second tap before it changes anything. Redo keeps leftover nights and favors weeks that use up a Costco meat pack. Tikka masala, beef stew, Korean chicken and kalua pig always cook double with leftovers the next night.'}</div>`;
+}
+
+function renderBoard(){
+  const sideOpts=Object.values(S.sides).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+  const easy=new Set(S.gen.easyDays);
+  $('board').classList.toggle('locked',!!S.locked);
+  $('board').innerHTML=S.plan.map((p,d)=>{
+    const m=p.meal&&S.meals[p.meal];
+    const pr=portion(S.plan,d),dbl=pr.dbl;
+    const src=p.leftover&&d>0?S.plan[d-1]:null;const sm=src&&src.meal&&S.meals[src.meal];
+    let entree;
+    if(p.leftover){entree=`<div class="entree left"><div class="tile" style="${sm?hue(sm.cu):''}">${icon(sm?sm.icon:'pot')}</div>
+        <div class="ename">Leftovers<div class="msub">${sm?esc(sm.name)+' from '+DAYS[d-1]:'Plan a dinner for '+DAYS[d-1]+' to reheat'}</div></div>
+        <div class="eacts"><button class="ibtn chbtn" data-act="choose" data-day="${d}">Cook something</button><button class="xbtn" data-act="rmleft" data-day="${d}" aria-label="Cook a fresh dinner on ${DAYS[d]}" style="margin-left:auto">×</button></div></div>`;}
+    else if(m){entree=`
+      <div class="entree" draggable="${!S.locked}" data-k="meal" data-id="${esc(m.id)}" data-from="${d}">
+        <div class="tile" style="${hue(m.cu)}">${icon(m.icon)}</div>
+        <button class="ename" data-act="choose" data-day="${d}" aria-label="Change ${DAYS[d]}’s dinner: ${esc(m.name)}">${esc(m.name)}</button>
+        <div class="eacts">${rbtn('meal',m.id,m.name)}<button class="ibtn" data-act="edit" data-type="meal" data-id="${esc(m.id)}">Ingredients</button><button class="ibtn chbtn" data-act="choose" data-day="${d}">Swap</button>
+        <button class="xbtn" data-act="clearday" data-day="${d}" aria-label="Remove ${esc(m.name)} from ${DAYS[d]}" style="margin-left:auto">×</button></div>
+      </div>`;}
+    else entree=`<button class="empty choose" data-act="choose" data-day="${d}"><b>+ Choose dinner</b><span>or drag one here</span></button>`;
+    const badges=[easy.has(d)?'<span class="badge">Easy</span>':'',dbl?`<span class="badge dbl">Cook ×2${d===6&&!(S.plan[d+1])?' · Sun lunch/dinner':''}</span>`:'',''].join('');
+    const sides=p.sides.filter(s=>S.sides[s]).map((s,i)=>`<li class="schip" draggable="true" data-k="side" data-id="${esc(s)}" data-from="${d}" data-i="${i}">${esc(S.sides[s].name)}${RCP[s]&&RSIDE.has(s)?`<button class="rico" data-act="recipe" data-type="side" data-id="${esc(s)}" aria-label="Recipe for ${esc(S.sides[s].name)}" title="Recipe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C6.5 4.5 9.5 4.5 12 6c2.5-1.5 5.5-1.5 8-.5V19c-2.5-1-5.5-1-8 .5-2.5-1.5-5.5-1.5-8-.5Z"/><path d="M12 6v13.5"/></svg></button>`:''}<button class="xbtn" data-act="rmside" data-day="${d}" data-i="${i}" aria-label="Remove side">×</button></li>`).join('');
+    const dc=dayCost(p,d);
+    return `<section class="day${d===todayIdx?' today':''}${ui.sel.has(d)?' sel':''}" data-day="${d}">
+      <header><button class="dsel" data-act="sel" data-day="${d}" aria-pressed="${ui.sel.has(d)}" aria-label="Select ${DAYS[d]}"><span class="dname">${DAYS[d].slice(0,3)}</span><span class="ddate">${dstr(d)}</span></button><span class="dcost mono">${dc?money(dc):''}</span></header>
+      ${badges?`<div class="badges">${badges}</div>`:''}
+      ${entree}
+      ${p.sides.length?`<div class="slabel">${p.leftover?'Extra sides':'Sides'}</div><ul class="dsides">${sides}</ul>`:''}
+      ${d<=4&&(m||sm)?`<label class="lunchbox"><input type="checkbox" id="lunch-${d}" data-act="lunchday" data-day="${d}"${lunchOn(S.plan,d)?' checked':''}${S.locked?' disabled':''}> Pack ${DAYS[d+1].slice(0,3)} work lunch <span>+1 serving${p.leftover?' in '+DAYS[d-1].slice(0,3)+'’s batch':''}</span></label>`:''}
+      <select class="addside" id="addside-${d}" data-act="addside" data-day="${d}" aria-label="Add a side to ${DAYS[d]}"><option value="">+ Add a side…</option>${sideOpts}</select>
+    </section>`;
+  }).join('');
+}
+
+function defGen(){return {weather:null,cheap:false,easyDays:[0,6]};}
+function freshWeek(){S.gen=defGen();S.plan=ALL.map(()=>({meal:null,sides:[]}));S.plan[3].leftover=true;generate(ALL);}
+function needsFor(plan){
+  const agg={};
+  const add=(ing,f,label)=>ing.forEach(i=>{if(!S.catalog[i.c])return;(agg[i.c]=agg[i.c]||{q:0,uses:new Set()});agg[i.c].q+=i.q*f;agg[i.c].uses.add(label);});
+  plan.forEach((p,d)=>{const pr=portion(plan,d);const tag=DAYS[d].slice(0,3)+(pr.dbl?' ×2':'')+(pr.lunch?' +lunch':'');
+    if(p.meal&&S.meals[p.meal])add(S.meals[p.meal].ing,pr.factor,tag);
+    p.sides.forEach(s=>{if(S.sides[s])add(S.sides[s].ing,p.leftover?F():pr.sideF,tag);});});
+  return agg;
+}
+function scorePlan(plan){
+  const agg=needsFor(plan);let cost=0,bonus=0;
+  for(const c in agg){const it=S.catalog[c];const dd=decide(c,agg[c].q);
+    cost+=(dd.store==='C'&&it.k==='P')?agg[c].q*it.cp:dd.cost;
+    if(it.a==='Meat'&&it.k==='M'&&it.cp!=null&&it.cpk>1){if(dd.store==='C')bonus+=14+10*dd.fill;else bonus-=4;}}
+  let pen=0;const nl=plan.filter(p=>p.leftover).length;if(nl>2)pen+=30*(nl-2);for(let d=1;d<7;d++){const a=plan[d-1].meal&&S.meals[plan[d-1].meal],b=plan[d].meal&&S.meals[plan[d].meal];if(a&&b&&a.cu===b.cu)pen+=4;}
+  return bonus-cost*(S.gen.cheap?1.6:0.35)-pen+Math.random()*4;
+}
+function generate(days){
+  const set=new Set(days.filter(d=>S.plan[d].leftover!==true));
+  for(const d of [...set])if(S.plan[d+1]&&S.plan[d+1].leftover==='auto')set.add(d+1);
+  days=[...set].sort((a,b)=>a-b);if(!days.length)return;
+  const g=S.gen,all=Object.values(S.meals);if(!all.length)return;
+  const base=S.plan.map(p=>({...p,sides:[...p.sides]}));days.forEach(d=>base[d]={meal:null,sides:[]});
+  days.forEach(d=>{if(d>0&&!set.has(d-1)){const pv=base[d-1],pm=pv.meal&&S.meals[pv.meal];if(hasT(pm,'D')&&!pv.single)base[d]={meal:null,sides:[],leftover:'auto'};}});
+  const used=new Set(base.filter(p=>p.meal).map(p=>p.meal));
+  let best=null,bs=-1e9;
+  for(let k=0;k<700;k++){
+    const cand=base.map(p=>({...p,sides:[...p.sides]}));const u=new Set(used);
+    for(const d of days){
+      if(cand[d].leftover)continue;
+      const reheat=!!(cand[d+1]&&cand[d+1].leftover),easy=g.easyDays.includes(d);
+      const noD=(d<6&&!set.has(d+1)&&!cand[d+1].leftover)||!!(cand[d+2]&&cand[d+2].leftover);
+      const tiers=[m=>!u.has(m.id)&&(!g.weather||hasT(m,g.weather))&&(!easy||hasT(m,'E')),m=>!u.has(m.id)&&(!easy||hasT(m,'E')),m=>!u.has(m.id),()=>true];
+      let pool=[];for(const f of tiers){pool=all.filter(m=>(!reheat||hasT(m,'L'))&&!(noD&&hasT(m,'D'))&&f(m));if(pool.length)break;}
+      if(!pool.length)pool=all;
+      const m=pool[Math.floor(Math.random()*pool.length)];u.add(m.id);cand[d]={meal:m.id,sides:[...m.sides]};
+      if(hasT(m,'D')&&d<6&&set.has(d+1)&&!cand[d+1].leftover)cand[d+1]={meal:null,sides:[],leftover:'auto'};
+    }
+    const sc=scorePlan(cand);if(sc>bs){bs=sc;best=cand;}
+  }
+  S.plan=best;
+}
+const targets=()=>ui.sel.size?[...ui.sel].sort():ALL;
+// keep cook-double meals paired with a leftover night, and clear leftover nights that lost their source
+function normalize(){
+  const P=S.plan,orphan=[];
+  for(let d=0;d<7;d++){if(P[d].leftover==='auto'){const src=d>0?P[d-1]:null,sm=src&&src.meal&&S.meals[src.meal];
+    if(!hasT(sm,'D')||src.single){P[d]={meal:null,sides:[]};orphan.push(d);}}}
+  for(let d=0;d<6;d++){const p=P[d],m=p.meal&&S.meals[p.meal];if(hasT(m,'D')&&!p.single&&!P[d+1].leftover){P[d+1]={meal:null,sides:[],leftover:'auto'};if(P[d+2]&&P[d+2].leftover===true){P[d+2]={meal:null,sides:[]};orphan.push(d+2);}}}
+  const keep=orphan.filter(d=>!P[d].leftover);if(keep.length)generate(keep);
+}
+
+function decide(c,need){
+  const it=S.catalog[c];const canC=it.cp!=null&&it.cpk>0;const conly=it.st==='C'||it.hp==null;
+  let packs=0,fill=0,auto=conly?'C':(it.st||'H');
+  if(canC){packs=Math.max(1,Math.ceil(need/it.cpk-1e-6));fill=need/(packs*it.cpk);if(!conly&&fill>=(THRESH[it.k]||.75))auto='C';}
+  const ov=S.storeOv[c];const store=(ov&&storesFor(it).includes(ov)&&!conly)?ov:auto;
+  let buy,cost,reason='',warn='',unused=0;
+  if(store==='C'&&canC){buy=packs*it.cpk;cost=buy*it.cp;unused=buy-need;
+    if(!conly)reason=`Uses ${fq(need)} of ${packs>1?packs+' packs, ':''}${fq(buy)} ${it.u} from Costco`+(it.k==='P'?' · pantry stock-up':'');
+    if(unused>0.01)warn=`${fq(unused)} ${it.u} unused · Costco pack is ${fq(it.cpk)} ${it.u}`;}
+  else{if(it.hpk>0){buy=Math.max(1,Math.ceil(need/it.hpk-1e-6))*it.hpk;unused=buy-need;if(unused>0.01)warn=`${fq(unused)} ${it.u} unused · minimum buy is ${fq(it.hpk)} ${it.u}`;}
+    else buy=DISCRETE.has(it.u)||it.u==='oz'?Math.ceil(need-1e-6):Math.ceil(need*4-1e-6)/4;
+    cost=buy*it.hp;
+    if(canC)reason=`Costco sells ${fq(it.cpk)} ${it.u} packs; this week uses ${Math.round(fill*100)}%`+(ov?' · your choice':'');}
+  if(warn)warn+=` (about ${money(unused*(store==='C'?it.cp:it.hp))})`;
+  return {store,auto,canC,packs,fill,buy,cost,reason,warn,unused,unit:store==='C'?it.cp:it.hp};
+}
+const storeSel=(c,it,auto,id)=>{const opts=storesFor(it);if(opts.length<2)return `<span class="tag s-${opts[0]}">${SNAME[opts[0]]}</span>`;
+  return `<select id="${id}" class="ssel" data-act="storeov" data-c="${c}" aria-label="Store for ${esc(it.n)}">
+    <option value=""${!S.storeOv[c]?' selected':''}>Auto (${SNAME[auto]})</option>${opts.map(k=>`<option value="${k}"${S.storeOv[c]===k?' selected':''}>${SNAME[k]}</option>`).join('')}</select>`;};
+function aggregate(){
+  const agg=needsFor(S.plan);
+  PRICE={};STORE={};
+  ROWS=Object.entries(agg).map(([c,v])=>{const it=S.catalog[c];const dd=decide(c,v.q);PRICE[c]=dd.unit;STORE[c]=dd.store;
+    return {c,it,need:v.q,uses:[...v.uses],have:!!S.have[c],...dd};});
+  return ROWS;
+}
+
+function renderShop(){
+  const rows=ROWS;
+  const sum=s=>rows.filter(r=>r.store===s&&!r.have).reduce((t,r)=>t+r.cost,0);
+  const tot=SORDER.reduce((t,k)=>t+sum(k),0);
+  const nights=S.plan.filter(p=>p.leftover||(p.meal&&S.meals[p.meal])).length;
+  const used=S.plan.reduce((t,p,d)=>t+dayCost(p,d),0);
+  const meatLb=rows.filter(r=>!r.have&&(r.it.a==='Meat'||r.it.a==='Deli')).reduce((t,r)=>t+(r.it.u==='lb'?r.buy:r.it.u==='oz'?r.buy/16:0),0);
+  const birds=rows.filter(r=>!r.have&&r.c==='rot').reduce((t,r)=>t+r.buy,0);
+  $('tot').textContent=money(tot);
+  $('sums').innerHTML=`
+    <div class="sum"><div class="k">This trip</div><div class="v">${money(tot)}</div></div>
+    <div class="sum"><div class="k">By store</div><div class="bystore">${SORDER.map(k=>`<span class="s-${k}"><b>${SNAME[k]}</b> <span class="mono">${money(sum(k))}</span></span>`).join('')}</div></div>
+    <div class="sum"><div class="k">Per dinner · ${S.people} people</div><div class="v">${nights?money(used/nights):'—'}</div></div>
+    <div class="sum"><div class="k">Meat &amp; deli to fridge</div><div class="v">${fq(Math.round(meatLb*10)/10)} lb</div><div class="sub2">${birds?`plus ${birds} rotisserie chicken${birds>1?'s':''}`:'includes any Costco overflow'}</div></div>`;
+  const store=(s,title)=>{
+    const rs=rows.filter(r=>r.store===s);
+    if(!rs.length)return `<div class="store s-${s}"><h3>${title}</h3><div class="hint" style="padding:0">Nothing from here this week.</div></div>`;
+    const groups=AISLES.map(a=>{const g=rs.filter(r=>r.it.a===a).sort((x,y)=>x.it.n.localeCompare(y.it.n));if(!g.length)return '';
+      return `<div class="aisle">${a}</div><ul class="rows">${g.map(r=>{
+        const isC=r.store==='C';const pv=isC?r.it.cp*r.it.cpk:r.it.hp;
+        const sel=storeSel(r.c,r.it,r.auto,'ov-'+r.c);
+        return `<li class="row${r.have?' have':''}">
+          <label><input type="checkbox" id="have-${r.c}" data-act="have" data-c="${r.c}"${r.have?' checked':''}><span><span class="iname">${r.warn?TRI:''}${esc(r.it.n)}</span><span class="uses">${r.uses.join(' · ')}</span>${r.reason?`<span class="reason">${esc(r.reason)}</span>`:''}${r.warn?`<span class="warnline">${esc(r.warn)}</span>`:''}</span></label>
+          <span class="qty"><span class="need mono">need ${fq(r.need)} ${esc(r.it.u)}</span>${r.buy-r.need>0.01?`<span class="buy mono">buy ${isC?r.packs+' pk · ':''}${fq(r.buy)} ${esc(r.it.u)}</span>`:''}</span>
+          <span class="price"><span class="pline">${sel}</span><span class="pline">$<input id="price-${r.c}-${r.store}" data-act="price" data-c="${r.c}" data-s="${r.store}" type="number" step="0.01" min="0" value="${pv.toFixed(2)}" aria-label="Price">/${isC?'pk':esc(r.it.u)}</span>
+            <span class="pline">${isC?'pack':'min'} <input class="minin" id="min-${r.c}-${r.store}" data-act="min" data-c="${r.c}" data-s="${r.store}" type="number" step="0.25" min="0" value="${isC?fq(r.it.cpk):(r.it.hpk?fq(r.it.hpk):'')}" placeholder="none" aria-label="${isC?'Costco pack size':'Minimum buy'}"> ${esc(r.it.u)}</span></span>
+          <span class="cost mono">${money(r.cost)}</span>
+        </li>`;}).join('')}</ul>`;}).join('');
+    return `<div class="store s-${s}"><h3>${title}<span class="mono">${money(sum(s))}</span></h3>${groups}</div>`;
+  };
+  $('stores').innerHTML=SORDER.map(k=>store(k,SNAME[k])).join('');
+}
+
+function renderTop(){
+  $('wk').textContent=`Week of ${dstr(0)} – ${dstr(6)}`;
+  $('ppl').textContent=`${S.people} people`;
+  const LK='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="'+(S.locked?'M8 11V8a4 4 0 0 1 8 0v3':'M8 11V8a4 4 0 0 1 7.5-2')+'"/></svg>';
+  $('lockbtn').innerHTML=LK+(S.locked?'Locked':'Lock week');$('lockbtn').setAttribute('aria-pressed',!!S.locked);$('lockbtn').classList.toggle('on',!!S.locked);
+  $('lockbtn').title=S.locked?'Unlock to change this week':'Lock this week so nothing can change it';
+  $('clearweek').disabled=$('resetbtn').disabled=!!S.locked;
+  $('resetbtn').textContent=ui.reset?'Click again to reset':'Reset all';
+  $('resetbtn').classList.toggle('warn',ui.reset);
+  $('clearweek').textContent=ui.clear?'Click again to clear':'Clear week';
+  $('clearweek').classList.toggle('warn',ui.clear);
+  document.body.classList.toggle('picking',!!ui.pick);
+  if(ui.pick){const o=ui.pick.k==='meal'?S.meals[ui.pick.id]:S.sides[ui.pick.id];
+    $('pickbar').innerHTML=`<div class="pickbar"><span>Tap a day for <b>${esc(o?o.name:'')}</b></span><button data-act="unpick">Cancel</button></div>`;}
+  else $('pickbar').innerHTML='';
+  $('catlist').innerHTML=Object.values(S.catalog).map(c=>`<option value="${esc(c.n)}">`).join('');
+}
+
+
+const PLURAL={cup:'cups',clove:'cloves',can:'cans',packet:'packets',pack:'packs',slice:'slices',jar:'jars',box:'boxes',head:'heads',ear:'ears',stalk:'stalks',pint:'pints'};
+const FRS=[[0,''],[1/8,'⅛'],[1/4,'¼'],[1/3,'⅓'],[1/2,'½'],[2/3,'⅔'],[3/4,'¾'],[1,'']];
+function frac(x){let w=Math.floor(x),r=x-w,b=FRS[0],dd=9;for(const f of FRS){const t=Math.abs(r-f[0]);if(t<dd){dd=t;b=f;}}
+  if(b[0]===1){w+=1;b=FRS[0];}if(w===0&&b[1]==='')return '⅛';return (w?String(w):'')+(w&&b[1]?' ':'')+b[1];}
+function ramt(q,u,flag,k){if(q==null)return '';let v=q*k;
+  if(flag==='w')v=Math.max(1,Math.round(v));else if(flag==='h')v=Math.max(.5,Math.round(v*2)/2);
+  else{if(u==='tsp'&&v<.1)return 'pinch';
+    if(u==='tsp'&&v>=3&&Math.abs(v/3*2-Math.round(v/3*2))*1.5<=.25){v=v/3;u='Tbsp';}
+    if(u==='Tbsp'&&v>=4&&Math.abs(v/4-Math.round(v/4))*4<=.5){v=v/16;u='cup';}
+    if(u==='oz'&&v>=16&&Math.abs(v/4-Math.round(v/4))<.01){v=v/16;u='lb';}}
+  const n=flag==='w'?String(v):(v>=10&&!flag?String(Math.round(v)):frac(v));
+  return (n+' '+(v>1&&PLURAL[u]?PLURAL[u]:u)).trim();}
+function renderRecipe(){
+  const {type,id}=ui.recipe;const o=type==='meal'?S.meals[id]:S.sides[id];const r=RCP[id];
+  if(!o||!r){ui.recipe=null;$('modal').innerHTML='';return;}
+  const k=S.people/r.serves;
+  const ing=r.ing.map(([t,items])=>`${t?`<h4>${esc(t)}</h4>`:''}<ul class="ring">${items.map(l=>{const a=ramt(l[0],l[1],l[3],k);return `<li><span class="ra mono">${a||'&nbsp;'}</span><span>${esc(l[2])}</span></li>`;}).join('')}</ul>`).join('');
+  $('modal').innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet rsheet" role="dialog" aria-modal="true" aria-labelledby="rtitle">
+    <div class="hd">${type==='meal'?`<div class="tile" style="${hue(o.cu)}">${icon(o.icon)}</div>`:''}<h2 id="rtitle" class="rtitle">${esc(o.name)}</h2><button class="done" data-act="close">Done</button></div>
+    <p class="rdesc">${esc(r.desc)}</p>
+    <div class="rmeta"><div class="stepper" aria-label="People eating"><button data-act="ppl" data-d="-1" aria-label="Fewer people">−</button><span>Serves ${S.people}</span><button data-act="ppl" data-d="1" aria-label="More people">+</button></div>
+      <span>${esc(r.time)}</span>${r.src?`<span>Source: <a href="${esc(r.src[1])}" target="_blank" rel="noopener">${esc(r.src[0])}</a></span>`:''}</div>
+    ${r.note?`<p class="rnote">${esc(r.note)}</p>`:''}
+    <div class="rcols"><section><h3 class="rh">Ingredients</h3>${ing}</section>
+      <section><h3 class="rh">Instructions</h3><ol class="rsteps">${r.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol></section></div>
+    <div class="foot"><span class="tot">Amounts are for ${S.people} ${S.people===1?'person':'people'}. Cooking double for leftovers? Double them.</span>
+      <button class="dupbtn" data-act="edit" data-type="${type}" data-id="${esc(id)}">Shopping ingredients</button></div>
+  </div></div>`;
+}
+function chooserList(){
+  const q=ui.chq.toLowerCase(),cur=S.plan[ui.choose.day].meal;
+  const rows=Object.values(S.meals).filter(m=>(m.name+' '+(CUISINE[m.cu]||'')).toLowerCase().includes(q));
+  return rows.map(m=>`<button class="chrow${m.id===cur?' cur':''}" data-act="pickmeal" data-id="${esc(m.id)}">
+      <span class="tile" style="${hue(m.cu)}">${icon(m.icon)}</span>
+      <span class="chmeta"><span class="mname">${esc(m.name)}</span><span class="msub">${CUISINE[m.cu]||''} · <span class="mono">${money(ingCost(m.ing))}</span>${hasT(m,'E')?' · Easy':''}${hasT(m,'D')?' · Cook ×2':''}</span></span>
+      ${m.id===cur?'<span class="chcur">Current</span>':''}</button>`).join('')||'<p class="hint" style="padding:12px 4px">No dinners match. Try another word.</p>';
+}
+function renderChooser(){
+  const d=ui.choose.day;
+  $('modal').innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet chsheet" role="dialog" aria-modal="true" aria-labelledby="chtitle">
+    <div class="hd"><h2 id="chtitle" class="rtitle">Dinner for ${DAYS[d]}</h2><button class="done" data-act="close">Close</button></div>
+    <input id="chq" type="search" placeholder="Search ${Object.keys(S.meals).length} dinners" value="${esc(ui.chq)}" aria-label="Search dinners" autocomplete="off">
+    <div class="chlist" id="chlist">${chooserList()}</div>
+  </div></div>`;
+}
+function renderModal(){
+  if(!ui.edit){if(ui.recipe)return renderRecipe();if(ui.choose)return renderChooser();$('modal').innerHTML='';return;}
+  const {type,id}=ui.edit;const o=type==='meal'?S.meals[id]:S.sides[id];
+  if(!o){ui.edit=null;$('modal').innerHTML='';return;}
+  const rows=o.ing.map((i,ix)=>{const c=S.catalog[i.c];if(!c)return '';
+    const dd=decide(i.c,ROWS.find(r=>r.c===i.c)?.need??i.q*F());const isC=dd.store==='C';const pv=isC?c.cp*c.cpk:c.hp;
+    return `<tr><td class="n"><div class="iname">${esc(c.n)}</div><div class="rowsub">${storeSel(i.c,c,dd.auto,'eov-'+i.c)}
+        <span class="eprice">$<input id="ep-${i.c}-${dd.store}" data-act="price" data-c="${i.c}" data-s="${dd.store}" type="number" step="0.01" min="0" value="${(pv||0).toFixed(2)}" aria-label="Price of ${esc(c.n)}">/${isC?'pk':esc(c.u)}</span>
+        <span class="eprice">${isC?'pack':'min'} <input class="minin" id="em-${i.c}-${dd.store}" data-act="min" data-c="${i.c}" data-s="${dd.store}" type="number" step="0.25" min="0" value="${isC?fq(c.cpk):(c.hpk?fq(c.hpk):'')}" placeholder="none" aria-label="${isC?'Costco pack size':'Minimum buy'}"> ${esc(c.u)}</span>${dd.warn?`<span class="warnline">${TRI}${esc(dd.warn)}</span>`:''}</div></td>
+      <td><input type="number" id="q-${ix}" data-act="qty" data-ix="${ix}" step="0.25" min="0" value="${fq(i.q)}" aria-label="Amount of ${esc(c.n)}"></td>
+      <td class="u">${esc(c.u)}</td><td class="c mono">${money(unitP(i.c)*i.q*F())}</td>
+      <td><button class="xbtn" data-act="rming" data-ix="${ix}" aria-label="Remove ${esc(c.n)}">×</button></td></tr>`;}).join('');
+  const meta=type==='meal'?`<div class="meta">
+      <label>Style <select id="ed-cu" data-act="cu">${Object.entries(CUISINE).map(([k,v])=>`<option value="${k}"${o.cu===k?' selected':''}>${v}</option>`).join('')}</select></label>
+      <label>Icon <select id="ed-icon" data-act="icon">${Object.keys(ICONS).map(k=>`<option${o.icon===k?' selected':''}>${k}</option>`).join('')}</select></label>
+      <span class="tagset">${[['H','Hot day'],['W','Warm day'],['C','Cold day'],['E','Easy'],['L','Reheats well'],['D','Always cook double'],['P','Packs for lunch']].map(([k,v])=>`<label><input type="checkbox" id="tg-${k}" data-act="tag" data-ch="${k}"${hasT(o,k)?' checked':''}> ${v}</label>`).join('')}</span>
+      <span>Amounts are for 4 people; costs shown for ${S.people}.</span></div>`:`<div class="meta"><span>Amounts are for 4 people; costs shown for ${S.people}.</span></div>`;
+  const defs=type==='meal'?`<div style="margin-top:16px"><div class="slabel">Default sides (loaded when dropped on a day)</div>
+      <div class="defsides">${o.sides.filter(s=>S.sides[s]).map((s,i)=>`<span class="schip" style="cursor:default">${esc(S.sides[s].name)}<button class="xbtn" data-act="rmdef" data-i="${i}" aria-label="Remove default side">×</button></span>`).join('')}
+      <select class="addside" id="ed-defside" data-act="adddef" style="width:auto;margin:0"><option value="">+ Add default side…</option>${Object.values(S.sides).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select></div></div>`:'';
+  const newItem=ui.edNew?`<div class="newitem"><b>New item “${esc(ui.edName)}”</b>
+      <label>Unit <input id="ni-u" placeholder="lb, each, can"></label>
+      <label>Store <select id="ni-st">${['H','A','W','C'].map(k=>`<option value="${k}">${k==='C'?'Costco only':SNAME[k]}</option>`).join('')}</select></label>
+      <label>Price $<input id="ni-p" type="number" step="0.01" min="0" placeholder="per unit"></label>
+      <label>Storage <select id="ni-k">${Object.entries(KEEPS).map(([k,v])=>`<option value="${k}"${k==='P'?' selected':''}>${v}</option>`).join('')}</select></label>
+      <label>Costco pack size <input id="ni-cpk" type="number" step="0.25" min="0" placeholder="if sold there"></label>
+      <label>Costco pack price $<input id="ni-cpp" type="number" step="0.01" min="0" placeholder="optional"></label>
+      <label>Aisle <select id="ni-a">${AISLES.map(a=>`<option${a==='Pantry'?' selected':''}>${a}</option>`).join('')}</select></label>
+      <button class="go" data-act="addnew" style="border:1px solid var(--accent);color:var(--accent);background:none;border-radius:7px;padding:4px 12px;font-weight:700">Add item</button></div>`:'';
+  $('modal').innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-label="Edit ${esc(o.name)}">
+    <div class="hd">${type==='meal'?`<div class="tile" style="${hue(o.cu)}">${icon(o.icon)}</div>`:''}
+      <input id="ed-name" data-act="name" value="${esc(o.name)}" aria-label="Name"><button class="done" data-act="close">Done</button></div>
+    ${ui.edit.isNew?`<div class="copyfrom"><label for="ed-from">Start from</label><select id="ed-from" data-act="copyfrom"><option value="">Blank ${type==='meal'?'dinner':'side'}</option>${Object.values(type==='meal'?S.meals:S.sides).filter(x=>x.id!==id).map(x=>`<option value="${esc(x.id)}">Copy of ${esc(x.name)}</option>`).join('')}</select><span>Copies its ingredients${type==='meal'?', sides and settings':''}; then change what's different.</span></div>`:''}
+    ${meta}
+    <div class="ingtwrap"><table class="ingt"><tbody>${rows||'<tr><td class="n" style="color:var(--muted)">No ingredients yet. Add one below.</td></tr>'}</tbody></table></div>
+    <div class="addrow"><input id="ed-add" list="catlist" placeholder="Add ingredient (type to search)" value="${esc(ui.edNew?ui.edName:'')}"><button class="go" data-act="adding">Add</button></div>
+    ${newItem}
+    ${defs}
+    <div class="foot"><span class="tot">Per-use cost for ${S.people}: <b class="mono">${money(ingCost(o.ing))}</b></span>
+      <span class="footbtns"><button class="dupbtn" data-act="dup">Duplicate</button>
+      <button class="delbtn${ui.del?' arm':''}" data-act="delete">${ui.del?'Click again to delete':'Delete '+(type==='meal'?'dinner':'side')}</button></span></div>
+  </div></div>`;
+}
+
+function renderCatalog(){
+  const q=(ui.cq||'').toLowerCase();
+  const items=Object.entries(S.catalog).filter(([k,c])=>c.n.toLowerCase().includes(q)).sort((a,b)=>a[1].n.localeCompare(b[1].n));
+  const num=(c,k,f,val,step,ph)=>`<input type="number" id="cf-${f}-${k}" data-act="cf" data-f="${f}" data-c="${k}" step="${step}" min="0" value="${val}" placeholder="${ph}" aria-label="${f} for ${esc(c.n)}">`;
+  $('catbody').innerHTML=`<table class="ct"><thead><tr><th>Item</th><th>Usual store</th><th>Price</th><th>Minimum buy</th><th>Costco pack price</th><th>Costco pack size</th></tr></thead><tbody>${items.map(([k,c])=>{
+    const canC=c.cp!=null&&c.cpk>0,conly=c.st==='C'||c.hp==null;
+    const opts=['H','A',...((c.a==='Meat'||c.a==='Deli')?[]:['W'])];
+    const st=conly?`<span class="tag s-C">Costco only</span>`:`<select id="cf-st-${k}" data-act="cf" data-f="st" data-c="${k}" aria-label="Usual store for ${esc(c.n)}">${opts.map(o=>`<option value="${o}"${c.st===o?' selected':''}>${SNAME[o]}</option>`).join('')}</select>`;
+    return `<tr><td><b>${esc(c.n)}</b> <span class="cu">${esc(c.u)}</span></td><td>${st}</td>
+      <td>${conly?'—':'$'+num(c,k,'hp',(c.hp||0).toFixed(2),'0.01','')+'/'+esc(c.u)}</td>
+      <td>${conly?'—':num(c,k,'hpk',c.hpk?fq(c.hpk):'','0.25','none')+' '+esc(c.u)}</td>
+      <td>$${num(c,k,'cpp',canC?(c.cp*c.cpk).toFixed(2):'','0.01','—')}</td>
+      <td>${num(c,k,'cpk',c.cpk?fq(c.cpk):'','0.25','—')} ${esc(c.u)}</td></tr>`;}).join('')}</tbody></table>`;
+}
+function render(){aggregate();renderTop();renderGen();renderShelf();renderBoard();renderShop();renderModal();renderCatalog();}
+function commit(){normalize();save();render();}
+
+function applyDrop(d,o){
+  if(S.locked){render();return;}
+  const P=S.plan;
+  if(o.k==='meal'){
+    if(P[d].leftover==='auto'&&d>0)P[d-1].single=true;
+    if(o.from!==undefined&&o.from!==''){const f=+o.from;if(f===d)return;if(P[d].leftover||P[f].leftover){P[d]={meal:P[f].meal,sides:[...P[f].sides]};P[f]={meal:null,sides:[]};}else[P[f],P[d]]=[P[d],P[f]];}
+    else{const m=S.meals[o.id];if(!m)return;P[d]={meal:o.id,sides:[...m.sides]};}
+  }else if(o.k==='side'){
+    if(o.from!==undefined&&o.from!==''){const f=+o.from;if(f===d)return;P[f].sides.splice(+o.i,1);}
+    P[d].sides.push(o.id);
+  }
+  commit();
+}
+
+/* drag and drop */
+document.addEventListener('dragstart',e=>{const el=e.target.closest&&e.target.closest('[draggable="true"]');if(!el)return;
+  e.dataTransfer.setData('text/plain',JSON.stringify({k:el.dataset.k,id:el.dataset.id,from:el.dataset.from,i:el.dataset.i}));
+  e.dataTransfer.effectAllowed='move';});
+document.addEventListener('dragover',e=>{const day=e.target.closest&&e.target.closest('.day');if(!day)return;e.preventDefault();
+  document.querySelectorAll('.day.over').forEach(x=>x!==day&&x.classList.remove('over'));day.classList.add('over');});
+document.addEventListener('dragleave',e=>{const day=e.target.closest&&e.target.closest('.day');if(day&&!day.contains(e.relatedTarget))day.classList.remove('over');});
+document.addEventListener('drop',e=>{const day=e.target.closest&&e.target.closest('.day');if(!day)return;e.preventDefault();
+  day.classList.remove('over');try{applyDrop(+day.dataset.day,JSON.parse(e.dataTransfer.getData('text/plain')));}catch(err){}});
+document.addEventListener('dragend',()=>document.querySelectorAll('.day.over').forEach(x=>x.classList.remove('over')));
+
+function newId(p){return p+Date.now().toString(36);}
+
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('[data-act]');const act=t&&t.dataset.act;
+  const PLAN=new Set(['weather','cheap','easy','leftover','redo','clearweek','reset','clearday','rmside','rmleft','choose','pickmeal']);
+  if(S.locked&&PLAN.has(act)){ui.msg='';ui.arm=null;ui.choose=null;render();return;}
+  const ARM=new Set(['weather','cheap','easy','leftover','redo']);
+  if(ARM.has(act)&&!(act==='leftover'&&!ui.sel.size)){const key=act+(t.dataset.w||'');if(ui.arm!==key){ui.arm=key;ui.msg='';return render();}ui.arm=null;}
+  else if(ui.arm){ui.arm=null;if(!act||act==='sel')renderGen();}
+  if(act!=='reset'&&ui.reset){ui.reset=false;}
+  if(act!=='clearweek'&&ui.clear){ui.clear=false;}
+  if(act==='scrim'&&e.target!==t){/* click inside sheet */}
+  else if(act==='scrim'||act==='close'){ui.edit=null;ui.recipe=null;ui.choose=null;ui.edNew=false;ui.del=false;return render();}
+  switch(act){
+    case 'tab':ui.tab=t.dataset.t;ui.q='';return render();
+    case 'lock':S.locked=!S.locked;ui.arm=null;ui.reset=false;ui.clear=false;ui.pick=null;return commit();
+    case 'choose':ui.choose={day:+t.dataset.day};ui.chq='';ui.pick=null;ui.edit=null;ui.recipe=null;render();return;
+    case 'pickmeal':{const d=ui.choose.day;ui.choose=null;const m=S.meals[t.dataset.id];applyDrop(d,{k:'meal',id:t.dataset.id});ui.msg=m?`${m.name} is on ${DAYS[d]}.`:'';return render();}
+    case 'ppl':S.people=Math.min(12,Math.max(1,S.people+(+t.dataset.d)));return commit();
+    case 'recipe':ui.recipe={type:t.dataset.type,id:t.dataset.id};ui.edit=null;ui.pick=null;render();{const d=document.querySelector('.rsheet .done');if(d)d.focus();}return;
+    case 'edit':ui.recipe=null;ui.edit={type:t.dataset.type,id:t.dataset.id};ui.edNew=false;ui.del=false;ui.pick=null;return render();
+    case 'clearday':S.plan[+t.dataset.day]={meal:null,sides:[]};return commit();
+    case 'rmside':S.plan[+t.dataset.day].sides.splice(+t.dataset.i,1);return commit();
+    case 'unpick':ui.pick=null;return render();
+    case 'sel':{const d=+t.dataset.day;ui.sel.has(d)?ui.sel.delete(d):ui.sel.add(d);ui.msg='';return render();}
+    case 'weather':{const tg=targets();S.gen.weather=S.gen.weather===t.dataset.w?null:t.dataset.w;generate(tg);
+      ui.msg=S.gen.weather?`Picked ${({H:'hot-weather',W:'warm-weather',C:'cold-weather'})[S.gen.weather]} dinners${ui.sel.size?' for the selected days':''}.`:'Weather filter off.';ui.sel.clear();return commit();}
+    case 'cheap':{const tg=targets();S.gen.cheap=!S.gen.cheap;generate(tg);ui.msg=S.gen.cheap?'Cheap week on: favoring lower-cost dinners.':'Cheap week off.';ui.sel.clear();return commit();}
+    case 'redo':{generate(targets());ui.msg=ui.sel.size?'Refilled the selected days.':'New week planned.';ui.sel.clear();return commit();}
+    case 'easy':{const tg=targets(),e=new Set(S.gen.easyDays),allE=tg.every(d=>e.has(d));tg.forEach(d=>allE?e.delete(d):e.add(d));
+      S.gen.easyDays=[...e].sort();if(!allE)generate(tg);ui.msg=allE?'Easy turned off for those days. Redo to get any dinner there.':'Picked quick dinners for those days.';ui.sel.clear();return commit();}
+    case 'leftover':{if(!ui.sel.size){ui.msg='Tap a day’s name to select it, then press Leftovers.';return render();}
+      const refill=[];let note='';
+      for(const d of [...ui.sel].sort()){
+        if(d===0){note='Sunday was skipped: its leftovers would come from last week. ';continue;}
+        if(S.plan[d].leftover){if(S.plan[d].leftover==='auto')S.plan[d-1].single=true;S.plan[d]={meal:null,sides:[]};refill.push(d);continue;}
+        if(S.plan[d-1].leftover){note+=`${DAYS[d]} was skipped: ${DAYS[d-1]} is already a leftover night. `;continue;}
+        if(S.plan[d+1]&&S.plan[d+1].leftover){S.plan[d+1]={meal:null,sides:[]};refill.push(d+1);}
+        S.plan[d]={meal:null,sides:[],leftover:true};
+        if(!hasT(S.meals[S.plan[d-1].meal],'L'))refill.push(d-1);}
+      generate(refill.filter(d=>!S.plan[d].leftover));ui.msg=(note+'The day before each leftover night cooks a double batch of something that reheats well.').trim();ui.sel.clear();return commit();}
+    case 'rmleft':{const d=+t.dataset.day;if(S.plan[d].leftover==='auto'&&d>0)S.plan[d-1].single=true;S.plan[d]={meal:null,sides:[]};generate([d]);ui.msg=`${DAYS[d]} gets its own dinner now.`;return commit();}
+    case 'have':S.have[t.dataset.c]=t.checked;if(!t.checked)delete S.have[t.dataset.c];return commit();
+    case 'reset':if(ui.reset){S=defaults();freshWeek();ui.reset=false;ui.edit=null;return commit();}ui.reset=true;return render();
+    case 'clearweek':if(ui.clear){S.plan=S.plan.map(()=>({meal:null,sides:[]}));ui.clear=false;return commit();}ui.clear=true;return render();
+    case 'newmeal':{const id=newId('m');S.meals[id]={id,name:'New dinner',cu:'amer',icon:'plate',t:'W',ing:[],sides:[]};ui.edit={type:'meal',id,isNew:true};commit();const n=$('ed-name');if(n){n.focus();n.select();}return;}
+    case 'newside':{const id=newId('s');S.sides[id]={id,name:'New side',ing:[]};ui.edit={type:'side',id,isNew:true};commit();const n=$('ed-name');if(n){n.focus();n.select();}return;}
+    case 'dup':{const {type,id}=ui.edit;const src=type==='meal'?S.meals[id]:S.sides[id];const nid=newId(type==='meal'?'m':'s');
+      const copy=JSON.parse(JSON.stringify(src));copy.id=nid;copy.name='Copy of '+src.name;(type==='meal'?S.meals:S.sides)[nid]=copy;
+      ui.edit={type,id:nid};ui.del=false;ui.edNew=false;commit();const n=$('ed-name');if(n){n.focus();n.select();}return;}
+    case 'rming':edObj().ing.splice(+t.dataset.ix,1);return commit();
+    case 'rmdef':edObj().sides.splice(+t.dataset.i,1);return commit();
+    case 'adding':return addIng();
+    case 'addnew':return addNewItem();
+    case 'delete':{if(!ui.del){ui.del=true;return render();}
+      const {type,id}=ui.edit;
+      if(type==='meal'){delete S.meals[id];S.plan.forEach(p=>{if(p.meal===id)p.meal=null;});}
+      else{delete S.sides[id];S.plan.forEach(p=>p.sides=p.sides.filter(s=>s!==id));Object.values(S.meals).forEach(m=>m.sides=m.sides.filter(s=>s!==id));}
+      ui.edit=null;ui.del=false;return commit();}
+    case 'copy':return copyList();
+  }
+  if(t&&t.closest('.day'))return;
+  // tap to pick from shelf
+  const card=e.target.closest('.shelf [draggable="true"]');
+  if(card&&!e.target.closest('button')){const k=card.dataset.k,id=card.dataset.id;
+    ui.pick=(ui.pick&&ui.pick.id===id)?null:{k,id};return render();}
+  const day=e.target.closest('.day');
+  if(day&&ui.pick&&!e.target.closest('button,select,input')){const p=ui.pick;ui.pick=null;applyDrop(+day.dataset.day,p);return;}
+  if(ui.reset===false&&ui.clear===false)renderTop();
+});
+
+document.addEventListener('change',e=>{
+  const t=e.target,act=t.dataset.act;
+  switch(act){
+    case 'addside':if(S.locked){render();return;}if(t.value){S.plan[+t.dataset.day].sides.push(t.value);commit();}return;
+    case 'min':{const v=parseFloat(t.value);const c=S.catalog[t.dataset.c];
+      if(t.dataset.s==='C'){if(v>0){const pp=c.cp*c.cpk;c.cpk=v;c.cp=pp/v;}}else{if(v>0)c.hpk=v;else delete c.hpk;}return commit();}
+    case 'cf':{const c=S.catalog[t.dataset.c],f=t.dataset.f,v=parseFloat(t.value);
+      if(f==='st')c.st=t.value;
+      else if(f==='hp'){if(v>=0)c.hp=v;}
+      else if(f==='hpk'){if(v>0)c.hpk=v;else delete c.hpk;}
+      else if(f==='cpp'){if(v>0){const k=c.cpk>0?c.cpk:1;c.cpk=k;c.cp=v/k;}else if(c.st!=='C'){delete c.cp;delete c.cpk;}}
+      else if(f==='cpk'){if(v>0){const pp=(c.cp!=null&&c.cpk)?c.cp*c.cpk:null;c.cpk=v;if(pp!=null)c.cp=pp/v;}else if(c.st!=='C'){delete c.cp;delete c.cpk;}}
+      return commit();}
+    case 'price':{const v=parseFloat(t.value);const c=S.catalog[t.dataset.c];if(v>=0){if(t.dataset.s==='C')c.cp=v/c.cpk;else c.hp=v;commit();}return;}
+    case 'storeov':if(t.value)S.storeOv[t.dataset.c]=t.value;else delete S.storeOv[t.dataset.c];return commit();
+    case 'qty':{const v=parseFloat(t.value);if(v>=0){edObj().ing[+t.dataset.ix].q=v;commit();}return;}
+    case 'name':{const v=t.value.trim();if(v){edObj().name=v;commit();}return;}
+    case 'cu':edObj().cu=t.value;return commit();
+    case 'icon':edObj().icon=t.value;return commit();
+    case 'lunchday':if(S.locked){render();return;}S.plan[+t.dataset.day].lunch=t.checked;return commit();
+    case 'tag':{const m=edObj();const ch=t.dataset.ch;m.t=t.checked?(m.t||'')+ch:(m.t||'').split(ch).join('');return commit();}
+    case 'adddef':if(t.value){edObj().sides.push(t.value);commit();}return;
+    case 'copyfrom':{const o=edObj(),pool=ui.edit.type==='meal'?S.meals:S.sides;
+      if(!t.value){o.ing=[];if(o.sides)o.sides=[];o.name=ui.edit.type==='meal'?'New dinner':'New side';}
+      else{const src=JSON.parse(JSON.stringify(pool[t.value]));o.ing=src.ing;o.name='Copy of '+src.name;
+        if(ui.edit.type==='meal'){o.sides=src.sides;o.cu=src.cu;o.icon=src.icon;o.t=src.t;}}
+      commit();const sel=$('ed-from');if(sel)sel.value=t.value;const n=$('ed-name');if(n){n.focus();n.select();}return;}
+  }
+});
+document.addEventListener('input',e=>{if(e.target.id==='chq'){ui.chq=e.target.value;$('chlist').innerHTML=chooserList();return;}if(e.target.id==='catq'){ui.cq=e.target.value;renderCatalog();return;}if(e.target.id==='search'){ui.q=e.target.value;const pos=e.target.selectionStart;renderShelf();const s=$('search');s.focus();s.setSelectionRange(pos,pos);}});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(ui.choose){ui.choose=null;render();}else if(ui.recipe){ui.recipe=null;render();}else if(ui.edit){ui.edit=null;render();}else if(ui.pick){ui.pick=null;render();}}
+  if(e.key==='Enter'&&e.target.id==='ed-add'){e.preventDefault();addIng();}
+});
+
+function edObj(){const {type,id}=ui.edit;return type==='meal'?S.meals[id]:S.sides[id];}
+function addIng(){
+  const name=($('ed-add').value||'').trim();if(!name)return;
+  const hit=Object.entries(S.catalog).find(([k,c])=>c.n.toLowerCase()===name.toLowerCase());
+  if(hit){edObj().ing.push({c:hit[0],q:1});ui.edNew=false;commit();const last=$('q-'+(edObj().ing.length-1));if(last){last.focus();last.select();}return;}
+  ui.edNew=true;ui.edName=name;render();const u=$('ni-u');if(u)u.focus();
+}
+function addNewItem(){
+  const u=($('ni-u').value||'each').trim(),p=parseFloat($('ni-p').value)||0;
+  const st=$('ni-st').value,cpk=parseFloat($('ni-cpk').value),cpp=parseFloat($('ni-cpp').value);
+  const id=newId('c');S.catalog[id]={n:ui.edName,u,hp:p,a:$('ni-a').value,k:$('ni-k').value,st};
+  if(cpk>0&&cpp>0){S.catalog[id].cp=cpp/cpk;S.catalog[id].cpk=cpk;}
+  else if(st==='C'){S.catalog[id].cp=p;S.catalog[id].cpk=1;}
+  if(st==='C')S.catalog[id].hp=null;
+  edObj().ing.push({c:id,q:1});ui.edNew=false;ui.edName='';commit();
+}
+async function copyList(){
+  const rows=ROWS.filter(r=>!r.have);
+  const block=(s,title)=>{const rs=rows.filter(r=>r.store===s);if(!rs.length)return '';
+    return title+'\n'+'='.repeat(title.length)+'\n'+AISLES.map(a=>{const g=rs.filter(r=>r.it.a===a).sort((x,y)=>x.it.n.localeCompare(y.it.n));if(!g.length)return '';
+      return a+'\n'+g.map(r=>`  - ${r.it.n}: need ${fq(r.need)} ${r.it.u}`+(r.buy-r.need>0.01?` · buy ${s==='C'?r.packs+' pack'+(r.packs>1?'s':'')+' ('+fq(r.buy)+' '+r.it.u+')':fq(r.buy)+' '+r.it.u}`:'')).join('\n');}).filter(Boolean).join('\n\n')+'\n';};
+  const txt=`Groceries, week of ${dstr(0)}\n\n`+SORDER.map(k=>block(k,SNAME[k].toUpperCase())).filter(Boolean).join('\n\n');
+  try{await navigator.clipboard.writeText(txt);$('copyfb').innerHTML='<p class="note">Copied to clipboard.</p>';}
+  catch(err){$('copyfb').innerHTML=`<textarea class="copyfb" id="copytxt" readonly>${esc(txt)}</textarea>`;const ta=$('copytxt');ta.focus();ta.select();}
+}
+Object.values(S.meals).forEach(m=>{if(m.t==null){const d=MEALS.find(x=>x[0]===m.id);m.t=d?d[6]:'W';}});
+if(!S.tagv){Object.values(S.meals).forEach(m=>{const d=MEALS.find(x=>x[0]===m.id);if(d)for(const ch of 'DP')if(d[6].includes(ch)&&!(m.t||'').includes(ch))m.t=(m.t||'')+ch;});S.tagv=2;}
+if((S.catv||0)<3){const d=defaults();
+  for(const k in S.catalog){if(d.catalog[k])S.catalog[k]=d.catalog[k];else if(!S.catalog[k].st)S.catalog[k].st='H';}
+  for(const k in d.catalog)if(!S.catalog[k])S.catalog[k]=d.catalog[k];
+  const addIng=(id,c,q)=>{const m=S.meals[id];if(m&&!m.ing.some(i=>i.c===c))m.ing.push({c,q});};
+  addIng('ramen','gochu',2);addIng('tacos','pico',8);addIng('fajitas','pico',8);
+  if(S.meals.fajitas&&S.meals.fajitas.name==='Steak fajitas')S.meals.fajitas.name='Fajitas';
+  if(!S.meals.cpizza)S.meals={cpizza:d.meals.cpizza,...S.meals};
+  for(const k in S.storeOv)if(!storesFor(S.catalog[k]||{}).includes(S.storeOv[k]))delete S.storeOv[k];
+  S.catv=3;}
+if(S.catv<4){const d=defaults();S.catalog.gbeef={...d.catalog.gbeef};if(!S.catalog.ravioli)S.catalog.ravioli=d.catalog.ravioli;
+  for(const k of ['chixtacos','buffsalad','ravioli','meatloaf'])if(!S.meals[k])S.meals[k]=d.meals[k];
+  const cs=S.meals.chixsalad;if(cs)cs.ing.forEach(i=>{if(i.c==='chix'){i.c='thigh';i.q=1.5;}});
+  S.catv=4;}
+if(S.catv<5){for(const k in MINS)if(S.catalog[k]&&S.catalog[k].hpk==null)S.catalog[k].hpk=MINS[k];S.catv=5;}
+if(S.catv<6){const d=defaults();for(const k in d.catalog)if(!S.catalog[k])S.catalog[k]=d.catalog[k];
+  for(const id in RCP){if(RSIDE.has(id)){if(S.sides[id])S.sides[id].ing=d.sides[id].ing;}else if(S.meals[id])S.meals[id].ing=d.meals[id].ing;}
+  S.catv=6;}
+if(S.catv<7){const d=defaults();for(const k in d.catalog)if(!S.catalog[k])S.catalog[k]=d.catalog[k];
+  if(S.meals.antipasto&&S.meals.antipasto.name==='Antipasto salad')S.meals.antipasto.name='Antipasto pasta salad';
+  if(S.meals.cabstew){if(S.meals.cabstew.name==='Ground beef, tomato & cabbage stew')S.meals.cabstew.name='Unstuffed peppers';S.meals.cabstew.ing=d.meals.cabstew.ing;}
+  for(const k of ['antisalad','classicstuffed'])if(!S.meals[k])S.meals[k]=d.meals[k];
+  S.catv=7;}
+if(!S.gen){freshWeek();}
+normalize();save();
+render();
+})();
+</script>
+
+</body></html>
