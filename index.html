@@ -2,154 +2,187 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jon Ragland · Musings</title>
 <meta name="description" content="Small things Jon Ragland builds for fun: browser apps, games and planners.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f3a2e'/><text x='16' y='22' font-family='Georgia,serif' font-size='17' font-weight='700' text-anchor='middle' fill='%23f3eee4'>JR</text></svg>">
+<meta name="theme-color" content="#000000">
+<link rel="preload" href="assets/fonts/plex-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23000'/><path d='M7 24h4c0-6 2-9 6-9 3 0 4 2 4 4s2 3 4 2' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/><path d='M15 15c-1-4-1-8 1-9 1 3 1 6 0 9M18 15c1-4 2-7 4-8 0 3-1 6-3 8' fill='none' stroke='%23fff' stroke-width='1.4' stroke-linecap='round'/></svg>">
 <style>
+  @font-face { font-family: "STIX Two Math"; src: url("assets/fonts/stix-two-math.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "STIX Two Text"; src: url("assets/fonts/stix-two-text.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Sans Egyptian Hieroglyphs"; src: url("assets/fonts/noto-hieroglyphs.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Sans Cuneiform"; src: url("assets/fonts/noto-cuneiform.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Music"; src: url("assets/fonts/noto-music.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Sans Mayan Numerals"; src: url("assets/fonts/noto-mayan.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Sans Phoenician"; src: url("assets/fonts/noto-phoenician.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Sans Runic"; src: url("assets/fonts/noto-runic.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Serif Devanagari"; src: url("assets/fonts/noto-devanagari.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Naskh Arabic"; src: url("assets/fonts/noto-arabic.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Serif Hebrew"; src: url("assets/fonts/noto-hebrew.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Serif SC"; src: url("assets/fonts/noto-sc.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "IBM Plex Sans Condensed"; src: url("assets/fonts/plex-sans-condensed.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/plex-mono.woff2") format("woff2"); font-display: swap; }
   :root {
-    --bg: #f4f0e8;
-    --card: #fffdf8;
-    --ink: #1d1f1c;
-    --muted: #6b6a63;
-    --line: #e2dccf;
-    --accent: #1f5a43;
-    --tag: #ece6d8;
-    --shadow: 0 1px 2px rgba(40,30,10,.06), 0 8px 24px rgba(40,30,10,.06);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #151714;
-      --card: #1d201c;
-      --ink: #ecebe5;
-      --muted: #a09f97;
-      --line: #2e322c;
-      --accent: #7cc4a1;
-      --tag: #2a2e28;
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
-    }
+    --ink: #f2f2ee;
+    --muted: #9c9c96;
+    --line: #2b2b29;
+    --card: #0e0e0d;
+    --tag: #1c1c1a;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
+  html, body { margin: 0; height: 100%; background: #000; }
   body {
-    margin: 0;
-    background: var(--bg);
     color: var(--ink);
     font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 72px 24px 48px; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
-  header { margin-bottom: 48px; max-width: 640px; }
-  .eyebrow {
-    font: 600 13px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    letter-spacing: .08em; text-transform: uppercase; color: var(--accent);
-    margin: 0 0 16px;
+  /* The one button, always top right */
+  #curios {
+    position: fixed; z-index: 20;
+    top: max(16px, env(safe-area-inset-top));
+    right: max(16px, env(safe-area-inset-right));
+    font: 500 13px/1 var(--mono); letter-spacing: .06em;
+    color: #fff; background: rgba(0,0,0,.45);
+    border: 1px solid rgba(255,255,255,.75); border-radius: 999px;
+    padding: 11px 18px; cursor: pointer;
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    transition: background .2s, color .2s;
   }
+  #curios:hover, #curios[aria-expanded="true"] { background: #fff; color: #000; }
+  #curios:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+  /* Tiles panel */
+  #panel {
+    position: fixed; inset: 0; z-index: 10;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    background: rgba(0,0,0,.8);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    opacity: 0; visibility: hidden;
+    transition: opacity .35s ease, visibility 0s linear .35s;
+  }
+  #panel.open { opacity: 1; visibility: visible; transition: opacity .35s ease; }
+  .inner { max-width: 1080px; margin: 0 auto; padding: 96px 24px 48px; transform: translateY(12px); transition: transform .35s ease; }
+  #panel.open .inner { transform: none; }
+  .eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
   h1 {
     font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
-    font-weight: 700; font-size: clamp(40px, 7vw, 64px); line-height: 1.02;
-    letter-spacing: -.02em; margin: 0 0 18px;
+    font-weight: 400; font-size: clamp(34px, 6vw, 54px); line-height: 1.05; letter-spacing: -.01em;
+    margin: 0 0 12px;
   }
-  .lede { font-size: 18px; color: var(--muted); margin: 0; }
+  .lede { color: var(--muted); margin: 0 0 40px; max-width: 560px; }
 
-  .grid {
-    display: grid; gap: 24px;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  }
+  .grid { display: grid; gap: 22px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
   .card {
-    display: flex; flex-direction: column;
-    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-    overflow: hidden; box-shadow: var(--shadow);
-    transition: transform .18s ease, box-shadow .18s ease;
-    position: relative;
+    position: relative; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    transition: border-color .2s, transform .2s;
   }
-  .card:hover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(40,30,10,.08), 0 16px 36px rgba(40,30,10,.12); }
-  .thumb { aspect-ratio: 16 / 10; background: var(--tag); border-bottom: 1px solid var(--line); }
+  .card:hover { border-color: rgba(255,255,255,.7); transform: translateY(-3px); }
+  .thumb { aspect-ratio: 16 / 10; background: #111; border-bottom: 1px solid var(--line); }
   .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .body { padding: 18px 20px 20px; display: flex; flex-direction: column; flex: 1; }
-  h2 { font-size: 20px; line-height: 1.25; margin: 0 0 6px; letter-spacing: -.01em; }
+  h2 { font-size: 19px; line-height: 1.25; margin: 0 0 6px; }
   h2 a { color: inherit; text-decoration: none; }
-  /* Whole card is clickable via the title link */
   h2 a::after { content: ""; position: absolute; inset: 0; z-index: 1; }
   h2 a:focus-visible { outline: none; }
-  .card:has(h2 a:focus-visible) { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .card:has(h2 a:focus-visible) { outline: 2px solid #fff; outline-offset: 3px; }
   .desc { color: var(--muted); font-size: 15px; margin: 0 0 16px; flex: 1; }
   .meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .tags { display: flex; gap: 6px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
-  .tags li {
-    font: 500 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    background: var(--tag); color: var(--muted); padding: 6px 8px; border-radius: 6px;
-  }
-  .src {
-    position: relative; z-index: 2;
-    font-size: 13px; color: var(--muted); text-decoration: none; white-space: nowrap;
-  }
-  .src:hover { color: var(--accent); text-decoration: underline; }
-
+  .tags li { font: 500 12px/1 var(--mono); background: var(--tag); color: var(--muted); padding: 6px 8px; border-radius: 6px; }
+  .src { position: relative; z-index: 2; font-size: 13px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+  .src:hover { color: #fff; text-decoration: underline; }
   footer {
-    margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line);
-    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-    color: var(--muted); font-size: 14px;
+    margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 14px;
   }
   footer a { color: inherit; }
-  footer a:hover { color: var(--accent); }
-
-  @media (max-width: 560px) { .wrap { padding-top: 48px; } header { margin-bottom: 32px; } }
-  @media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }
+  footer a:hover { color: #fff; }
+  @media (max-width: 560px) { .inner { padding-top: 84px; } }
+  @media (prefers-reduced-motion: reduce) { #panel, .inner, .card { transition: none; } }
 </style>
+<noscript><style>#panel { opacity: 1; visibility: visible; } #curios { display: none; } body { overflow: auto; }</style></noscript>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <p class="eyebrow">Musings</p>
-    <h1>Jon Ragland</h1>
+<canvas id="stage" aria-hidden="true"></canvas>
+
+<button id="curios" type="button" aria-expanded="false" aria-controls="panel">quizzes and curios</button>
+
+<section id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title">
+  <div class="inner">
+    <p class="eyebrow">Jon Ragland · Musings</p>
+    <h1 id="panel-title">Quizzes and curios</h1>
     <p class="lede">Things I build for fun. Each one runs in your browser, with nothing to install.</p>
-  </header>
 
-  <main class="grid">
-    <!-- To add a project: copy one <article> block, change the folder name, image, title, text and tags. -->
+    <div class="grid">
+      <!-- To add a project: copy one <article> block, change the folder name, image, title, text and tags. -->
 
-    <article class="card">
-      <div class="thumb"><img src="assets/backyard-planner.jpg" alt="3D view of a backyard at night with string lights, a fire table and flower beds" loading="lazy" width="800" height="500"></div>
-      <div class="body">
-        <h2><a href="backyard-planner/">Backyard Planner</a></h2>
-        <p class="desc">A 3D designer for a real backyard. Try out gardens, a pool, a puppy run or a fire pit, then compare layouts and get rough material amounts.</p>
-        <div class="meta">
-          <ul class="tags"><li>3D</li><li>WebGL</li><li>Works offline</li></ul>
-          <a class="src" href="https://github.com/JonReacher/Musings/tree/main/backyard-planner">Source ↗</a>
+      <article class="card">
+        <div class="thumb"><img src="assets/backyard-planner.jpg" alt="3D view of a backyard at night with string lights, a fire table and flower beds" loading="lazy" width="800" height="500"></div>
+        <div class="body">
+          <h2><a href="backyard-planner/">Backyard Planner</a></h2>
+          <p class="desc">A 3D designer for a real backyard. Try out gardens, a pool, a puppy run or a fire pit, then compare layouts and get rough material amounts.</p>
+          <div class="meta">
+            <ul class="tags"><li>3D</li><li>WebGL</li><li>Works offline</li></ul>
+            <a class="src" href="https://github.com/JonReacher/Musings/tree/main/backyard-planner">Source ↗</a>
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
 
-    <article class="card">
-      <div class="thumb"><img src="assets/brutal-tour.jpg" alt="Tracked robot with its arm raised over a training aid in a desert lane" loading="lazy" width="800" height="500"></div>
-      <div class="body">
-        <h2><a href="brutal-tour/">Brutal Tour</a></h2>
-        <p class="desc">Drive a tracked EOD robot down a 2007 training lane and render an inert training aid safe: recon, X-ray, disrupt and a graded debrief.</p>
-        <div class="meta">
-          <ul class="tags"><li>Game</li><li>WebGL2</li><li>Desktop</li></ul>
-          <a class="src" href="https://github.com/JonReacher/Musings/tree/main/brutal-tour">Source ↗</a>
+      <article class="card">
+        <div class="thumb"><img src="assets/brutal-tour.jpg" alt="Tracked robot with its arm raised over a training aid in a desert lane" loading="lazy" width="800" height="500"></div>
+        <div class="body">
+          <h2><a href="brutal-tour/">Brutal Tour</a></h2>
+          <p class="desc">Drive a tracked EOD robot down a 2007 training lane and render an inert training aid safe: recon, X-ray, disrupt and a graded debrief.</p>
+          <div class="meta">
+            <ul class="tags"><li>Game</li><li>WebGL2</li><li>Desktop</li></ul>
+            <a class="src" href="https://github.com/JonReacher/Musings/tree/main/brutal-tour">Source ↗</a>
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
 
-    <article class="card">
-      <div class="thumb"><img src="assets/dinner-board.jpg" alt="Weekly dinner plan with a dinner list on the left and a column for each day" loading="lazy" width="800" height="500"></div>
-      <div class="body">
-        <h2><a href="dinner-board/">Family Dinner Board</a></h2>
-        <p class="desc">Plan the week's dinners, get recipes sized to your family, and build a grocery list split across the stores you shop at.</p>
-        <div class="meta">
-          <ul class="tags"><li>Planner</li><li>Phone friendly</li></ul>
-          <a class="src" href="https://github.com/JonReacher/Musings/tree/main/dinner-board">Source ↗</a>
+      <article class="card">
+        <div class="thumb"><img src="assets/dinner-board.jpg" alt="Weekly dinner plan with a dinner list on the left and a column for each day" loading="lazy" width="800" height="500"></div>
+        <div class="body">
+          <h2><a href="dinner-board/">Family Dinner Board</a></h2>
+          <p class="desc">Plan the week's dinners, get recipes sized to your family, and build a grocery list split across the stores you shop at.</p>
+          <div class="meta">
+            <ul class="tags"><li>Planner</li><li>Phone friendly</li></ul>
+            <a class="src" href="https://github.com/JonReacher/Musings/tree/main/dinner-board">Source ↗</a>
+          </div>
         </div>
-      </div>
-    </article>
-  </main>
+      </article>
+    </div>
 
-  <footer>
-    <span>© Jon Ragland</span>
-    <a href="https://github.com/JonReacher">github.com/JonReacher</a>
-  </footer>
-</div>
+    <footer>
+      <span>© Jon Ragland</span>
+      <a href="https://github.com/JonReacher/Musings">Source on GitHub</a>
+    </footer>
+  </div>
+</section>
+
+<script>
+(() => {
+  const btn = document.getElementById('curios');
+  const panel = document.getElementById('panel');
+  function setOpen(open, fromHash) {
+    panel.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', String(open));
+    if (!fromHash) history.replaceState(null, '', open ? '#curios' : location.pathname + location.search);
+    if (open) { const first = panel.querySelector('h2 a'); first && first.focus({ preventScroll: true }); }
+    else if (!fromHash) btn.focus({ preventScroll: true });
+  }
+  btn.addEventListener('click', () => setOpen(!panel.classList.contains('open')));
+  panel.addEventListener('click', e => { if (e.target === panel || e.target.classList.contains('inner')) setOpen(false); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && panel.classList.contains('open')) setOpen(false); });
+  addEventListener('hashchange', () => { const want = location.hash === '#curios'; if (want !== panel.classList.contains('open')) setOpen(want, true); });
+  if (location.hash === '#curios') setOpen(true, true);
+})();
+</script>
+<script src="assets/home.js" defer></script>
 </body>
 </html>
