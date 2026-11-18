@@ -12,6 +12,7 @@ Things I build for fun. Every project in this repo runs in the browser, with not
 | [Brutal Tour](brutal-tour/) | Drive an EOD robot down a training lane and render an inert training aid safe | [jonragland.com/brutal-tour](https://jonragland.com/brutal-tour/) |
 | [Family Dinner Board](dinner-board/) | A weekly dinner planner with recipes and a grocery list | [jonragland.com/dinner-board](https://jonragland.com/dinner-board/) |
 | [Green Bay Packers Gameday](packers-gameday/) | Follow a Packers game live on a 2D field, with every play of the drive | [jonragland.com/packers-gameday](https://jonragland.com/packers-gameday/) |
+| [La Bella Plantación](la-bella-plantacion/) | A cigar business simulator: grow, cure and roll tobacco, then build a brand | [jonragland.com/la-bella-plantacion](https://jonragland.com/la-bella-plantacion/) |
 
 Each project's folder has its own README with more detail.
 
