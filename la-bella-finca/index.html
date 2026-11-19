@@ -1279,7 +1279,7 @@ function fline(o){ // a filled line over time: o.vals, o.labels, o.zero
   const P = o.vals.map((v,i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   g += `<polygon points="${x(0).toFixed(1)},${y(Math.max(lo,0)).toFixed(1)} ${P} ${x(n-1).toFixed(1)},${y(Math.max(lo,0)).toFixed(1)}" fill="${o.color||FC.cash}" opacity=".14"/><polyline points="${P}" fill="none" stroke="${o.color||FC.cash}" stroke-width="2.2" stroke-linejoin="round"/>`;
   if (o.split != null){ const xs = x(o.split); g += `<line x1="${xs}" y1="${T}" x2="${xs}" y2="${H-B}" stroke="#9a7a4a" stroke-dasharray="3 3"/><text x="${xs+4}" y="${T+10}" class="cl">forecast →</text>`; }
-  const every = Math.ceil(n/6); o.labels.forEach((l,i) => { if (i % every === 0 || i===n-1) g += `<text x="${x(i).toFixed(1)}" y="${H-6}" class="cl" text-anchor="${i===0?'start':i===n-1?'end':'middle'}">${l}</text>`; });
+  const every = Math.ceil(n/6); o.labels.forEach((l,i) => { if ((i % every === 0 && n-1-i >= every*0.6) || i===n-1) g += `<text x="${x(i).toFixed(1)}" y="${H-6}" class="cl" text-anchor="${i===0?'start':i===n-1?'end':'middle'}">${l}</text>`; });
   return g + '</svg>';
 }
 function waterfall(steps, h){ // steps: [{label, v, total:bool}]
@@ -1329,12 +1329,13 @@ function finCashBook(st){
   const runway = wk < 0 ? cash/(-wk) : null;
   let h = `<div class="kpis">${kpi('Cash now', fmt(cash), debt ? `owe the bank ${fmt(debt)}` : 'no bank debt')}${kpi('In this month', fmt(inT), `since ${dateAt(m.d0)}`)}${kpi('Out this month', fmt(outT), '')}${kpi(wk<0?'Cash lasts':'Cash grows', wk<0 ? (runway > 52 ? 'over a year' : `${Math.round(runway)} weeks`) : `${fmt(wk)}/wk`, `last ${D} days’ pace`, wk<0 && runway < 8 ? 'bad' : '')}</div>`;
   if (H.length > 2) h += `<h4>Cash, last ${H.length} days</h4>` + fline({ vals:H.map(x => x[1]), labels:H.map(x => dateAt(x[0])) });
-  const lines = (o1, o2) => { const keys = [...new Set([...Object.keys(o1||{}), ...Object.keys(o2||{})])].sort((a,b) => (o1[b]||0) - (o1[a]||0)); return keys.map(k => [k, [o1[k]||0, o2 ? (o2[k]||0) : null], '']); };
+  const lines = (o1, o2) => { const keys = [...new Set([...Object.keys(o1||{}), ...Object.keys(o2||{})])].sort((a,b) => (o1[b]||0) - (o1[a]||0)); return keys.length ? keys.map(k => [k, [o1[k]||0, o2 ? (o2[k]||0) : null], '']) : [['<span class="muted">Nothing yet</span>', [0, o2 ? 0 : null], '']]; };
   const inNow = { ...m.cashIn }; for (const k of ['rev.stand','rev.beltran','rev.shops','rev.abroad','rev.leaf']) if (m.rev[k]) inNow[FIN_LINES[k]] = (inNow[FIN_LINES[k]]||0) + m.rev[k];
   const inPrev = prev ? { ...prev.cashIn } : null; if (prev) for (const k of ['rev.stand','rev.beltran','rev.shops','rev.abroad','rev.leaf']) if (prev.rev[k]) inPrev[FIN_LINES[k]] = (inPrev[FIN_LINES[k]]||0) + prev.rev[k];
   const cols = ['This month', prev ? prev.label : 'Last month'];
   h += `<h4>Money in and out</h4>` + fstmt(cols, [['Money in', null, 'h'], ...lines(inNow, inPrev), ['Total in', [finSum(inNow), inPrev ? finSum(inPrev) : null], 'sub'], ['Money out', null, 'h'], ...lines(m.cashOut, prev ? prev.cashOut : null), ['Total out', [outT, prev ? finSum(prev.cashOut) : null], 'sub'], ['Net cash flow', [finSum(inNow) - outT, inPrev ? finSum(inPrev) - finSum(prev.cashOut) : null], 'tot']]);
-  if (st==='A') h += verdicts([[wk >= 0 ? 'ok' : runway < 8 ? 'bad' : 'warn', wk >= 0 ? 'More is coming in than going out. Keep a cushion for the months before harvest.' : `You are spending about ${fmt(-wk)} a week more than comes in. A farm earns once a year and spends every day: make sure the cash reaches the harvest.`]]) + `<div class="muted">This is a cash book: where the money went. When you start selling cigars under your own name, you’ll get a profit-and-loss statement, which shows whether the business is actually making money.</div>`;
+  const still = Math.abs(wk) < 1 && !inT && !outT && !(prev && (finSum(prev.cashOut) || finSum(prev.cashIn)));
+  if (st==='A') h += verdicts([still ? ['ok', 'Nothing has moved yet. Every plow, seed and wage from here on shows up in this book.'] : [wk >= 0 ? 'ok' : runway < 8 ? 'bad' : 'warn', wk >= 0 ? 'More is coming in than going out. Keep a cushion for the months before harvest.' : `You are spending about ${fmt(-wk)} a week more than comes in. A farm earns once a year and spends every day: make sure the cash reaches the harvest.`]]) + `<div class="muted">This is a cash book: where the money went. When you start selling cigars under your own name, you’ll get a profit-and-loss statement, which shows whether the business is actually making money.</div>`;
   return h;
 }
 function plRows(cols){ // cols: array of pl-like objects (with rev lines in .r)
