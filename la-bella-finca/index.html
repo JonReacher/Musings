@@ -528,11 +528,17 @@ const barnUsed = b => lots.filter(l => l.loc===b.id && (l.stage==='curing'||l.st
 const wareUsed = b => lots.filter(l => l.loc===b.id && l.stage==='baled').reduce((s,l)=>s+l.kg,0);
 const freeBarn = () => ready('barn').reduce((s,b)=>s+Math.max(0,barnCap(b)-barnUsed(b)),0);
 function grade(q){ return q>=1.2?'A+':q>=1.05?'A':q>=0.9?'B':q>=0.75?'C':'D'; }
-function price(l){
-  const pm = PRIM[l.pr].price;
-  const base = l.stage==='curing'?0 : l.stage==='cured'?8 : l.stage==='fermenting'?0 : l.stage==='fermented'?13 : 13 + Math.min(10, l.age/30*0.8)*(perk('patience')?1.1:1);
-  return base * pm * l.q * (perk('buyerTrust')?1.08:1);
+// What the factory pays per kg. Aging adds value for about two years: quickly in the first year (up to $10 a kg),
+// then slowly (up to $4 more). Fine aged leaf is scarce and the buyers pay for it: on top of that, leaf graded above B
+// earns a premium that grows as it matures, up to +60% for A+ aged 15 months or more. Grade B and below age as before.
+const AGED_PREMIUM = 0.6, PREMIUM_DAYS = 450;
+const ageBonus = age => { const m = (age||0)/30; return Math.min(10, m*0.8) + Math.max(0, Math.min(4, (m-12.5)*0.4)); };
+const finePremium = (q, age) => 1 + AGED_PREMIUM * Math.max(0, Math.min(1, (q-0.9)/0.3)) * Math.min(1, (age||0)/PREMIUM_DAYS);
+function leafValue(stage, age, q, pr, pat){
+  const base = stage==='curing'?0 : stage==='cured'?8 : stage==='fermenting'?0 : stage==='fermented'?13 : 13 + ageBonus(age)*(pat||1);
+  return base * PRIM[pr].price * q * (stage==='baled' ? finePremium(q, age) : 1);
 }
+function price(l){ return leafValue(l.stage, l.age, l.q, l.pr, perk('patience')?1.1:1) * (perk('buyerTrust')?1.08:1); }
 function leafColor(l){
   if (l.stage==='curing'){ const f=l.cd/PRIM[l.pr].cure; return f<0.45 ? mix('#6aa84f','#d6c25a',f/0.45) : mix('#d6c25a','#9a6431',(f-0.45)/0.55); }
   if (l.stage==='cured') return '#9a6431';
@@ -3942,7 +3948,7 @@ function resetCity(){
   for (const k of Object.keys(city)) delete city[k];
   Object.assign(city, { unlocked:false, hinted:false, respect:5, read:[], done:[], perks:[], cd:{}, said:'', sel:0, game:null, vsel:0,
     dd:{}, neg:null, shops:[], pos:null, world:{}, worldOpen:false, opsSub:'overview', wsel:'miami', aware:0, line:{ bal:0 }, months:[], m:null, daily:[], log:null, comments:[],
-    accounts:ACCOUNTS.map(a => ({ k:a.k, status:'none', pid:0, wk:a.wk, missed:0, said:'' })), ar:[], markets:{}, ratings:{}, subs:[], fair:null, brokers:[], brokerDay:-99,
+    accounts:ACCOUNTS.map(a => ({ k:a.k, status:'none', pid:0, wk:a.wk, missed:0, said:'' })), ar:[], markets:{}, ratings:{}, subs:[], fair:null, brokers:[], brokerV2:true, brokerDay:-99,
     stats:{ cohMonth:0, servedStreak:0, profitMonths:0 }, global:false, globalDay:null, events:{}, lastAdvice:'' });
 }
 resetCity();
@@ -4333,10 +4339,11 @@ function fairTick(){
   ready.slice(0,3).forEach(M => offerMarket(M.k));
   if (!city.worldOpen){ city.worldOpen = true; say('victoria', `The fair opened a door, whether or not you signed anything. Importers from six countries have your card now. From here the business is the world: distributors in each country, and if you are brave and rich, shops of your own abroad. I put a map of the world on your desk.`, [{ label:'Open the world map', fn:()=>openWorld() }, { label:'Later' }], null, true); }
 }
+const brokerPrice = (v, pr, q, age, r) => Math.round(leafValue('baled', age, q, pr) * (1.25 + r*0.15) * 4)/4;
 function refreshBrokers(){
   city.brokerDay = dayInt; const R = mulberry32(dayInt*31+7), V = ['criollo','corojo','habano','broadleaf'];
   city.brokers = Array.from({ length:4 }, (_,i) => { const v = V[Math.floor(R()*4)], pr = Math.floor(R()*3), q = 0.88 + R()*0.32, age = 120 + Math.floor(R()*420), kg = 100 + Math.round(R()*30)*10;
-    return { id:i, v, pr, q, age, kg, price: Math.round((14 + 10*Math.min(1,age/365)) * PRIM[pr].price * q * (1.15 + R()*0.15) * 4)/4, who:['Don Celestino Vidal','the Vuelta Abajo cooperative','a broker in the port','the Ruiz brothers’ farm'][i] }; });
+    return { id:i, v, pr, q, age, kg, price: brokerPrice(v, pr, q, age, R()), who:['Don Celestino Vidal','the Vuelta Abajo cooperative','a broker in the port','the Ruiz brothers’ farm'][i] }; });
 }
 function buyBroker(i){ const o = city.brokers[i]; if (!o) return; const cost = o.price*o.kg; if (cash < cost){ flashCash(); return; }
   cash -= cost; spend('Leaf bought', cost); const w = ready('ware').find(x => wareCap(x)-wareUsed(x) >= o.kg);
@@ -5489,7 +5496,7 @@ function renderOps(force){
     h += `</div>`;
   }
   h += `<h4>Bank of San Rafael</h4><div class="card"><div class="row"><span>You owe</span><span class="${debt?'bad':''}">${fmt(debt)}</span></div><div class="muted">Loans of $1,000 at a time, up to $6,000. Interest is 1% a month, charged every 30 days.</div><div class="acts" style="margin-top:5px;justify-content:flex-start"><button class="btn sm" data-act="borrow" ${debt>=6000?'disabled':''}>Borrow $1,000</button><button class="btn sm" data-act="repay" ${!debt?'disabled':''}>Repay $1,000</button><button class="btn sm" data-act="repayall" ${!debt?'disabled':''}>Repay all</button></div></div>`;
-  h += `<h4 id="op-market">The factory in town</h4><div class="muted">Pays per kg: cured leaf about $8, fermented $13, aged bales up to $23. Ligero earns about a third more and volado about a quarter less. Leaf graded A sells for more; leaf graded D for much less.</div>`;
+  h += `<h4 id="op-market">The factory in town</h4><div class="muted">Pays per kg: cured leaf about $8, fermented $13, aged bales $13 to $27 as they age over two years. Fine aged leaf earns a premium on top: up to +60% for A+ leaf aged 15 months, about +30% for A. Ligero earns about a third more and volado about a quarter less. Leaf graded A sells for more; leaf graded D for much less.</div>`;
   h += `<h4>Controls</h4><div class="muted">Drag across land with a tool to select tiles · Build places with a click · Look: drag to pan, click a building to open it · scroll to zoom out · keys 1–9, O for this panel, Space to pause.</div>`;
   if (h===lastOps && !force) return; lastOps = h;
   const st = el.scrollTop; el.innerHTML = h; el.scrollTop = st;
@@ -5666,6 +5673,7 @@ function restore(st){
   if (st.cam) Object.assign(cam, st.cam);
   if (st.city) Object.assign(city, st.city, { game:null, neg:null });
   migrateCity(); if (city.unlocked) attachCity();
+  if (st.city && !st.city.brokerV2 && city.brokers){ city.brokers.forEach(o => { o.price = Math.max(o.price, brokerPrice(o.v, o.pr, o.q, o.age, 0.5)); }); city.brokerV2 = true; }
   if (st.fin){ fin = st.fin; fin.cur = fin.cur || newFinMonth(); } else finReset();
   freePiles();   // repair saves with a ghost in a pilón slot
   refreshCityHUD();
