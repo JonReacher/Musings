@@ -745,6 +745,7 @@ let opsOpen = false, opsFocus = 0;
 $('opsBtn').onclick = () => { opsOpen = !opsOpen; opsFocus = 0; renderOps(true); };
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const dateOf = d0 => { const d = new Date(Date.UTC(2025,9,1) + Math.floor(d0)*864e5); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`; };
 function dateStr(){ const d = new Date(Date.UTC(2025,9,1) + Math.floor(days)*864e5); return `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]}, ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, Year ${1+Math.floor(days/365)}`; }
 const WXICON = {
   Sunny:'<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="6.5" fill="#f5b52e" stroke="#c98612" stroke-width="1.5"/><g stroke="#e19a1a" stroke-width="2" stroke-linecap="round"><path d="M16 3v4M16 25v4M3 16h4M25 16h4M6.8 6.8l2.8 2.8M22.4 22.4l2.8 2.8M6.8 25.2l2.8-2.8M22.4 9.6l2.8-2.8"/></g></svg>',
@@ -1623,7 +1624,7 @@ const WORKERS = {
     tiers:{ mid:{ name:'Yoania', wage:12, kg:180, q:0, note:'Bales about 180 kg a day. Clean, honest work.' },
             pro:{ name:'Doña Mercedes', wage:22, kg:320, q:0.03, note:'About 320 kg a day, and she sorts every hand by color and size before it is baled: +3% quality.' } } },
 };
-const freshStaff = () => ({ hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false, handTier:'mid', crew:{ sprayer:null, turner:null, baler:null }, learned:{}, crewWages:0, crewWarned:{} });
+const freshStaff = () => ({ hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false, handTier:'mid', crew:{ sprayer:null, turner:null, baler:null }, learned:{}, crewWages:0, crewWarned:{}, manager:null, mgr:null, mgrLog:[], mgrStats:{ moves:0, slips:0 } });
 const staff = freshStaff();
 const learned = k => !!(staff.learned && staff.learned[k]);
 const LEARN_MSG = { vent:'You’ve tended a curing barn yourself. Now you can hire a barn tender in Operations → People.', pick:'You’ve picked leaf with your own hands. An experienced crew will work for you now (Operations → People).',
@@ -1643,6 +1644,7 @@ function migrateStaff(had){
   if (!TENDERS[staff.tender]) staff.tender = null;
   staff.crew = Object.assign({}, d.crew, staff.crew || {}); for (const k in staff.crew) if (!WORKERS[k] || (staff.crew[k] && !WORKERS[k].tiers[staff.crew[k]])) staff.crew[k] = null;
   staff.crewWages = staff.crewWages || 0; staff.crewWarned = staff.crewWarned || {};
+  if (!FARM_MGRS[staff.manager]) staff.manager = null; mgrSet(); staff.mgrLog = staff.mgrLog || []; staff.mgrStats = staff.mgrStats || { moves:0, slips:0 };
   if (!had || !had.learned){
     const own = lots.filter(l => !l.bought), L = staff.learned = {};
     if (staff.tender || own.length) L.vent = true;
@@ -1687,7 +1689,7 @@ function turnerTick(){
 function balerTick(){
   const T0 = workerOf('baler'); if (!T0) return;
   let left = T0.kg, worked = false;
-  const done = lots.filter(l => l.stage==='fermented' && Bid(l.loc) && Bid(l.loc).type==='ferm').sort((a,b) => a.id-b.id);
+  const done = lots.filter(l => l.stage==='fermented' && Bid(l.loc) && Bid(l.loc).type==='ferm' && (!farmMgr() || l.mgrBale)).sort((a,b) => a.id-b.id);
   for (const l of done){
     if (left<=0) break;
     const w = ready('ware').find(x => wareCap(x)-wareUsed(x) >= l.kg);
@@ -1701,7 +1703,7 @@ function balerTick(){
     if (l.baleKg >= l.kg - 0.01){
       const h = Bid(l.loc); h.piles = h.piles.map(p => p===l.id?0:p);
       if (T0.q) l.q = l.q*(1+T0.q);
-      delete l.baleKg; Object.assign(l, { stage:'baled', loc:w.id, age:0 });
+      delete l.baleKg; delete l.mgrBale; Object.assign(l, { stage:'baled', loc:w.id, age:0 });
       toast(`${T0.name} baled ${lotName(l)} and stacked it to age.`);
     }
   }
@@ -1726,6 +1728,102 @@ function crewTick(){
   cash -= n*pieceRate(); staff.picked += n; spend('Labor', n*pieceRate());
   harvest(picked, true, HT().q);
   picked.forEach(t => { t.pick = 3; });
+}
+
+// moving leaf along: shared by your own buttons, the crews and the farm manager
+function fermLot(l){
+  freePiles(); const h = ready('ferm').find(f => f.piles.some(p=>!p)); if (!h || !l || l.stage!=='cured') return false;
+  h.piles[h.piles.findIndex(p=>!p)] = l.id;
+  Object.assign(l, { stage:'fermenting', loc:h.id, temp:84, heat:0, turns:0, scorch:0, hotWarned:false }); return true;
+}
+function sellLot(l, k){
+  const v = price(l)*l.kg*(k||1); cash += v; finRev('rev.leaf', v); year.leafSales += v; year.soldKg += l.kg; if (['A+','A','B'].includes(grade(l.q))) elder.stats.soldGood++;
+  if (l.stage==='fermented' || l.stage==='fermenting'){ const h = Bid(l.loc); if (h && h.piles) h.piles = h.piles.map(p => p===l.id?0:p); }
+  lots.splice(lots.indexOf(l),1); return v;
+}
+
+// ================= the farm manager =================
+// Once the whole chain stands, from barn to roadside stand, a manager can run the leaf through it for you: what goes
+// into the pilón, what is baled, what is kept for your own cigars and what goes to the factory. You write the standing
+// orders. How well they are followed depends on who you hire: a skilled manager misreads leaf now and then and lets
+// things sit; a great one reads leaf like Don Aurelio and gets a better price from the buyers.
+const FARM_MGRS = {
+  mid: { name:'Osvaldo Peña', wage:35, noise:0.09, act:0.7, price:1, note:'Ran the leaf house at the cooperative. He follows your orders, but he grades by eye in a hurry and lets work wait a day or two.' },
+  pro: { name:'Ofelia Cruz', wage:60, noise:0.02, act:1, price:1.05, note:'Twenty years buying leaf for the factory in town. She reads a hand of leaf at a glance, acts the same day, and the buyers pay her 5% more.' },
+};
+const GRADE_Q = { 'A+':1.2, A:1.05, B:0.9, C:0.75, D:0 };
+const MGR_DEFAULT = { fermMin:'B', curedLow:'sell', baleMin:'B', fermLow:'sell', keepMin:'A', lowBales:6, reserve:100, cashFloor:1000, makeRoom:true };
+const MGR_OPTS = {
+  fermMin:  { label:'Ferment cured leaf graded', opts:[['A+','A+'],['A','A or better'],['B','B or better'],['C','C or better'],['D','All of it']] },
+  curedLow: { label:'Cured leaf below that', opts:[['sell','Sell it cured'],['hold','Hold it for me']] },
+  baleMin:  { label:'Bale fermented leaf graded', opts:[['A','A or better'],['B','B or better'],['C','C or better'],['D','All of it']] },
+  fermLow:  { label:'Fermented leaf below that', opts:[['sell','Sell it'],['hold','Hold it for me']] },
+  keepMin:  { label:'Keep for the house cigars: bales graded', opts:[['A+','A+'],['A','A or better'],['B','B or better'],['C','C or better']] },
+  lowBales: { label:'Lesser bales', opts:[[0,'Keep for cheaper blends'],[3,'Sell at 3 months'],[6,'Sell at 6 months'],[12,'Sell at 12 months']] },
+  reserve:  { label:'Always keep, of each seed and priming', opts:[[0,'Nothing'],[50,'50 kg'],[100,'100 kg'],[250,'250 kg'],[500,'500 kg']] },
+  cashFloor:{ label:'If cash falls below', opts:[[0,'Never sell for cash'],[500,'$500'],[1000,'$1,000'],[3000,'$3,000'],[8000,'$8,000']] },
+  makeRoom: { label:'Barns full at harvest', opts:[[true,'Sell the poorest cured leaf'],[false,'Wait for me']] },
+};
+const MGR_HELP = 'The finest leaf goes the whole way, cured, fermented, baled and aged, into your own cigars. Lesser leaf earns its keep at the factory, or in a cheaper house blend. Leaf in any of your blends, and leaf you bought, is never sold.';
+const pipelineReady = () => ['barn','ferm','ware','galera','stand'].every(t => ready(t).length>0);
+const farmMgr = () => staff.manager ? FARM_MGRS[staff.manager] : null;
+function mgrSet(){ staff.mgr = Object.assign({}, MGR_DEFAULT, staff.mgr || {}); for (const k in MGR_OPTS) if (!MGR_OPTS[k].opts.some(o => o[0]===staff.mgr[k])) staff.mgr[k] = MGR_DEFAULT[k]; return staff.mgr; }
+// what the manager thinks a lot grades: one look per stage, so his mistakes stick rather than flicker
+function mgrSees(l){
+  const M = farmMgr(); if (!l.mq || l.mq.s!==l.stage || l.mq.m!==staff.manager){ const z = (wrnd()+wrnd()+wrnd()-1.5)*2; l.mq = { s:l.stage, m:staff.manager, q:l.q*(1+z*M.noise) }; }
+  return l.mq.q;
+}
+const protectedLot = l => l.bought || biz.blends.some(B => B.wrap===l.id || B.bind===l.id || B.fill.some(f => f.lot===l.id));
+const reserveOk = l => lots.filter(x => x!==l && x.v===l.v && x.pr===l.pr && ['cured','fermented','baled'].includes(x.stage)).reduce((s2,x) => s2+x.kg, 0) >= staff.mgr.reserve;
+function mgrLog(text, slip){
+  staff.mgrLog = staff.mgrLog || []; staff.mgrLog.unshift({ d:dayInt, t:text, slip:!!slip }); staff.mgrLog.length = Math.min(staff.mgrLog.length, 14);
+  staff.mgrStats = staff.mgrStats || { moves:0, slips:0 }; staff.mgrStats.moves++; if (slip) staff.mgrStats.slips++;
+}
+const slipNote = (l, seen, min) => (seen >= GRADE_Q[min]) !== (l.q >= GRADE_Q[min]) ? ` ${farmMgr().name.split(' ')[0]} took it for ${grade(seen)}; it was really ${grade(l.q)}.` : '';
+function mgrSell(l, why, min){
+  const seen = mgrSees(l), note = min ? slipNote(l, seen, min) : '', kg = l.kg, v = sellLot(l, farmMgr().price);
+  mgrLog(`Sold ${lotName(l)} (${kgf(kg)}, ${l.stage}) for ${fmt(v)}: ${why}.${note}`, !!note);
+}
+function managerTick(){
+  const M = farmMgr(); if (!M) return;
+  if (cash < M.wage){ toast(`${M.name} quit. You couldn’t pay the wage.`); staff.manager = null; return; }
+  cash -= M.wage; staff.crewWages = (staff.crewWages||0) + M.wage; spend('Wages', M.wage);
+  if (wrnd() > M.act) return;                                  // not today
+  const S = mgrSet();
+  // 1. cured leaf: the best into free pilones, the rest to the factory or held
+  const cured = lots.filter(l => l.stage==='cured').sort((a,b) => mgrSees(b)-mgrSees(a));
+  for (const l of cured){
+    const seen = mgrSees(l), good = seen >= GRADE_Q[S.fermMin], note = slipNote(l, seen, S.fermMin);
+    if (good){ if (know('pilon') && fermLot(l)) mgrLog(`Put ${lotName(l)} (${grade(l.q)}) into a pilón.${note}`, !!note); }
+    else if (S.curedLow==='sell' && !protectedLot(l) && reserveOk(l)) mgrSell(l, `graded under ${S.fermMin} for the pilón`, S.fermMin);
+  }
+  // 2. fermented leaf: bale the good, sell the rest
+  for (const l of lots.filter(l => l.stage==='fermented')){
+    const seen = mgrSees(l), note = slipNote(l, seen, S.baleMin);
+    if (seen >= GRADE_Q[S.baleMin]){
+      if (!know('time') || l.mgrBale) continue;
+      if (workerOf('baler')){ l.mgrBale = true; mgrLog(`Sent ${lotName(l)} (${grade(l.q)}) to be baled.${note}`, !!note); continue; }
+      const w = ready('ware').find(x => wareCap(x)-wareUsed(x) >= l.kg), cost = (l.kg-(l.baleKg||0))*BALE_COST;
+      if (!w || cash - cost < S.cashFloor) continue;
+      cash -= cost; spend('Processing', cost); const h = Bid(l.loc); h.piles = h.piles.map(p => p===l.id?0:p);
+      delete l.baleKg; Object.assign(l, { stage:'baled', loc:w.id, age:0 }); mgrLog(`Had ${lotName(l)} (${grade(l.q)}) baled to age.${note}`, !!note);
+    } else if (S.fermLow==='sell' && !protectedLot(l) && reserveOk(l)) mgrSell(l, `graded under ${S.baleMin} for baling`, S.baleMin);
+  }
+  // 3. bales: the best are kept for your cigars; lesser bales are kept for cheap blends, or sold once aged
+  if (S.lowBales) for (const l of lots.filter(l => l.stage==='baled' && l.age >= S.lowBales*30)){
+    if (mgrSees(l) >= GRADE_Q[S.keepMin] || protectedLot(l) || !reserveOk(l)) continue;
+    mgrSell(l, `under ${S.keepMin}, aged ${Math.floor(l.age/30)} months`, S.keepMin);
+  }
+  // 4. a full barn at harvest: make room with the poorest cured leaf that isn't house-cigar leaf
+  if (S.makeRoom && freeBarn()<=0 && map.flat().some(t => t.owned && nextPrim(t) && t.g>=nextPrim(t).start)){
+    const l = lots.filter(l => l.stage==='cured' && !protectedLot(l) && mgrSees(l) < GRADE_Q[S.keepMin]).sort((a,b) => mgrSees(a)-mgrSees(b))[0];
+    if (l) mgrSell(l, 'the barns were full and ripe leaf was waiting');
+  }
+  // 5. short of cash: sell the least valuable leaf that isn't kept for the house cigars, one lot a day
+  if (cash < S.cashFloor){
+    const l = lots.filter(l => ['cured','fermented','baled'].includes(l.stage) && !protectedLot(l) && mgrSees(l) < GRADE_Q[S.keepMin] && reserveOk(l)).sort((a,b) => mgrSees(a)-mgrSees(b))[0];
+    if (l) mgrSell(l, `cash was under ${fmt(S.cashFloor)}`);
+  }
 }
 
 // ================= Don Aurelio =================
@@ -2862,6 +2960,7 @@ const CAST = {
   aurelio:  { name:'Don Aurelio', role:'Your neighbor, fifty years a grower', p:{ custom:null } },
   mateo:    { name:'Mateo', role:'Foreman of your field hands', p:{ skin:'#a8703f', hairStyle:'short', hairColor:'#22160d', beard:'mustache', hat:'straw', shirt:'#4f7fa8', bg:'#cfe3c2' } },
   carmen:   { name:'Doña Carmen', role:'Barn tender', p:{ skin:'#8a5536', hairStyle:'bun', hairColor:'#3a2a20', old:true, hat:'scarf', scarf:'#b83a2c', shirt:'#efe8d8', bg:'#f0dcc0', earring:true, lips:'#9c4a3a' } },
+  ofelia:   { name:'Ofelia Cruz', role:'Leaf buyer, looking for a farm to run', p:{ skin:'#b98258', hairStyle:'bun', hairColor:'#3b2a1e', shirt:'#2f5d62', glasses:true, earring:true, necklace:true, lips:'#9c4a3a', bg:'#d9e6df' } },
   tito:     { name:'Tito', role:'Your cheap barn tender', p:{ skin:'#c58b5c', hairStyle:'curly', hairColor:'#1d140c', hat:'cap', cap:'#d84a3a', shirt:'#e8c35a', bg:'#d8e8f0' } },
   beltran:  { name:'Señora Beltrán', role:'Tobacconist in San Rafael', p:{ skin:'#d9a57e', hairStyle:'long', hairColor:'#3a2418', shirt:'#6b2d3a', glasses:true, earring:true, necklace:true, lashes:true, lips:'#a8424a', bg:'#ead2c4' } },
   ines:     { name:'Doña Inés', role:'Keeps your roadside stand', p:{ skin:'#b67b52', hairStyle:'bun', hairColor:'#2a1a12', shirt:'#e86a56', apron:'#f6efe0', earring:true, lashes:true, lips:'#a14a3c', bg:'#f3e2c4' } },
@@ -2916,6 +3015,8 @@ function peopleTick(){
   }
   if (staff.tender==='pro' && curing && wx==='Storm' && cool('carmen-storm', 20)) say('carmen', 'A storm is coming over the ridge. I closed the barn doors and wedged them. The leaf will be fine. Go home, it’s going to blow.');
   if (staff.tender==='cheap' && curing && wx==='Storm' && cool('tito-storm', 30)) say('tito', 'Patrón… I’m sorry. I fell asleep in the hammock and the barn doors were open all night in the storm. I closed them this morning.', [{ label:'Tito!' }, { label:'Let him go', fn:()=>{ staff.tender = null; } }]);
+  // the whole chain stands: a manager could run the leaf through it
+  if (pipelineReady() && !staff.manager && dayInt>2) say('ofelia', 'Señor, I bought leaf for the factory in town for twenty years. You have barns, pilones, a warehouse, a galera and a stand now: the whole road from field to customer. Someone has to decide, every day, which leaf goes on down that road and which goes to market. Tell me what you want, and I will see it done. Or my cousin Osvaldo will, for less.', [{ label:'Show me the standing orders', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr'; } }, { label:'Not yet' }], 'manager-intro');
   // Señora Beltrán hears about your cigars
   if (biz.products.some(p => stockOf(p,true)>=10) && biz.beltran.status==='none') say('beltran', 'They tell me in town you’re rolling cigars up on the hill. I keep the tobacco shop on the plaza. Bring me ten of your best and I’ll tell you the truth about them. Most people don’t like the truth.', [{ label:'I’ll bring you some', fn:()=>{ opsOpen = true; opsTab = 'sales'; } }, { label:'Not yet' }], 'beltran-intro');
   // the bank
@@ -5239,14 +5340,14 @@ function act(kind, id, extra){
   if (kind==='vent'){ b.vent = extra; if (lots.some(x => x.loc===b.id && x.stage==='curing')) learn('vent'); }
   else if (kind==='hands'){ staff.hands = Math.max(0, Math.min(16, staff.hands + (+extra))); }
   else if (kind==='tender'){ const nt = extra==='none' ? null : extra; if (nt && (!TENDERS[nt] || (!learned('vent') && staff.tender!==nt))) return; staff.tender = nt; if (staff.tender) toast(staff.tender==='pro' ? 'Doña Carmen will tend your barns whenever leaf is curing. She watches the sky.' : staff.tender==='mid' ? 'Rogelio will tend your barns whenever leaf is curing.' : 'Tito will tend your barns. He’s cheap, and he’s family… of someone.'); }
+  else if (kind==='manager'){ if (extra==='none') staff.manager = null; else if (FARM_MGRS[extra] && (pipelineReady() || staff.manager)){ const was = staff.manager; staff.manager = extra; mgrSet(); if (was!==extra) toast(`${FARM_MGRS[extra].name} runs the leaf now, by your standing orders.`); } }
+  else if (kind==='mgrset'){ const [k, v] = String(extra).split('='), O = MGR_OPTS[k]; const o = O && O.opts.find(x => String(x[0])===v); if (o){ mgrSet()[k] = o[0]; } }
   else if (kind==='handtier'){ if (!HAND_TIERS[extra] || (extra==='pro' && !learned('pick'))) return; staff.handTier = extra; }
   else if (kind==='crew'){ const [k, tier] = String(extra).split(':'), W0 = WORKERS[k]; if (!W0) return;
     if (tier==='none') staff.crew[k] = null; else if (W0.tiers[tier] && learned(W0.learn)){ staff.crew[k] = tier; toast(`${W0.tiers[tier].name} starts as your ${W0.job.toLowerCase()}.`); } }
   else if (kind==='elder'){ openElder(); return; }
   else if (kind==='ferm'){
-    freePiles(); const h = ready('ferm').find(f => f.piles.some(p=>!p)); if (!h) return;
-    const i = h.piles.findIndex(p=>!p); h.piles[i] = l.id;
-    Object.assign(l, { stage:'fermenting', loc:h.id, temp:84, heat:0, turns:0, scorch:0, hotWarned:false });
+    if (!fermLot(l)) return;
     toast(`${lotName(l)} is in the pilón. Watch the temperature and turn it before it gets too hot.`);
   }
   else if (kind==='turn'){ if (cash<turnCost()){ flashCash(); return; } cash -= turnCost(); spend('Processing', turnCost()); l.temp = 85+wrnd()*2; l.turns++; l.hotWarned=false; learn('turn'); }
@@ -5258,9 +5359,7 @@ function act(kind, id, extra){
     toast(`${lotName(l)} is sorted, baled and aging in the warehouse.`);
   }
   else if (kind==='sell'){
-    const v = price(l)*l.kg; cash += v; finRev('rev.leaf', v); year.leafSales += v; year.soldKg += l.kg; if (['A+','A','B'].includes(grade(l.q))) elder.stats.soldGood++;
-    if (l.stage==='fermented'){ const h=Bid(l.loc); h.piles = h.piles.map(p => p===l.id?0:p); }
-    lots.splice(lots.indexOf(l),1);
+    const v = sellLot(l);
     toast(`Sold ${kgf(l.kg)} of ${VARS[l.v].name} leaf to the factory in town for ${fmt(v)}.`);
   }
   refreshUI(); renderOps(true);
@@ -5300,7 +5399,22 @@ function peopleCards(){
     h += `<div class="muted">${cur ? `${W0.does} ${cur.note}` : W0.does+' Until you hire someone, you do it.'} ${W0.paid}</div>${ok?'':lockNote(W0.lock+' You can hire for it once you know the job.')}</div>`;
   }
   if (staff.crewWages) h += `<div class="muted" style="margin:-2px 0 6px">Skilled hands’ wages paid so far: ${fmt(staff.crewWages)}.</div>`;
+  if (pipelineReady() || staff.manager) h += managerCard();
   return h;
+}
+function managerCard(){
+  const M = farmMgr(), S = mgrSet(), st = staff.mgrStats || { moves:0, slips:0 };
+  let h = `<div class="card${opsFocus==='mgr'?' hl':''}" id="op-mgr"><div class="row"><span class="t" style="opacity:1">Farm manager</span><span>${M?M.name:'Nobody'}</span></div>`;
+  h += `<div class="vents" style="margin:4px 0">${hireBtn('manager','none',!M,'Decide myself',true)}${Object.entries(FARM_MGRS).map(([k,T0]) => hireBtn('manager', k, staff.manager===k, `${T0.name} · ${fmt(T0.wage)}/day · ${TIER_WORD[k]}`, true)).join('')}</div>`;
+  h += `<div class="muted">${M ? M.note : 'Decides each day which leaf moves on through the pilón, the bales and the aging house, and which goes to the factory, by the standing orders below.'} ${MGR_HELP}</div>`;
+  h += `<div style="margin-top:6px"><b style="font-size:12px">Standing orders</b></div>`;
+  for (const [k, O] of Object.entries(MGR_OPTS)) h += `<div style="margin:5px 0 0"><div class="muted" style="font-size:11.5px">${O.label}</div><div class="vents" style="flex-wrap:wrap;gap:3px;margin-top:2px">${O.opts.map(([v,n]) => `<button class="btn sm${S[k]===v?' on':''}" data-act="mgrset" data-x="${k}=${v}">${n}</button>`).join('')}</div></div>`;
+  h += `<div class="muted" style="margin-top:5px">Cured and fermented leaf held back waits in the barn or the pilón for you to decide. Lesser bales kept for cheaper blends age on in the warehouse. Turning the pilones is still yours or your turner’s; with a manager, your aging-house hand bales only what the manager sends.</div>`;
+  if (M || st.moves){
+    h += `<div class="row" style="margin-top:6px"><span>Decisions · misjudged</span><b class="${st.moves && st.slips/st.moves>0.15?'bad':''}">${st.moves} · ${st.slips}</b></div>`;
+    for (const e of (staff.mgrLog||[]).slice(0,6)) h += `<div class="muted" style="font-size:11.5px;margin-top:2px">${e.slip?'⚠️ ':''}${esc(dateOf(e.d))}: ${esc(e.t)}</div>`;
+  }
+  return h + `</div>`;
 }
 let lastOps = '';
 function renderOps(force){
@@ -5483,7 +5597,7 @@ function dailyTick(){
       attention(`${lotName(l)} has finished fermenting: grade ${grade(l.q)}.`);
     }
   }
-  turnerTick(); balerTick();
+  managerTick(); turnerTick(); balerTick();
   for (const l of lots) if (l.stage==='baled') l.age++;
   const ripeBy = [0,0,0];
   for (const row of map) for (const t of row){ const P0 = nextPrim(t); if (t.owned && P0 && t.g>=P0.start && (t.seen??-1) < (t.pr||0)){ t.seen = t.pr||0; ripeBy[t.pr||0]++; } }
