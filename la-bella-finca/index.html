@@ -5141,7 +5141,7 @@ function act(kind, id, extra){
   else if (kind==='tender'){ staff.tender = extra==='none' ? null : extra; if (staff.tender) toast(staff.tender==='pro' ? 'Doña Carmen will tend your barns whenever leaf is curing. She watches the sky.' : 'Tito will tend your barns. He’s cheap, and he’s family… of someone.'); }
   else if (kind==='elder'){ openElder(); return; }
   else if (kind==='ferm'){
-    const h = ready('ferm').find(f => f.piles.some(p=>!p)); if (!h) return;
+    freePiles(); const h = ready('ferm').find(f => f.piles.some(p=>!p)); if (!h) return;
     const i = h.piles.findIndex(p=>!p); h.piles[i] = l.id;
     Object.assign(l, { stage:'fermenting', loc:h.id, temp:84, heat:0, turns:0, scorch:0, hotWarned:false });
     toast(`${lotName(l)} is in the pilón. Watch the temperature and turn it before it gets too hot.`);
@@ -5205,7 +5205,7 @@ function renderOps(force){
     h += `<div class="row"><span>Humidity</span><span>${Math.round(b.hum)}% · ${inUse?st:`<span class="muted">${barnUsed(b)?'holding cured leaf':'empty'}</span>`}</span></div>${gauge(b.hum,40,100,65,80,88,'hum')}`;
     h += `<div class="row"><span>Vents</span><span class="vents">${['open','half','closed'].map(v=>`<button class="btn sm${b.vent===v?' on':''}" data-act="vent" data-id="${b.id}" data-x="${v}" ${staff.tender?'disabled':''}>${v[0].toUpperCase()+v.slice(1)}</button>`).join('')}</span></div>`;
     for (const l of lots.filter(l=>l.loc===b.id)){
-      const fermFree = ready('ferm').some(f=>f.piles.some(p=>!p));
+      freePiles(); const fermFree = ready('ferm').some(f=>f.piles.some(p=>!p));
       h += `<div class="lot"><span class="sw" style="background:${leafColor(l)}"></span><div class="grow"><b>${lotName(l)}</b><br><span class="muted">${kgf(l.kg)} · ${l.stage==='curing'?`curing, day ${Math.floor(l.cd)} of ${PRIM[l.pr].cure}`:`cured <span class="grade">${grade(l.q)}</span>`}<br><i>${PRIM[l.pr].traits}</i></span>${l.stage==='curing'?`<div class="bar"><div style="width:${l.cd/PRIM[l.pr].cure*100}%"></div></div>`:''}</div>`;
       if (l.stage==='cured') h += `<div class="acts"><button class="btn sm" data-act="ferm" data-id="${l.id}" ${!know('pilon')?'disabled title="Learn the pilón from Don Aurelio first"':fermFree?'':'disabled title="Needs a fermentation house with a free pilón"'}>Ferment</button><button class="btn sm" data-act="sell" data-id="${l.id}">Sell ${fmt(price(l)*l.kg)}</button></div>`;
       h += `</div>`;
@@ -5312,7 +5312,10 @@ let lastInfo = '';
 function updateInfo(){ const h = infoHTML(hover); if (h!==lastInfo){ $('info').innerHTML = h; lastInfo = h; } }
 
 // ================= simulation: daily =================
+// a pilón slot is free unless a lot is actually fermenting (or fermented and waiting) in it
+function freePiles(){ for (const f of buildings) if (f.piles) f.piles = f.piles.map(id => id && lots.some(l => l.id===id && l.loc===f.id && (l.stage==='fermenting' || l.stage==='fermented')) ? id : 0); }
 function dailyTick(){
+  freePiles();
   weatherTick();
   const out = WX[wx].hum - (wetSeason()?0:5);
   for (const b of buildings){
@@ -5425,6 +5428,7 @@ function restore(st){
   if (st.city) Object.assign(city, st.city, { game:null, neg:null });
   migrateCity(); if (city.unlocked) attachCity();
   if (st.fin){ fin = st.fin; fin.cur = fin.cur || newFinMonth(); } else finReset();
+  freePiles();   // repair saves with a ghost in a pilón slot
   refreshCityHUD();
 }
 // Saves live in the viewer's own private space on their Claude account when the page can reach it, otherwise in this browser.
