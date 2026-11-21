@@ -918,7 +918,8 @@ function commit(){
   if (!sel || !sel.elig.length) return;
   if (!sel.act.length){ flashCash(); return; }
   cash -= sel.cost; spend(TOOL_CAT[tool], sel.cost); markDirty(); setTimeout(checkMissions, 0);
-  if (tool==='harvest') harvest(sel.act); else sel.act.forEach(t => apply(tool,t));
+  if (tool==='harvest'){ harvest(sel.act); learn('pick'); } else sel.act.forEach(t => apply(tool,t));
+  if (tool==='care' && careAct==='spray') learn('spray');
   const p=iso((sel.c0+sel.c1+1)/2,(sel.r0+sel.r1+1)/2);
   floats.push({ x:p.x, y:p.y-10, text:'-'+fmt(sel.cost), t:0 });
   if (sel.act.length < sel.elig.length){
@@ -927,12 +928,12 @@ function commit(){
   }
   refreshUI(); renderOps(true);
 }
-function harvest(tiles, quiet){
+function harvest(tiles, quiet, crewQ){
   const groups = {};
   for (const t of tiles){ const k = t.v+'|'+(t.pr||0); (groups[k] ||= []).push(t); }
   for (const [key, ts] of Object.entries(groups)){
     const [v, prs] = key.split('|'), pr = +prs, P0 = PRIM[pr];
-    const qs = ts.map(t => { const over = t.g - (P0.start + WINDOW); const timing = over<=0 ? 1 : over<=30 ? 1-over/30*0.22 : 0.75; return VARS[v].base*timing*t.hp*soilQ(t)*careQ(t, pr)*(perk('sharpEye')?1.04:1); });
+    const qs = ts.map(t => { const over = t.g - (P0.start + WINDOW); const timing = over<=0 ? 1 : over<=30 ? 1-over/30*0.22 : 0.75; return VARS[v].base*timing*t.hp*soilQ(t)*careQ(t, pr)*(perk('sharpEye')?1.04:1)*(crewQ||1); });
     let rest = ts.length; const qAvg = qs.reduce((a,b)=>a+b,0)/qs.length, kgAll = ts.reduce((s2,t)=>s2+VARS[v].kg*P0.share*(0.85+0.3*t.n)*t.hp*soilYield(t)*careYield(t),0);
     year.picks += ts.length; year.kg[pr] += kgAll;
     for (const b of ready('barn')){
@@ -969,7 +970,7 @@ const lvl = (x, names) => names[Math.max(0, Math.min(names.length-1, Math.floor(
 const lastAlert = { worm:-99, mold:-99, shank:-99, top:-99 };
 const CARE_PER_HAND = 6;
 const boss = () => perk('goodBoss') ? 0.85 : 1;
-const topPiece = () => Math.round((perk('topper')?9:12)*boss()), wormPiece = () => Math.round((perk('pestEye')?8:10)*boss());
+const topPiece = () => Math.round((perk('topper')?9:12)*boss()*HT().rate), wormPiece = () => Math.round((perk('pestEye')?8:10)*boss()*HT().rate);
 function fieldTick(){
   const m = curMonth(), cool = [10,11,0,1].includes(m), wetW = wx==='Rain'||wx==='Storm'||wx==='Cloudy';
   let newWorm=0, newMold=0, newShank=0, needTop=0; const seeded = [];
@@ -998,7 +999,7 @@ function fieldTick(){
     if (t.worm>0.2) for (const nb of N4(t)) if (nb && nb.owned && nb.work==='seeded' && !nb.worm && wrnd()<t.worm*0.03) nb.worm = 0.05;
     if (t.bmold>0.15) for (let dr=-2;dr<=2;dr++) for (let dc=-2;dc<=2;dc++){ const nb=T(t.r+dr,t.c+dc); if (nb && nb!==t && nb.owned && nb.work==='seeded' && !nb.bmold && !(nb.prot>0) && wrnd() < t.bmold*(Math.abs(dr)+Math.abs(dc)<=1?0.12:0.04)) nb.bmold = 0.05; }
   }
-  careTick();
+  careTick(); sprayerTick();
   if (newWorm && days-lastAlert.worm>25){ lastAlert.worm = days; (staff.hands?toast:attention)(`Hornworms on ${newWorm} tile${newWorm>1?'s':''}. ${staff.hands?'Your field hands will pick them off.':'Pick them off (Care) before they shred the leaves.'}`); }
   if (newMold && days-lastAlert.mold>20){ lastAlert.mold = days; attention(`Blue mold on ${newMold} tile${newMold>1?'s':''}. It spreads fast in cool, wet weather. Spray it (Care) now.`); }
   if (newShank && days-lastAlert.shank>30){ lastAlert.shank = days; attention(`Black shank: plants are wilting on ${newShank} tile${newShank>1?'s':''}. Nothing saves them this season. Drain and rotate that ground.`); }
@@ -1006,7 +1007,7 @@ function fieldTick(){
 }
 function careTick(){
   if (!staff.hands) return;
-  let cap = staff.hands*CARE_PER_HAND;
+  let cap = staff.hands*HT().care;
   const tops = map.flat().filter(t => t.owned && t.work==='seeded' && !t.top && t.g>=88).sort((a,b)=>b.g-a.g);
   if (know('flower')) for (const t of tops){ if (cap<=0 || cash<topPiece()) break; t.top = t.g>104?2:1; if (t.g<=97) elder.stats.topOnTime++; cash -= topPiece(); spend('Labor', topPiece()); cap--; t.pick = 2; }
   const worms = map.flat().filter(t => t.owned && t.work==='seeded' && t.worm>0).sort((a,b)=>b.worm-a.worm);
@@ -1593,17 +1594,116 @@ $('review').addEventListener('click', e => { if (e.target.closest('[data-close]'
 
 // ================= people: field hands & barn tenders =================
 const PICK_PER_HAND = 4;
-const pieceRate = () => Math.round(30*boss()); // per picking (one priming from one tile)
-const TENDERS = {
-  cheap: { name:'Tito', wage:8,  acc:0.45, forget:0.15, stormNap:0.35 },
-  pro:   { name:'Doña Carmen', wage:28, acc:0.93, forget:0.02, stormNap:0 },
+// field crews: the day crew is the one you always could hire; the experienced crew picks faster and cleaner, but only
+// comes once you have picked leaf yourself and know what you are paying for
+const HAND_TIERS = {
+  mid: { name:'Day crew',         pick:4, care:6, rate:1,   q:1,    note:'Local day labor. They pick what is ripe and do it well enough.' },
+  pro: { name:'Experienced crew', pick:5, care:8, rate:1.4, q:1.03, note:'Mateo’s cousins from the hills. Faster, and gentle with the leaf: +3% quality on what they pick.' },
 };
-const staff = { hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false };
+const HT = () => HAND_TIERS[staff.handTier] || HAND_TIERS.mid;
+const pieceRate = () => Math.round(30*boss()*HT().rate); // per picking (one priming from one tile)
+const TENDERS = {
+  cheap: { name:'Tito', wage:8,  acc:0.45, forget:0.15, stormNap:0.35, note:'A neighbor’s nephew, cheap and cheerful. He sometimes forgets to check the barn, and he has been known to sleep through a storm.' },
+  mid:   { name:'Rogelio', wage:16, acc:0.78, forget:0.05, stormNap:0.05, note:'He cured for the cooperative for ten years. Steady and sensible; once in a while he reads the sky wrong.' },
+  pro:   { name:'Doña Carmen', wage:28, acc:0.93, forget:0.02, stormNap:0, note:'Thirty years in barns. She sets the vents for the weather every day, and she is rarely wrong.' },
+};
+// skilled hands for the rest of the leaf work. Each job has a median and a highly skilled hire, and you can hire for a
+// job only after you have done it yourself. What to plant, what to ferment and what to sell stay your decisions.
+const WORKERS = {
+  sprayer: { job:'Sprayer', learn:'spray', lock:'Spray a tile for blue mold yourself first (Care → Spray).', paid:'Paid on days you have a crop in the field, plus the spray.',
+    does:'Walks the fields every morning and sprays blue mold where it shows.',
+    tiers:{ mid:{ name:'Ernesto', wage:14, cap:6, miss:0.1, guard:false, note:'Sprays what he finds sick, up to 6 tiles a day. Some mornings he doesn’t get out to the far fields.' },
+            pro:{ name:'Don Fermín', wage:24, cap:12, miss:0.02, guard:true, note:'Up to 12 tiles a day. He also sprays the healthy plants around an outbreak, before it reaches them.' } } },
+  turner:  { job:'Pilón turner', learn:'turn', lock:'Turn one of your own pilones yourself first.', paid:'Paid on days a pile is fermenting. No charge per turn.',
+    does:'Checks the pilones every day and turns them when the heat is up.',
+    tiers:{ mid:{ name:'Rafael', wage:14, at:[110,113], miss:0.08, q:0, note:'Turns when the pile runs hot, usually in time. Now and then a pile scorches before he gets to it.' },
+            pro:{ name:'Maestro Leandro', wage:26, at:[106,110], miss:0.01, q:0.02, note:'Forty years in the escogida. Turns right in the band and builds a tight pile: +2% quality from his pilones.' } } },
+  baler:   { job:'Aging-house hand', learn:'bale', lock:'Sort, bale and age a lot yourself first.', paid:'Paid on days there is leaf to bale, plus the burlap.',
+    does:'Sorts finished leaf out of the pilones, bales it and stacks it to age, as long as the warehouse has room.',
+    tiers:{ mid:{ name:'Yoania', wage:12, kg:180, q:0, note:'Bales about 180 kg a day. Clean, honest work.' },
+            pro:{ name:'Doña Mercedes', wage:22, kg:320, q:0.03, note:'About 320 kg a day, and she sorts every hand by color and size before it is baled: +3% quality.' } } },
+};
+const freshStaff = () => ({ hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false, handTier:'mid', crew:{ sprayer:null, turner:null, baler:null }, learned:{}, crewWages:0, crewWarned:{} });
+const staff = freshStaff();
+const learned = k => !!(staff.learned && staff.learned[k]);
+const LEARN_MSG = { vent:'You’ve tended a curing barn yourself. Now you can hire a barn tender in Operations → People.', pick:'You’ve picked leaf with your own hands. An experienced crew will work for you now (Operations → People).',
+  spray:'You know how to spray for blue mold. You can hire a sprayer in Operations → People.', turn:'You’ve turned a pilón yourself. You can hire a pilón turner in Operations → People.',
+  bale:'You’ve sorted and baled leaf yourself. You can hire an aging-house hand in Operations → People.' };
+function learn(k){ if (!staff.learned) staff.learned = {}; if (staff.learned[k]) return; staff.learned[k] = true; setTimeout(() => toast(LEARN_MSG[k]), 600); }
+const workerOf = k => staff.crew && staff.crew[k] ? WORKERS[k].tiers[staff.crew[k]] : null;
+function payCrew(k, w){
+  const T0 = workerOf(k); if (!T0) return false;
+  if (cash < w){ toast(`${T0.name} quit. You couldn’t pay the wage.`); staff.crew[k] = null; return false; }
+  cash -= w; staff.crewWages = (staff.crewWages||0) + w; spend('Wages', w); return true;
+}
+// old saves have none of this; fill it in, and credit the skills their farm already shows they have
+function migrateStaff(had){
+  const d = freshStaff();
+  if (!HAND_TIERS[staff.handTier]) staff.handTier = 'mid';
+  if (!TENDERS[staff.tender]) staff.tender = null;
+  staff.crew = Object.assign({}, d.crew, staff.crew || {}); for (const k in staff.crew) if (!WORKERS[k] || (staff.crew[k] && !WORKERS[k].tiers[staff.crew[k]])) staff.crew[k] = null;
+  staff.crewWages = staff.crewWages || 0; staff.crewWarned = staff.crewWarned || {};
+  if (!had || !had.learned){
+    const own = lots.filter(l => !l.bought), L = staff.learned = {};
+    if (staff.tender || own.length) L.vent = true;
+    if (own.length || staff.picked || (year && year.picks)) L.pick = true;
+    if (map.flat().some(t => t.prot>0)) L.spray = true;
+    if (lots.some(l => l.turns>0) || own.some(l => ['fermented','baled'].includes(l.stage))) L.turn = true;
+    if (own.some(l => l.stage==='baled')) L.bale = true;
+  }
+}
 function staffTick(){
   if (staff.tender && lots.some(l => l.stage==='curing')){   // tenders are paid only on days there is leaf curing
     const w = TENDERS[staff.tender].wage;
     if (cash < w){ toast(`${TENDERS[staff.tender].name} quit. You couldn’t pay the wage.`); staff.tender = null; }
     else { cash -= w; staff.wages += w; spend('Wages', w); }
+  }
+  if (workerOf('sprayer') && map.flat().some(t => t.owned && t.work==='seeded')) payCrew('sprayer', workerOf('sprayer').wage);
+  if (workerOf('turner') && lots.some(l => l.stage==='fermenting')) payCrew('turner', workerOf('turner').wage);
+}
+// the sprayer: blue mold first, worst first; the skilled one also guards the plants around an outbreak
+function sprayerTick(){
+  const T0 = workerOf('sprayer'); if (!T0 || !know('pests')) return;
+  if (wrnd() < T0.miss) return;
+  const seeded = map.flat().filter(t => t.owned && t.work==='seeded');
+  const sick = seeded.filter(t => t.bmold>0).sort((a,b) => b.bmold-a.bmold), todo = [...sick];
+  if (T0.guard) for (const t of sick) for (let dr=-2;dr<=2;dr++) for (let dc=-2;dc<=2;dc++){ const nb = T(t.r+dr,t.c+dc); if (nb && nb.owned && nb.work==='seeded' && !nb.bmold && !(nb.prot>0) && !todo.includes(nb)) todo.push(nb); }
+  let n = 0; const c = careCost('spray');
+  for (const t of todo){ if (n>=T0.cap) break; if (cash < c){ if (!staff.crewWarned.spray){ staff.crewWarned.spray = true; attention(`${T0.name} has no money for spray. You’re out of cash.`); } return; }
+    t.bmold = 0; t.prot = 21; t.pick = 2; cash -= c; spend('Crop care', c); n++; }
+  staff.crewWarned.spray = false;
+  if (n && sick.length) toast(`${T0.name} sprayed ${n} tile${n>1?'s':''} for blue mold.`);
+}
+// the pilón turner: after the day's heat has built, turn any pile that has reached his mark
+function turnerTick(){
+  const T0 = workerOf('turner'); if (!T0) return;
+  for (const f of ready('ferm')) for (const pid of f.piles){
+    const l = lots.find(x => x.id===pid); if (!l || l.stage!=='fermenting') continue;
+    const mark = T0.at[0] + (T0.at[1]-T0.at[0])*wrnd();
+    if (l.temp >= mark && wrnd() >= T0.miss){ l.temp = 85+wrnd()*2; l.turns++; l.hotWarned = false; if (T0.q) l.proTurns = (l.proTurns||0)+1; }
+  }
+}
+// the aging-house hand: sorts and bales finished leaf a few hundred kilos a day, while the warehouse has room
+function balerTick(){
+  const T0 = workerOf('baler'); if (!T0) return;
+  let left = T0.kg, worked = false;
+  const done = lots.filter(l => l.stage==='fermented' && Bid(l.loc) && Bid(l.loc).type==='ferm').sort((a,b) => a.id-b.id);
+  for (const l of done){
+    if (left<=0) break;
+    const w = ready('ware').find(x => wareCap(x)-wareUsed(x) >= l.kg);
+    if (!w){ if (!staff.crewWarned.ware){ staff.crewWarned.ware = true; attention(`${T0.name} has finished leaf to bale, but the aging warehouse is full.`); } break; }
+    staff.crewWarned.ware = false;
+    if (!worked){ if (!payCrew('baler', T0.wage)) return; worked = true; }
+    const step = Math.min(left, l.kg - (l.baleKg||0)), cost = step*BALE_COST;
+    if (cash < cost){ if (!staff.crewWarned.bale){ staff.crewWarned.bale = true; attention(`${T0.name} has no money for burlap and twine. You’re out of cash.`); } return; }
+    staff.crewWarned.bale = false;
+    cash -= cost; spend('Processing', cost); left -= step; l.baleKg = (l.baleKg||0) + step;
+    if (l.baleKg >= l.kg - 0.01){
+      const h = Bid(l.loc); h.piles = h.piles.map(p => p===l.id?0:p);
+      if (T0.q) l.q = l.q*(1+T0.q);
+      delete l.baleKg; Object.assign(l, { stage:'baled', loc:w.id, age:0 });
+      toast(`${T0.name} baled ${lotName(l)} and stacked it to age.`);
+    }
   }
 }
 function tenderSetsVent(b, out, leafMoist){
@@ -1619,12 +1719,12 @@ function crewTick(){
   if (!ripe.length){ staff.barnWarned = false; return; }
   const fb = freeBarn();
   if (fb<=0){ if (!staff.barnWarned){ staff.barnWarned = true; attention('Your field hands have stopped picking. The barns are full.'); } return; }
-  const n = Math.min(staff.hands*PICK_PER_HAND, ripe.length, fb, Math.floor(cash/pieceRate()));
+  const n = Math.min(staff.hands*HT().pick, ripe.length, fb, Math.floor(cash/pieceRate()));
   if (n<=0){ if (!staff.barnWarned){ staff.barnWarned = true; attention('Your field hands won’t pick without pay. You’re out of cash.'); } return; }
   staff.barnWarned = false;
   const picked = ripe.slice(0,n);
   cash -= n*pieceRate(); staff.picked += n; spend('Labor', n*pieceRate());
-  harvest(picked, true);
+  harvest(picked, true, HT().q);
   picked.forEach(t => { t.pick = 3; });
 }
 
@@ -5136,9 +5236,12 @@ function act(kind, id, extra){
   if (finAct(kind, id, extra)){ refreshUI(); renderOps(true); return; }
   if (kind==='borrow'){ const amt = Math.min(1000, 6000-debt); if (amt>0){ debt += amt; cash += amt; finCash('in', 'Bank loan', amt); toast(`The bank lends you ${fmt(amt)} at 1% a month.`); } refreshUI(); renderOps(true); return; }
   if (kind==='repay' || kind==='repayall'){ const amt = Math.min(debt, kind==='repayall' ? debt : 1000, cash); if (amt>0){ debt -= amt; cash -= amt; finCash('out', 'Bank loan repaid', amt); toast(`You repaid ${fmt(amt)}.${debt?` You still owe ${fmt(debt)}.`:' You owe the bank nothing.'}`); } else flashCash(); refreshUI(); renderOps(true); return; }
-  if (kind==='vent'){ b.vent = extra; }
+  if (kind==='vent'){ b.vent = extra; if (lots.some(x => x.loc===b.id && x.stage==='curing')) learn('vent'); }
   else if (kind==='hands'){ staff.hands = Math.max(0, Math.min(16, staff.hands + (+extra))); }
-  else if (kind==='tender'){ staff.tender = extra==='none' ? null : extra; if (staff.tender) toast(staff.tender==='pro' ? 'Doña Carmen will tend your barns whenever leaf is curing. She watches the sky.' : 'Tito will tend your barns. He’s cheap, and he’s family… of someone.'); }
+  else if (kind==='tender'){ const nt = extra==='none' ? null : extra; if (nt && (!TENDERS[nt] || (!learned('vent') && staff.tender!==nt))) return; staff.tender = nt; if (staff.tender) toast(staff.tender==='pro' ? 'Doña Carmen will tend your barns whenever leaf is curing. She watches the sky.' : staff.tender==='mid' ? 'Rogelio will tend your barns whenever leaf is curing.' : 'Tito will tend your barns. He’s cheap, and he’s family… of someone.'); }
+  else if (kind==='handtier'){ if (!HAND_TIERS[extra] || (extra==='pro' && !learned('pick'))) return; staff.handTier = extra; }
+  else if (kind==='crew'){ const [k, tier] = String(extra).split(':'), W0 = WORKERS[k]; if (!W0) return;
+    if (tier==='none') staff.crew[k] = null; else if (W0.tiers[tier] && learned(W0.learn)){ staff.crew[k] = tier; toast(`${W0.tiers[tier].name} starts as your ${W0.job.toLowerCase()}.`); } }
   else if (kind==='elder'){ openElder(); return; }
   else if (kind==='ferm'){
     freePiles(); const h = ready('ferm').find(f => f.piles.some(p=>!p)); if (!h) return;
@@ -5146,12 +5249,12 @@ function act(kind, id, extra){
     Object.assign(l, { stage:'fermenting', loc:h.id, temp:84, heat:0, turns:0, scorch:0, hotWarned:false });
     toast(`${lotName(l)} is in the pilón. Watch the temperature and turn it before it gets too hot.`);
   }
-  else if (kind==='turn'){ if (cash<turnCost()){ flashCash(); return; } cash -= turnCost(); spend('Processing', turnCost()); l.temp = 85+wrnd()*2; l.turns++; l.hotWarned=false; }
+  else if (kind==='turn'){ if (cash<turnCost()){ flashCash(); return; } cash -= turnCost(); spend('Processing', turnCost()); l.temp = 85+wrnd()*2; l.turns++; l.hotWarned=false; learn('turn'); }
   else if (kind==='bale'){
     const w = ready('ware').find(x => wareCap(x)-wareUsed(x) >= l.kg); if (!w) return;
-    const cost = l.kg*BALE_COST; if (cost>cash){ flashCash(); return; }
+    const cost = (l.kg-(l.baleKg||0))*BALE_COST; if (cost>cash){ flashCash(); return; }
     cash -= cost; spend('Processing', cost); const h = Bid(l.loc); h.piles = h.piles.map(p => p===l.id?0:p);
-    Object.assign(l, { stage:'baled', loc:w.id, age:0 });
+    delete l.baleKg; Object.assign(l, { stage:'baled', loc:w.id, age:0 }); learn('bale');
     toast(`${lotName(l)} is sorted, baled and aging in the warehouse.`);
   }
   else if (kind==='sell'){
@@ -5176,6 +5279,29 @@ function gauge(val, lo, hi, bandLo, bandHi, danger, kind){
   const labels = hum ? ['Dry','Just right','Damp'] : ['Cool','Turn here','Burning'];
   return `<div class="gauge2"><div class="track" style="background:${grad}"><div class="needle" style="left:calc(${pct(val)}% - 2px)"></div></div><div class="glabels"><span>← ${labels[0]}</span><span style="position:absolute;left:${(a+b)/2}%;transform:translateX(-50%)">${labels[1]}</span><span>${labels[2]} →</span></div></div>`;
 }
+// the People cards: who works the farm, and who could, once you have learned the job
+function hireBtn(act, x, on, label, ok, why){ return `<button class="btn sm${on?' on':''}" data-act="${act}" data-x="${x}" ${ok||on?'':`disabled title="${esc(why)}"`}>${label}</button>`; }
+const lockNote = why => `<div class="muted" style="margin-top:3px">🔒 ${why}</div>`;
+const TIER_WORD = { cheap:'green', mid:'skilled', pro:'highly skilled' };
+function peopleCards(){
+  let h = '';
+  const H0 = HT(), proOk = learned('pick');
+  h += `<div class="card"><div class="row"><span class="t" style="opacity:1">Field hands</span><span class="vents"><button class="btn sm" data-act="hands" data-x="-1">−</button><b style="min-width:22px;text-align:center;font-size:14px">${staff.hands}</b><button class="btn sm" data-act="hands" data-x="1">+</button></span></div>`;
+  h += `<div class="vents" style="margin:4px 0">${Object.entries(HAND_TIERS).map(([k,T0]) => hireBtn('handtier', k, staff.handTier===k, `${T0.name} · ${TIER_WORD[k]}${T0.rate>1?` · ${T0.rate}× pay`:''}`, k!=='pro' || proOk, 'Harvest some leaf yourself first')).join('')}</div>`;
+  h += `<div class="muted">${H0.note} They pick ripe leaves on their own, ${H0.pick} pickings a day each, most urgent first, as long as there's barn space. Paid ${fmt(pieceRate())} per picking. Between harvests they top and sucker (${fmt(topPiece())} a tile) and pick hornworms (${fmt(wormPiece())} a tile), once you know how to show them. They don’t spray.${staff.picked?` So far: ${staff.picked} pickings.`:''}</div>${proOk?'':lockNote('Harvest some leaf by hand yourself before you hire the experienced crew. You need to know what good picking looks like.')}</div>`;
+  const tOk = learned('vent');
+  h += `<div class="card"><div class="row"><span class="t" style="opacity:1">Barn tender</span><span>${staff.tender?TENDERS[staff.tender].name:'Nobody'}</span></div>`;
+  h += `<div class="vents" style="margin:4px 0">${hireBtn('tender','none',!staff.tender,'Do it myself',true)}${['cheap','mid','pro'].map(k => hireBtn('tender', k, staff.tender===k, `${TENDERS[k].name} · ${fmt(TENDERS[k].wage)}/day · ${TIER_WORD[k]}`, tOk, 'Set the vents on a curing barn yourself first')).join('')}</div>`;
+  h += `<div class="muted">${staff.tender ? TENDERS[staff.tender].note : 'You set the barn vents yourself, every day, as the weather changes.'} Paid only on days leaf is curing.${staff.wages?` Wages paid: ${fmt(staff.wages)}.`:''}</div>${tOk?'':lockNote('Set the vents on one of your barns yourself while leaf is curing in it. Then you’ll know what to ask of a tender.')}</div>`;
+  for (const [k, W0] of Object.entries(WORKERS)){
+    const cur = workerOf(k), ok = learned(W0.learn);
+    h += `<div class="card"><div class="row"><span class="t" style="opacity:1">${W0.job}</span><span>${cur?cur.name:'Nobody'}</span></div>`;
+    h += `<div class="vents" style="margin:4px 0">${hireBtn('crew', k+':none', !cur, 'Do it myself', true)}${Object.entries(W0.tiers).map(([t,T0]) => hireBtn('crew', `${k}:${t}`, staff.crew[k]===t, `${T0.name} · ${fmt(T0.wage)}/day · ${TIER_WORD[t]}`, ok, W0.lock)).join('')}</div>`;
+    h += `<div class="muted">${cur ? `${W0.does} ${cur.note}` : W0.does+' Until you hire someone, you do it.'} ${W0.paid}</div>${ok?'':lockNote(W0.lock+' You can hire for it once you know the job.')}</div>`;
+  }
+  if (staff.crewWages) h += `<div class="muted" style="margin:-2px 0 6px">Skilled hands’ wages paid so far: ${fmt(staff.crewWages)}.</div>`;
+  return h;
+}
 let lastOps = '';
 function renderOps(force){
   const el = $('ops'); el.classList.toggle('show', opsOpen); el.classList.toggle('wide', opsTab==='finance'); $('opsBtn').classList.toggle('on', opsOpen);
@@ -5188,10 +5314,7 @@ function renderOps(force){
   }
   h += `<h3>Operations</h3><div class="muted">From the field to the factory: hang, cure, ferment, bale, age and sell.</div>`;
   h += `<h4>People</h4>`;
-  h += `<div class="card"><div class="row"><span class="t" style="opacity:1">Field hands</span><span class="vents"><button class="btn sm" data-act="hands" data-x="-1">−</button><b style="min-width:22px;text-align:center;font-size:14px">${staff.hands}</b><button class="btn sm" data-act="hands" data-x="1">+</button></span></div><div class="muted">They pick ripe leaves on their own, ${PICK_PER_HAND} pickings a day each, most urgent first, as long as there's barn space. Paid ${fmt(pieceRate())} per picking. Between harvests they top and sucker (${fmt(topPiece())} a tile) and pick hornworms (${fmt(wormPiece())} a tile), once you know how to show them. They don’t spray.${staff.picked?` So far: ${staff.picked} pickings, ${fmt(staff.picked*pieceRate())}.`:''}</div></div>`;
-  h += `<div class="card"><div class="row"><span class="t" style="opacity:1">Barn tender</span><span>${staff.tender?TENDERS[staff.tender].name:'Nobody'}</span></div>`;
-  h += `<div class="vents" style="margin:4px 0"><button class="btn sm${!staff.tender?' on':''}" data-act="tender" data-x="none">Do it myself</button><button class="btn sm${staff.tender==='cheap'?' on':''}" data-act="tender" data-x="cheap">Tito · ${fmt(TENDERS.cheap.wage)}/day</button><button class="btn sm${staff.tender==='pro'?' on':''}" data-act="tender" data-x="pro">Doña Carmen · ${fmt(TENDERS.pro.wage)}/day</button></div>`;
-  h += `<div class="muted">${staff.tender==='pro'?'Thirty years in barns. She sets the vents for the weather every day, and she is rarely wrong.':staff.tender==='cheap'?'A neighbor’s nephew, cheap and cheerful. He sometimes forgets to check the barn, and he has been known to sleep through a storm.':'You set the barn vents yourself, every day, as the weather changes.'}Paid only on days leaf is curing.${staff.wages?` Wages paid: ${fmt(staff.wages)}.`:''}</div></div>`;
+  h += peopleCards();
   h += `<div class="card"><div class="row"><span class="t" style="opacity:1">Don Aurelio</span><span>${trustTitle()}</span></div><div class="bar"><div style="width:${elder.trust}%"></div></div><div class="acts" style="margin-top:5px"><button class="btn sm" data-act="elder">Visit Don Aurelio</button></div></div>`;
   // barns
   h += `<h4>Curing barns</h4>`;
@@ -5228,9 +5351,9 @@ function renderOps(force){
         const tc = l.temp>115?'bad':l.temp>108?'bad':'';
         h += `<div class="row"><span>Temperature</span><span class="${tc}">${Math.round(l.temp)}°F${l.temp>115?' · scorching!':l.temp>108?' · turn soon':''}</span></div>${gauge(l.temp,80,125,105,114,115,'temp')}`;
         h += `<div class="row"><span>Progress · turns</span><span>${Math.min(100,Math.round(l.heat/PRIM[l.pr].heat*100))}% · ${l.turns}/${PRIM[l.pr].turns}+</span></div><div class="bar"><div style="width:${Math.min(100,l.heat/PRIM[l.pr].heat*100)}%"></div></div>`;
-        h += `<div class="acts" style="margin-top:4px"><button class="btn sm" data-act="turn" data-id="${l.id}">Turn the pile (${fmt(turnCost())})</button></div>`;
+        h += `<div class="acts" style="margin-top:4px"><button class="btn sm" data-act="turn" data-id="${l.id}">Turn the pile (${fmt(turnCost())})</button></div>${workerOf('turner')?`<div class="muted">${workerOf('turner').name} is watching this pile and will turn it.</div>`:''}`;
       } else {
-        h += `<div class="muted">Fermented ${kgf(l.kg)} <span class="grade">${grade(l.q)}</span>${l.scorch?` · ${l.scorch} scorched day${l.scorch>1?'s':''}`:''}</div>`;
+        h += `<div class="muted">Fermented ${kgf(l.kg)} <span class="grade">${grade(l.q)}</span>${l.scorch?` · ${l.scorch} scorched day${l.scorch>1?'s':''}`:''}${workerOf('baler')?` · ${workerOf('baler').name} is baling it${l.baleKg?`: ${kgf(l.baleKg)} done`:''}`:''}</div>`;
         h += `<div class="acts" style="margin-top:4px"><button class="btn sm" data-act="bale" data-id="${l.id}" ${!know('time')?'disabled title="Ask Don Aurelio how to bale and age leaf first"':wareFree?'':'disabled title="Needs an aging warehouse with space"'}>Bale & age (${fmt(l.kg*BALE_COST)})</button><button class="btn sm" data-act="sell" data-id="${l.id}">Sell ${fmt(price(l)*l.kg)}</button></div>`;
       }
       h += `</div>`;
@@ -5353,13 +5476,14 @@ function dailyTick(){
     l.temp += 2.0 + 1.6*wrnd();
     l.heat += Math.max(0, l.temp-82);
     if (l.temp>115) l.scorch++;
-    if (l.temp>=108 && !l.hotWarned){ l.hotWarned = true; attention(`Pilón temperature for ${lotName(l)} is ${Math.round(l.temp)}°F. Turn the pile soon.`); }
+    if (l.temp>=108 && !l.hotWarned && !workerOf('turner')){ l.hotWarned = true; attention(`Pilón temperature for ${lotName(l)} is ${Math.round(l.temp)}°F. Turn the pile soon.`); }
     if (l.heat>=PRIM[l.pr].heat && l.turns>=PRIM[l.pr].turns){
       l.stage = 'fermented';
-      l.q = Math.max(0.35, l.q*Math.max(0.6, 1.12 + (perk('pilonHands')?0.03:0) - 0.035*l.scorch));
+      l.q = Math.max(0.35, l.q*Math.max(0.6, 1.12 + (perk('pilonHands')?0.03:0) - 0.035*l.scorch + WORKERS.turner.tiers.pro.q*Math.min(1, (l.proTurns||0)/Math.max(1, l.turns))));
       attention(`${lotName(l)} has finished fermenting: grade ${grade(l.q)}.`);
     }
   }
+  turnerTick(); balerTick();
   for (const l of lots) if (l.stage==='baled') l.age++;
   const ripeBy = [0,0,0];
   for (const row of map) for (const t of row){ const P0 = nextPrim(t); if (t.owned && P0 && t.g>=P0.start && (t.seen??-1) < (t.pr||0)){ t.seen = t.pr||0; ripeBy[t.pr||0]++; } }
@@ -5392,7 +5516,7 @@ function serialize(){
 }
 function resetGame(){
   generateWorld(); lots.length = 0; nextLot = 1; cash = START_CASH; debt = 0; days = 0; dayInt = 0; wx = 'Sunny'; wxQ = [];
-  Object.assign(staff, { hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false }); resetBiz();
+  Object.assign(staff, freshStaff()); resetBiz();
   stopGame();
   Object.assign(elder, { trust:0, read:new Set(), cd:{}, roof:false, seed:false, said:'', sel:0, done:new Set(), perks:new Set(), stats:{ planted:0, topOnTime:0, soldGood:0, stormReady:0, primA:[] }, game:null });
   Object.assign(lastAlert, { worm:-99, mold:-99, shank:-99, top:-99 });
@@ -5418,6 +5542,7 @@ function restore(st){
   lots.length = 0; st.lots.forEach(l => lots.push(l));
   cash = st.cash; debt = st.debt||0; days = st.days; dayInt = st.dayInt; wx = st.wx; wxQ = st.wxQ||[]; nextB = old ? nextB : st.nextB; nextLot = st.nextLot;
   Object.assign(staff, { rollers:[], keeper:false }, st.staff); year = Object.assign(newYear(), st.year);
+  migrateStaff(st.staff);
   if (st.talk){ talk.flags = st.talk.flags||{}; talk.cd = st.talk.cd||{}; }
   if (st.biz){ Object.assign(biz, st.biz, { bench:null }); if (!biz.seg || !biz.seg.local) biz.seg = freshSegStats(); if (!biz.cur) biz.cur = newWeek(); biz.daily = biz.daily || []; biz.reg = biz.reg || {}; biz.products.forEach(normProduct); } Object.assign(lastAlert, st.lastAlert);
   const e = st.elder;
@@ -5535,7 +5660,7 @@ function devSetup(){
   const ware = buildings.find(b => b.type==='ware' && b.owned && !b.worn) || buildings.find(b => b.type==='ware');
   const mk = (v,pr,kg,q,age) => lots.push({ id:nextLot++, v, pr, picks:0, kg, q, stage:'baled', loc:ware.id, cd:0, score:0, mold:0, temp:0, heat:0, turns:0, scorch:0, age, hotWarned:false });
   mk('criollo',1,260,1.08,240); mk('criollo',0,220,0.98,200); mk('corojo',2,180,1.02,300); mk('habano',2,200,0.92,60); mk('broadleaf',1,160,0.95,150); mk('habano',1,180,0.9,90);
-  staff.hands = 3; staff.tender = 'pro';
+  staff.hands = 3; staff.tender = 'pro'; ['vent','pick','spray','turn','bale'].forEach(k => staff.learned[k] = true);
   for (const t of map.flat()) if (t.owned && !t.b && PLANT_T.includes(t.t) && t.r>=15 && !t.work){ t.work = 'seeded'; t.v = 'criollo'; t.g = 40; t.hp = 1; t.pr = 0; t.top = 0; t.seen = -1; }
   wxQ = []; lastWx = ''; refreshUI(); updateWeatherHUD(); renderOps(true);
   toast('Dev farm ready: year 3, aged leaf in the warehouse, a rolling workshop and a roadside stand. Open Operations → Workshop to blend.', true);
@@ -5806,7 +5931,9 @@ function building(b, o, ghost){
     ctx.fillStyle = mine ? brandC(2,'#f3e2b8') : '#3b2410'; ctx.font='800 5.6px Nunito, sans-serif'; ctx.textAlign='center'; ctx.fillText(txt, s0.x, s0.y-2.6);
     if (mine){ poly([fp(B,R,0.15,h*0.62),fp(B,R,0.85,h*0.62),{x:fp(B,R,0.85,h*0.62).x+5,y:fp(B,R,0.85,h*0.62).y+5},{x:fp(B,R,0.15,h*0.62).x+5,y:fp(B,R,0.15,h*0.62).y+5}], brandC(1,'#8e1b1b'), 'rgba(0,0,0,0.25)', 0.6); const S = shopOfLid(TOWN_LID); if (S && S.busy>0){ const q=fp(B,R,0.5,0); person(q.x+10,q.y+8,'#e8c35a',time*4,null); } } }
   if (o.cross){ const top={x:A.x,y:A.y}; line(top.x,top.y,top.x,top.y-12,'#e9e2d0',2); line(top.x-4,top.y-8,top.x+4,top.y-8,'#e9e2d0',2); }
-  if (!ghost && b.type==='barn' && b.built && b.owned && staff.tender){ const q=fp(B,R,0.18,0); person(q.x+2,q.y+5, staff.tender==='pro'?'#f1ede2':'#c94f3a', 0, null); }
+  if (!ghost && b.type==='barn' && b.built && b.owned && staff.tender){ const q=fp(B,R,0.18,0); person(q.x+2,q.y+5, staff.tender==='pro'?'#f1ede2':staff.tender==='mid'?'#5f8fb8':'#c94f3a', 0, null); }
+  if (!ghost && b.type==='ferm' && b.built && b.owned && workerOf('turner') && b.piles.some(id => lots.some(l => l.id===id && l.stage==='fermenting'))){ const q=fp(B,R,0.2,0); person(q.x+2,q.y+5, staff.crew.turner==='pro'?'#efe6cf':'#9a6a3c', 0, null); }
+  if (!ghost && b.type==='ware' && b.built && b.owned && workerOf('baler') && lots.some(l => l.stage==='fermented')){ const q=fp(B,R,0.2,0); person(q.x+2,q.y+5, staff.crew.baler==='pro'?'#b83a2c':'#e8c35a', 0, null); }
   if (o.chimney){ const c=fp(B2,A,0.5,0); poly([{x:c.x-2,y:c.y},{x:c.x+3,y:c.y},{x:c.x+3,y:c.y-9},{x:c.x-2,y:c.y-9}],'#7d6a5a');
     for (let i=0;i<3;i++){ const ph=(time*0.5+i/3)%1; ctx.globalAlpha=0.45*(1-ph); ell(c.x+0.5+ph*8, c.y-11-ph*18, 2.5+ph*4, 2+ph*3, '#f2f2f2'); } ctx.globalAlpha=1; }
   if (b.type==='ferm' && b.built && !ghost){ // warmth haze when a pile is working

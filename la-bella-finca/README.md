@@ -8,6 +8,7 @@ The scenes, people and street views are painted in a stylized look: soft light, 
 
 - **Grow tobacco.** Buy land in a valley four times the size of the old one: river bottoms, eastern hills, a lake, old fields and worn barns for sale, and Don Celestino's farm next door. Plow, seed and tend the plants through real seasons, weather and pests. Soil, drainage and crop rotation all matter.
 - **Cure, ferment and age.** Harvest in three primings, each with its own leaf quality, manage the curing barn's humidity, turn the fermentation piles and age the leaf.
+- **Hire skilled hands.** Operations → People offers a skilled and a highly skilled hire for every piece of farm work that isn't a business decision: field crews, barn tenders, a sprayer for blue mold, a pilón turner and an aging-house hand who sorts and bales finished leaf. Skill jobs open only once you have done them yourself, so you learn the work before you hand it off. What to plant, ferment and sell stays with you.
 - **Learn from Don Aurelio.** Your neighbor teaches lessons, side missions and mini-games. You start poor, and getting good takes his help.
 - **Roll cigars.** Blend wrapper, binder and filler at the blending table, hire rollers of different skill, and rest the cigars in the cedar room.
 - **Run the business.** A workshop dashboard follows leaf to rolling to stock to sales and flags the bottleneck. A roadside stand has real weekdays, prices for first quality and seconds, named regulars, and offers you can weigh against your shelf prices.
