@@ -5428,6 +5428,7 @@ function restore(st){
   if (st.city) Object.assign(city, st.city, { game:null, neg:null });
   migrateCity(); if (city.unlocked) attachCity();
   if (st.fin){ fin = st.fin; fin.cur = fin.cur || newFinMonth(); } else finReset();
+  freePiles();   // repair saves with a ghost in a pilón slot
   refreshCityHUD();
 }
 // Saves live in the viewer's own private space on their Claude account when the page can reach it, otherwise in this browser.
