@@ -168,6 +168,18 @@
   .tmore{font-size:10.5px;font-weight:800;opacity:.55;margin-top:6px}
   .miniface svg{width:46px;height:46px;display:block}
   .miniface{flex:none}
+  .vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:6px;margin:4px 0}
+  .vcard{background:#fff;border:2px solid #ead9b0;border-radius:10px;padding:6px 7px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+  .vcard:hover{border-color:#c9a35e} .vcard.on{border-color:#a0673f;background:#fff7e8;box-shadow:0 0 0 2px #e8c88f inset}
+  .vcard .vn{font-family:"Bree Serif",serif;font-size:15px;color:#3b2410} .vcard .vf{font-size:10.5px;line-height:1.35;opacity:.85}
+  .vcard svg{display:block;margin:2px 0 3px}
+  .vthumb{flex:none;width:96px}
+  .wsform{background:#fffaf0;border:2px solid #e6d3a6;border-radius:12px;padding:7px 8px;margin:4px 0 8px}
+  .wsstep{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.65;margin:6px 0 2px}
+  .restline{position:relative;height:30px;margin:6px 0 16px;display:flex;border-radius:6px;overflow:visible;font-size:10px;font-weight:700}
+  .restline>div{display:flex;align-items:center;justify-content:center;color:#3b2410;position:relative;text-align:center;line-height:1.1}
+  .restline>div span{position:absolute;bottom:-14px;left:0;font-weight:600;opacity:.7}
+  .rbar{height:6px;border-radius:3px;background:#efe2c4;overflow:hidden;margin-top:2px} .rbar>div{height:100%;background:#d9c08a}
   #scene{position:fixed;inset:0;background:rgba(20,30,30,.55);z-index:10;display:none;align-items:center;justify-content:center}
   #scene.show{display:flex}
   .scenebox{width:min(1320px,97vw);height:min(760px,92vh);display:flex;flex-direction:column;padding:12px 14px}
@@ -2788,18 +2800,100 @@ function sparkBars(vals, labels, color){
   const W0 = 300, H0 = 70, n = vals.length || 1, mx = Math.max(1, ...vals), bw = W0/n;
   return `<svg viewBox="0 0 ${W0} ${H0+14}" class="spark">${vals.map((v,i)=>`<rect x="${i*bw+1}" y="${H0 - v/mx*H0}" width="${Math.max(1,bw-2)}" height="${v/mx*H0}" fill="${color}" rx="1.5"><title>${labels[i]}: ${fmt(v)}</title></rect>`).join('')}<line x1="0" y1="${H0}" x2="${W0}" y2="${H0}" stroke="#b99a5c"/><text x="0" y="${H0+12}" font-size="9" fill="#7a5a3a">${labels[0]||''}</text><text x="${W0}" y="${H0+12}" font-size="9" text-anchor="end" fill="#7a5a3a">${labels[labels.length-1]||''}</text></svg>`;
 }
+// ---------- the workshop, made plain ----------
+// Each shape (vitola) at true proportions: length in inches, ring gauge in 64ths of an inch.
+const VIT_INFO = {
+  corona:   { len:5.5,   ring:42, blurb:'The classic everyday shape. Quick to roll and easy on leaf; about a 40-minute smoke.' },
+  robusto:  { len:5,     ring:50, blurb:'Short and thick: full flavor in about 45 minutes. The best seller in most shops.' },
+  toro:     { len:6,     ring:52, blurb:'A longer robusto. More leaf, a cooler smoke of about an hour.' },
+  churchill:{ len:7,     ring:47, blurb:'Long and elegant, a 90-minute smoke. Harder to roll evenly.' },
+  lancero:  { len:7.5,   ring:38, blurb:'Long and thin, all about the wrapper. Slow and tricky, so more seconds, but its looks sell to tourists.' },
+  torpedo:  { len:6.125, ring:52, blurb:'A pointed head that takes a sure hand. The slowest to roll and the most seconds; the most striking in the box.' },
+};
+let cigarN = 0;
+function cigarSVG(vit, w, wrapCol){
+  const I = VIT_INFO[vit], k = (w-6)/7.5, L = I.len*k, D = Math.max(5, I.ring/64*k*1.35), H = Math.max(D+8, 22), y0 = H/2 - D/2, id = 'cg'+(cigarN++);
+  const col = wrapCol || '#7a4a26', c1 = biz.brand ? biz.brand.c1 : '#a8321e', c2 = biz.brand ? biz.brand.c2 : '#e8c35a';
+  const head = vit==='torpedo' ? `M${L-0.9*k},${y0} Q${L-0.15*k},${y0+D*0.15} ${L},${H/2} Q${L-0.15*k},${y0+D*0.85} ${L-0.9*k},${y0+D} Z` : `M${L-D*0.45},${y0} Q${L},${y0} ${L},${H/2} Q${L},${y0+D} ${L-D*0.45},${y0+D} Z`;
+  const bodyEnd = vit==='torpedo' ? L-0.9*k : L-D*0.45, bx = L*0.74, bw = Math.max(6, 0.55*k);
+  return `<svg width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" aria-label="${VITOLAS[vit].name}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient></defs>`
+    + `<g transform="translate(3 0)"><rect x="0" y="${y0}" width="${bodyEnd}" height="${D}" rx="${Math.min(2,D/3)}" fill="${col}"/><path d="${head}" fill="${col}"/>`
+    + `<rect x="0" y="${y0}" width="${L}" height="${D}" fill="url(#${id})" rx="${D/2}" opacity=".9"/><ellipse cx="1" cy="${H/2}" rx="1.6" ry="${D/2-0.5}" fill="#4a2a14" opacity=".55"/>`
+    + `<rect x="${bx}" y="${y0-0.6}" width="${bw}" height="${D+1.2}" fill="${c1}"/><rect x="${bx+bw*0.3}" y="${y0-0.6}" width="${bw*0.4}" height="${D+1.2}" fill="${c2}"/></g></svg>`;
+}
+const wrapColOf = B => { const l = B && lots.find(x => x.id===B.wrap); return !l ? '#7a4a26' : l.pr===2 ? '#5a3418' : l.pr===0 ? '#9a6a3c' : '#7a4a26'; };
+const rollRate = () => staff.rollers.reduce((a,r) => a + rollerStats(r).rate, 0);
+const avgCons = () => staff.rollers.length ? staff.rollers.reduce((a,r) => a + rollerStats(r).cons, 0)/staff.rollers.length : ROLLER_TIERS.skilled.cons;
+const vitSeconds = vit => { const c0 = avgCons(), c = Math.max(0.3, Math.min(0.99, c0 - (VITOLAS[vit].diff-1)*(1-c0)*1.2)); return secShare(c); };
+let wsDraft = { b:null, v:'robusto', q:100 };
+// the rolling queue: one line per order, rolled top to bottom
+function queueHTML(){
+  if (!biz.orders.length) return `<div class="muted">Nothing is on order${staff.rollers.length ? ', so the rollers are idle (they still get half wage)' : ''}. Add an order below${biz.products.some(p => p.target)?', or raise a keep-on-hand target':''}.</div>`;
+  const R = rollRate(); let t = 0, h = '';
+  biz.orders.forEach((o,i) => { const p = prodOf(o.productId); if (!p) return; const V = VITOLAS[p.vit], left = o.qty - o.done, LS = leafSupply(p), perDay = R*V.rate, start = t;
+    t += perDay ? left/perDay : 0; const fin = Math.max(1, Math.ceil(t)), B = blendOf(p.blendId);
+    const status = o.stalled ? `<b class="bad">Stopped: its leaf ran out.</b> Make a new blend at the blending table.` : !staff.rollers.length ? `<b class="bad">Waiting: you have no rollers.</b>` : start < 1 ? `<b>Rolling now</b> · about ${Math.round(perDay)} a day` : `<b>Next in line</b> · starts in about ${Math.ceil(start)} day${Math.ceil(start)===1?'':'s'}`;
+    h += `<div class="lot"><span class="vthumb">${cigarSVG(p.vit, 92, wrapColOf(B))}</span><div class="grow"><b>${i+1}. ${o.qty.toLocaleString('en-US')} × ${esc(p.name)}</b>${o.auto?' <span class="tg" title="Ordered by itself to keep stock at your target">keep-on-hand</span>':''}`
+      + `<div class="bar"><div style="width:${o.done/o.qty*100}%"></div></div><span class="muted">${status} · ${o.done.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} rolled</span>`
+      + (o.stalled || !staff.rollers.length ? '' : `<br><span class="muted">Finished about ${dateAt(dayInt+fin)} · then ${REST_DAYS} days in the cedar room · <b>on sale about ${dateAt(dayInt+fin+REST_DAYS)}</b></span>`)
+      + (LS.n < left ? `<br><span class="bad">Leaf for only ${LS.n.toLocaleString('en-US')} more: Lot ${LS.lot} (the ${LS.role}) runs out first.</span>` : '')
+      + `</div><div class="acts" style="flex-direction:column;gap:3px">${i?`<button class="btn xs" data-act="up" data-id="${o.id}" title="Move to the top of the queue">Roll first</button>`:''}<span style="display:flex;gap:3px">${left>50?`<button class="btn xs" data-act="less" data-id="${o.id}" title="Make 50 fewer">−50</button>`:''}<button class="btn xs" data-act="more" data-id="${o.id}" data-x="50" title="Make 50 more">+50</button></span><button class="btn xs" data-act="cancel" data-id="${o.id}">Cancel</button></div></div>`; });
+  return h + `<div class="muted" style="margin-top:3px">All your rollers work on the top order until it is done, then move to the next. Cancelling keeps what is already rolled.</div>`;
+}
+// placing an order: pick a blend, a shape and how many
+function orderFormHTML(){
+  if (!biz.blends.length) return `<div class="muted">To order cigars you need a blend first: which leaf goes in the wrapper, binder and filler. ${know('blend') ? 'Make one at the blending table.' : 'Don Aurelio will teach you blending (“The blender’s table”).'}</div>`;
+  if (!biz.blends.some(B => B.id===wsDraft.b)) wsDraft.b = biz.blends[biz.blends.length-1].id;
+  const B = blendOf(wsDraft.b), P = B.profile, V = VITOLAS[wsDraft.v], dummy = { blendId:B.id, vit:wsDraft.v }, LS = leafSupply(dummy), R = rollRate();
+  let h = `<div class="wsform"><div class="wsstep">1 · Which blend</div><div class="vents" style="flex-wrap:wrap;gap:3px">${biz.blends.map(x => `<button class="btn sm${x.id===B.id?' on':''}" data-act="wsb" data-id="${x.id}">${esc(x.name)} · ${x.profile.score}</button>`).join('')}</div>`;
+  h += `<div class="muted" style="margin-top:2px">${esc(B.name)}: ${STRENGTH_WORDS(P.strength).toLowerCase()}, ${P.notes.slice(0,3).join(', ')}. Scores ${P.score}/100.</div>`;
+  h += `<div class="wsstep">2 · Which shape (vitola)</div><div class="vgrid">`;
+  for (const [k,V0] of Object.entries(VITOLAS)){ const I = VIT_INFO[k], ls = leafSupply({ blendId:B.id, vit:k }).n;
+    h += `<button class="vcard${k===wsDraft.v?' on':''}" data-act="wsv" data-x="${k}"><div class="vn">${V0.name}</div>${cigarSVG(k, 118, wrapColOf(B))}<div class="vf">${V0.size} in · ${V0.g} g leaf<br>${R ? `${Math.round(R*V0.rate)}/day with your rollers` : `${V0.rate>1?'faster':V0.rate<1?'slower':'standard speed'} to roll`} · ~${Math.round(vitSeconds(k)*100)}% seconds<br>Leaf for ${ls.toLocaleString('en-US')}</div></button>`; }
+  h += `</div><div class="muted">${VIT_INFO[wsDraft.v].blurb}${V.wrapF>1.05?' The wrapper shows more, so a fine wrapper counts for more.':''}</div>`;
+  const q = wsDraft.q, ahead = biz.orders.reduce((a,o) => { const p0 = prodOf(o.productId); return a + (p0 && R ? (o.qty-o.done)/(R*VITOLAS[p0.vit].rate) : 0); }, 0), days = R ? Math.max(1, Math.ceil(ahead + q/(R*V.rate))) : null;
+  h += `<div class="wsstep">3 · How many</div><div class="vents" style="flex-wrap:wrap;gap:3px;align-items:center">${[50,100,250,500,1000].map(n => `<button class="btn sm${q===n?' on':''}" data-act="wsq" data-x="${n}">${n.toLocaleString('en-US')}</button>`).join('')}<button class="btn sm" data-act="wsq" data-x="-25">−25</button><b style="min-width:50px;text-align:center">${q.toLocaleString('en-US')}</b><button class="btn sm" data-act="wsq" data-x="+25">+25</button></div>`;
+  h += `<div class="muted" style="margin-top:4px">${q.toLocaleString('en-US')} × ${V.name} uses about ${kgf(q*V.g/1000)} of leaf (you have enough for ${LS.n.toLocaleString('en-US')}). ${days!=null ? `With what is already queued, they’d be rolled by about ${dateAt(dayInt+days)} and on sale about <b>${dateAt(dayInt+days+REST_DAYS)}</b>.` : 'You have no rollers yet: hire some inside the workshop.'}</div>`;
+  h += `<div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn" data-act="wsgo" ${LS.n>0?'':'disabled title="Not enough leaf for even one"'}>Add ${q.toLocaleString('en-US')} ${V.name}s to the queue</button></div></div>`;
+  return h;
+}
+// the cedar room: what is resting, and when it can be sold
+function cedarHTML(){
+  let h = `<div class="restline"><div style="flex:${REST_DAYS};background:#ecdcb4;border-radius:6px 0 0 6px">Resting<span>day 0</span></div><div style="flex:9;background:#d8b680">Settling<span>${REST_DAYS}</span></div><div style="flex:${AGED_DAYS-30};background:#b98552;color:#fff">Ready<span style="color:#3b2410">30</span></div><div style="flex:30;background:#6b4020;color:#fff;border-radius:0 6px 6px 0">Aged<span style="color:#3b2410">${AGED_DAYS}+ days</span></div></div>`;
+  h += `<div class="muted">Fresh cigars are damp and harsh. They <b>rest ${REST_DAYS} days</b> in the cedar room and can’t be sold until then. From day ${REST_DAYS} they are on sale, but customers still taste a little harshness until about day 30. After ${AGED_DAYS} days they are <b>aged</b>: smoother, and rated higher. The oldest cigars always sell first.</div>`;
+  // resting cigars, grouped by the day they go on sale and the cigar
+  const grp = {}; for (const p of biz.products) for (const b of p.batches) if (ageOf(b) < REST_DAYS){ const k = (b.made+REST_DAYS)+':'+p.id, G = grp[k] || (grp[k] = { d:b.made+REST_DAYS, p, n:0, n2:0 }); if (gOf(b)===2) G.n2 += b.qty; else G.n += b.qty; }
+  const rows = Object.values(grp).sort((x,y) => x.d - y.d || x.p.id - y.p.id);
+  h += `<h4 class="sm">Resting now · when it goes on sale</h4>`;
+  if (!rows.length) h += `<div class="muted">Nothing is resting.</div>`;
+  else { h += `<table class="dtab"><thead><tr><th>On sale</th><th>Cigar</th><th>Firsts</th><th>2nds</th></tr></thead><tbody>${rows.slice(0,10).map(G => { const dl = G.d - dayInt; return `<tr><td>${dl<=1?'tomorrow':`${dateAt(G.d)} <span class="muted">(${dl}d)</span>`}</td><td>${esc(G.p.name)}</td><td>${G.n}</td><td>${G.n2||''}</td></tr>`; }).join('')}</tbody></table>`;
+    if (rows.length > 10){ const rest = rows.slice(10).reduce((a,G) => a + G.n + G.n2, 0); h += `<div class="muted">…and ${rest.toLocaleString('en-US')} more, on sale by ${dateAt(rows[rows.length-1].d)}.</div>`; } }
+  const inv = biz.products.filter(p => p.batches.length);
+  if (inv.length){
+    h += `<h4 class="sm">On hand</h4><table class="dtab"><thead><tr><th>Cigar</th><th>Resting</th><th>For sale</th><th>Aged</th><th>2nds</th><th>Sells</th><th>Lasts</th></tr></thead><tbody>`;
+    for (const p of inv){ const S = stockBy(p), sp = soldPace(p.id), sell = S.sell1 + S.sell2;
+      h += `<tr><td>${esc(p.name)}</td><td>${S.rest+S.rest2}</td><td>${S.ready}</td><td>${S.aged}</td><td>${S.sell2}</td><td>${sp.toFixed(1)}/d</td><td class="${sp>0.05 && sell/sp<10?'bad':''}">${sp>0.05 ? daysTxt(sell/sp).replace(' days','d') : '—'}</td></tr>`; }
+    h += `</tbody></table><div class="muted">For sale = first quality, ${REST_DAYS}–${AGED_DAYS} days old. 2nds = seconds ready to sell.</div>`;
+  }
+  return h;
+}
+function targetsHTML(){
+  if (!biz.products.length) return `<div class="muted">No cigars yet.</div>`;
+  let h = `<div class="muted" style="margin-bottom:4px">The workshop orders by itself when stock (resting and for sale) falls below your target, while there is leaf. Aim for about six weeks of sales: three resting, three on the shelf.</div>`;
+  for (const p of biz.products){ const have = stockOf(p), sp = soldPace(p.id), sug = sp>0.05 ? Math.max(50, Math.ceil(sp*42/50)*50) : null;
+    h += `<div class="lot"><div class="grow"><b>${esc(p.name)}</b><br><span class="muted">${have} on hand · ${pendingOf(p.id)} on order · sells ${sp.toFixed(1)} a day${sug?` · suggested ${sug}`:''}</span></div><div class="acts" style="align-items:center"><button class="btn sm" data-act="target" data-id="${p.id}" data-x="-50" ${p.target?'':'disabled'}>−50</button><b style="min-width:52px;text-align:center">${p.target?p.target:'off'}</b><button class="btn sm" data-act="target" data-id="${p.id}" data-x="50">+50</button></div></div>`; }
+  return h;
+}
 function workshopTab(){
   let h = '';
-  if (ready('galera').length){ const PL = pipeline();
-    h += `<div class="card"><b>The rolling workshop</b><div class="muted">Stock, production, rollers and blends, all inside.</div><div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn" data-act="enter" data-x="workshop">Go inside the workshop</button></div></div>`;
-    h += `<div class="kpis">${kpi('Rolled', `${Math.round(PL.made)}/day`, `${staff.rollers.length} rollers`)}${kpi('Sold', `${PL.sold.toFixed(1)}/day`, 'last 14 days')}${kpi('Ready', (PL.ready+PL.aged+PL.sec).toLocaleString('en-US'), `${PL.rest.toLocaleString('en-US')} resting`)}</div>` + verdicts(PL.out.slice(0,2));
-  } else h += `<div class="muted">Build a rolling workshop (Build tool) to hire rollers. It holds up to 6.</div>`;
-  h += `<h4>Blends</h4>`;
-  if (!know('blend')) h += `<div class="muted">Don Aurelio hasn’t taught you to blend yet. Ask him about “The blender’s table” (trust 50).</div>`;
-  h += `<div class="acts" style="justify-content:flex-start"><button class="btn sm" data-act="bench" ${know('blend')?'':'disabled'}>Open the blending table</button></div>`;
-  for (const B of biz.blends){ const P = B.profile;
-    h += `<div class="card"><div class="row"><span class="t" style="opacity:1">${esc(B.name)}</span><span>${P.score}/100</span></div><div class="muted">${STRENGTH_WORDS(P.strength)} · ${P.notes.slice(0,3).join(', ')}</div>`;
-    h += `<div class="vents" style="flex-wrap:wrap;margin-top:4px">${Object.entries(VITOLAS).map(([k,V])=>`<button class="btn sm" data-act="order" data-id="${B.id}" data-x="${k}" title="${V.size}, ${V.g} g of leaf each">${V.name} ×100</button>`).join('')}</div></div>`; }
+  if (!ready('galera').length) h += `<div class="card"><b>No rolling workshop yet</b><div class="muted">Build a rolling workshop (a galera) with the Build tool. It seats up to 6 rollers.</div></div>`;
+  else { const PL = pipeline(), R = rollRate(), wage = PLwage();
+    h += `<div class="kpis">${kpi('Rolling', `${Math.round(PL.made)}/day`, `${staff.rollers.length} roller${staff.rollers.length===1?'':'s'} · can do ${PL.cap}`)}${kpi('On order', PL.pend.toLocaleString('en-US'), `${biz.orders.length} order${biz.orders.length===1?'':'s'} in the queue`)}${kpi('Resting', PL.rest.toLocaleString('en-US'), `${REST_DAYS} days before sale`)}${kpi('For sale', (PL.ready+PL.aged+PL.sec).toLocaleString('en-US'), `sells ${PL.sold.toFixed(1)}/day`)}</div>` + verdicts(PL.out.slice(0,3));
+    h += `<div class="lot"><div class="grow"><b>Rollers</b><br><span class="muted">${staff.rollers.length ? `${staff.rollers.map(r => esc(r.name.split(' ')[0])).join(', ')} · about ${Math.round(R)} Robustos a day between them · ${fmt(wage)} a day, half when there’s nothing to roll` : 'Nobody is rolling. Hire rollers to make cigars.'}${staff.lector?' · the lector reads to them':''}</span></div><div class="acts"><button class="btn sm" data-act="wsroom" data-x="rollers">${staff.rollers.length?'Hire or let go':'Hire rollers'}</button></div></div>`; }
+  h += `<h4>The rolling queue</h4>` + queueHTML();
+  h += `<h4>Order cigars</h4>` + orderFormHTML();
+  h += `<div class="acts" style="justify-content:flex-start;margin:-2px 0 6px"><button class="btn sm" data-act="bench" ${know('blend')?'':'disabled'}>Open the blending table</button>${ready('galera').length?`<button class="btn sm" data-act="enter" data-x="workshop">Go inside the workshop</button>`:''}</div>`;
+  if (biz.products.length){ h += `<h4>The cedar room</h4>` + cedarHTML(); h += `<h4>Keep on hand</h4>` + targetsHTML(); }
   return h;
 }
 function salesTab(){
@@ -2846,7 +2940,21 @@ function bizAct(kind, id, extra){
     if (!p){ p = { id:biz.nextId++, blendId:id, vit:extra, name:`${B.name} ${VITOLAS[extra].name}`, price:Math.max(2, Math.round((2 + B.profile.score/16)*2)/2), batches:[], sold:0 }; normProduct(p); biz.products.push(p); }
     if (!ready('galera').length || !staff.rollers.length) toast('Order placed. You need a rolling workshop and rollers before anything gets made.', true);
     const o = biz.orders.find(x => x.productId===p.id); if (o){ o.qty += 100; o.stalled = false; } else biz.orders.push({ id:biz.nextId++, productId:p.id, qty:100, done:0 }); return true; }
-  if (kind==='more'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty += 100; o.stalled = false; } return true; }
+  if (kind==='more'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty += +extra || 100; o.stalled = false; } return true; }
+  if (kind==='less'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty = Math.max(o.done + 1, o.qty - 50); } return true; }
+  if (kind==='wsb'){ wsDraft.b = id; return true; }
+  if (kind==='wsv'){ if (VITOLAS[extra]) wsDraft.v = extra; return true; }
+  if (kind==='wsq'){ const x = String(extra); wsDraft.q = /^[+-]/.test(x) ? Math.max(25, Math.min(5000, wsDraft.q + +x)) : Math.max(25, +x || 100); return true; }
+  if (kind==='wspick'){ wsDraft.b = id; if (VITOLAS[extra]) wsDraft.v = extra; if (scene && scene.kind==='workshop') scene.tab = 'production'; return true; }
+  if (kind==='wsroom'){ openScene('workshop', { tab:extra||'overview' }); return true; }
+  if (kind==='wsgo'){ const B = blendOf(wsDraft.b); if (!B) return true; const vit = wsDraft.v, q = wsDraft.q;
+    let p = biz.products.find(x => x.blendId===B.id && x.vit===vit);
+    if (!p){ p = normProduct({ id:biz.nextId++, blendId:B.id, vit, name:`${B.name} ${VITOLAS[vit].name}`, price:Math.max(2, Math.round((2 + B.profile.score/16)*2)/2), batches:[], sold:0 }); biz.products.push(p); }
+    const o = biz.orders.find(x => x.productId===p.id); if (o){ o.qty += q; o.stalled = false; } else biz.orders.push({ id:biz.nextId++, productId:p.id, qty:q, done:0 });
+    const pos = biz.orders.findIndex(x => x.productId===p.id) + 1, R = rollRate();
+    const ahead = biz.orders.reduce((a,x) => { const p0 = prodOf(x.productId); return a + (R ? (x.qty-x.done)/(R*VITOLAS[p0.vit].rate) : 0); }, 0);
+    toast(`${o ? 'Added' : 'Ordered'} ${q.toLocaleString('en-US')} ${p.name}${o ? ' to its order' : ''}, number ${pos} in the queue. ${R ? `Rolled by about ${dateAt(dayInt+Math.max(1,Math.ceil(ahead)))}, then ${REST_DAYS} days resting: on sale about ${dateAt(dayInt+Math.max(1,Math.ceil(ahead))+REST_DAYS)}.` : 'Hire rollers to start.'}`);
+    return true; }
   if (kind==='cancel'){ biz.orders = biz.orders.filter(x => x.id!==id); return true; }
   if (kind==='hire'){ const T0 = ROLLER_TIERS[extra]; const free = ROLLER_NAMES.filter(n => !staff.rollers.some(r => r.name===n)); staff.rollers.push({ id:biz.nextId++, tier:extra, name:(free.length?free:ROLLER_NAMES)[Math.floor(Math.random()*(free.length||ROLLER_NAMES.length))], cons:T0.cons }); return true; }
   if (kind==='fire'){ staff.rollers = staff.rollers.filter(r => r.id!==id); return true; }
@@ -3494,6 +3602,7 @@ function workshopSide(s){
     h += `<h4>The last two weeks</h4><div class="kpis">${kpi('Cigars made', mk.toLocaleString('en-US'), `${(mk/spanDays(14)).toFixed(0)} a day`)}${kpi('Seconds', pct(sec, mk), `${sec} with flaws`, sec/Math.max(1,mk)>0.25?'warn':'')}${kpi('Cost to make', avgCost?fmt2(avgCost):'—', 'leaf + wages, each')}${kpi('Workshop wages', fmt(PL.wage + (staff.lector?15:0)), 'a day')}</div>`;
   }
   if (s.tab==='stock'){
+    h += `<h4>How resting works</h4>` + cedarHTML().split('<h4 class="sm">On hand</h4>')[0];
     h += `<h4>What’s in the cedar room</h4><div class="legend"><span><i style="background:#d9c08a"></i>Resting · under 3 weeks, not for sale yet</span><span><i style="background:#a0673f"></i>Ready · 3–8 weeks</span><span><i style="background:#5b3517"></i>Aged · 2 months or more, smoothest</span><span><i style="background:#b9b2a4"></i>Seconds · flawed, sold cheaper</span></div>`;
     const inv = biz.products.filter(p => p.batches.length || pendingOf(p.id));
     if (!inv.length){ h += `<div class="muted">The shelves are empty. Order cigars under Production or Blends.</div>`; return h; }
@@ -3513,16 +3622,7 @@ function workshopSide(s){
       h += `<div class="row"><span>Cost to make · shelf price</span><span>${fmt2(c)} · ${fmt2(p.price)} <span class="muted">(seconds ${fmt2(p.price2)})</span></span></div></div>`; }
   }
   if (s.tab==='production'){
-    h += `<h4>On the tables</h4>`;
-    if (!biz.orders.length) h += `<div class="muted">Nothing ordered. Order cigars from a blend under Blends, or set a keep-on-hand target below.</div>`;
-    const cap = Math.max(1, rollCap()); let ahead = 0;
-    biz.orders.forEach((o,i) => { const p = prodOf(o.productId), left = o.qty - o.done, LS = leafSupply(p); ahead += left; const eta = staff.rollers.length ? Math.ceil(ahead/cap) : null;
-      h += `<div class="lot"><div class="grow"><b>${esc(p.name)}</b>${o.auto?' <span class="tg">keep-on-hand</span>':''} ${o.stalled?'<span class="bad">· out of leaf</span>':''}<div class="bar"><div style="width:${o.done/o.qty*100}%"></div></div><span class="muted">${o.done} of ${o.qty} rolled${o.stalled?'':eta!=null?` · done in about ${eta} day${eta===1?'':'s'}`:' · no rollers'}${i?' · waits for the orders above':''}</span><br><span class="${LS.n<left?'bad':'muted'}">Leaf for ${LS.n.toLocaleString('en-US')} more${LS.lot?` · Lot ${LS.lot} (${LS.role}) runs out first`:''}</span></div><div class="acts">${i?`<button class="btn sm" data-act="up" data-id="${o.id}" title="Roll this first">↑</button>`:''}<button class="btn sm" data-act="more" data-id="${o.id}">+100</button><button class="btn sm" data-act="cancel" data-id="${o.id}">Cancel</button></div></div>`; });
-    h += `<h4>Keep on hand</h4><div class="muted" style="margin-bottom:4px">Set how many of each cigar you want in the cedar room, resting and ready. The workshop tops up its own orders when stock falls below the target, as long as there’s leaf.</div>`;
-    if (!biz.products.length) h += `<div class="muted">No cigars yet.</div>`;
-    for (const p of biz.products){ const have = stockOf(p), sp = soldPace(p.id);
-      h += `<div class="lot"><div class="grow"><b>${esc(p.name)}</b><br><span class="muted">${have} on hand · ${pendingOf(p.id)} on order · sells ${sp.toFixed(1)} a day${p.target && sp>0.05?` · target covers ${Math.round(p.target/sp)} days`:''}</span></div><div class="acts" style="align-items:center"><button class="btn sm" data-act="target" data-id="${p.id}" data-x="-50" ${p.target?'':'disabled'}>−50</button><b style="min-width:52px;text-align:center">${p.target?p.target:'off'}</b><button class="btn sm" data-act="target" data-id="${p.id}" data-x="50">+50</button></div></div>`; }
-    h += `<div class="muted" style="margin-top:6px">A good target is about six weeks of sales: three weeks resting, three weeks on the shelf.</div>`;
+    h += `<h4>The rolling queue</h4>` + queueHTML() + `<h4>Order cigars</h4>` + orderFormHTML() + `<h4>Keep on hand</h4>` + targetsHTML();
   }
   if (s.tab==='rollers'){
     const cap = 6*ready('galera').length;
@@ -3539,7 +3639,7 @@ function workshopSide(s){
     if (!know('blend')) h += `<div class="muted" style="margin-top:6px">Don Aurelio hasn’t taught you to blend yet (“The blender’s table”).</div>`;
     if (!biz.blends.length) h += `<div class="muted" style="margin-top:6px">No blends yet.</div>`;
     for (const B of biz.blends){ const P = B.profile, mine = biz.products.filter(p => p.blendId===B.id);
-      h += `<div class="card"><div class="row"><span class="t" style="opacity:1">${esc(B.name)}</span><span>${P.score}/100</span></div><div class="muted">${STRENGTH_WORDS(P.strength)} · ${P.notes.slice(0,3).join(', ')}</div>${mine.length?`<div class="muted">Rolled as: ${mine.map(p => VITOLAS[p.vit].name).join(', ')}</div>`:''}<div class="muted" style="margin-top:3px">Roll 100:</div><div class="vents" style="flex-wrap:wrap">${Object.entries(VITOLAS).map(([k,V]) => { const p0 = mine.find(p => p.vit===k), LS = p0 ? leafSupply(p0) : null; return `<button class="btn sm" data-act="order" data-id="${B.id}" data-x="${k}" title="${V.size}, ${V.g} g of leaf each, ${V.rate<1?'slower':V.rate>1?'faster':'standard'} to roll">${V.name}</button>`; }).join('')}</div></div>`; }
+      h += `<div class="card"><div class="row"><span class="t" style="opacity:1">${esc(B.name)}</span><span>${P.score}/100</span></div><div class="muted">${STRENGTH_WORDS(P.strength)} · ${P.notes.slice(0,3).join(', ')}</div>${mine.length?`<div class="muted">Rolled as: ${mine.map(p => VITOLAS[p.vit].name).join(', ')}</div>`:''}<div class="muted" style="margin-top:3px">Order it as:</div><div class="vents" style="flex-wrap:wrap">${Object.entries(VITOLAS).map(([k,V]) => `<button class="btn sm" data-act="wspick" data-id="${B.id}" data-x="${k}" title="${V.size} in, ${V.g} g of leaf each. Opens the order form.">${V.name}…</button>`).join('')}</div></div>`; }
   }
   return h;
 }
