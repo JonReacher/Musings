@@ -1836,8 +1836,9 @@ const FARM_MGRS = {
   pro: { name:'Ofelia Cruz', wage:28, noise:0.02, act:1, price:1.05, note:'Twenty years buying leaf for the factory in town. She reads a hand of leaf at a glance, acts the same day, and the buyers pay her 5% more.' },
 };
 const GRADE_Q = { 'A+':1.2, A:1.05, B:0.9, C:0.75, D:0 };
-const MGR_DEFAULT = { fermMin:'B', curedLow:'sell', baleMin:'B', fermLow:'sell', keepMin:'A', lowBales:6, reserve:100, cashFloor:1000, makeRoom:true, plant:'off', seedMix:'blends', plantWhen:'season', stagger:true, rest:'two', soil:true, targets:false };
+const MGR_DEFAULT = { problems:'ask', fermMin:'B', curedLow:'sell', baleMin:'B', fermLow:'sell', keepMin:'A', lowBales:6, reserve:100, cashFloor:1000, makeRoom:true, plant:'off', seedMix:'blends', plantWhen:'season', stagger:true, rest:'two', soil:true, targets:false };
 const MGR_OPTS = {
+  problems: { g:'problems', label:'When something goes wrong', opts:[['ask','Ask me first'],['handle','Handle it, and tell me after']] },
   fermMin:  { label:'Ferment cured leaf graded', opts:[['A+','A+'],['A','A or better'],['B','B or better'],['C','C or better'],['D','All of it']] },
   curedLow: { label:'Cured leaf below that', opts:[['sell','Sell it cured'],['hold','Hold it for me']] },
   baleMin:  { label:'Bale fermented leaf graded', opts:[['A','A or better'],['B','B or better'],['C','C or better'],['D','All of it']] },
@@ -1888,12 +1889,77 @@ const mgrDuties = () => { const S = mgrSet(); return 1 + (S.plant!=='off' ? 1 : 
 const mgrWage = () => farmMgr() ? farmMgr().wage * mgrDuties() : 0;
 const mgrCast = () => staff.manager==='pro' ? 'ofelia' : 'osvaldo';
 // Something critical the manager can't put right alone: stop the clock and tell the player, once, until it's fixed.
+// Raising cash when a problem needs money: sell the poorest leaf that isn't kept for the house cigars, then borrow
+// from the bank (up to its $6,000 limit). Returns what was raised.
+function mgrRaise(need, why){
+  let got = 0; const S = mgrSet(), M = farmMgr(); if (need <= 0) return 0;
+  const pool = lots.filter(l => ['cured','fermented','baled'].includes(l.stage) && !protectedLot(l) && mgrSees(l) < GRADE_Q[S.keepMin]).sort((a,b) => price(a)*a.kg - price(b)*b.kg);
+  for (const l of pool){ if (got >= need) break; const v = sellLot(l, M ? M.price : 1); got += v; mgrLog(`Sold ${lotName(l)} for ${fmt(v)} to pay for ${why}.`); }
+  while (got < need && debt < 6000){ const amt = Math.min(1000, 6000-debt); debt += amt; cash += amt; finCash('in', 'Bank loan', amt); got += amt; mgrLog(`Borrowed ${fmt(amt)} from the bank at 1% a month to pay for ${why}.`); }
+  return got;
+}
+// What the manager does when told to handle a problem herself. Returns what she did, or { no: why she can't }.
+function mgrFix(key){
+  const S = mgrSet(), M = farmMgr(); if (!M) return { no:'There is no manager.' };
+  const [k, arg] = key.split(':');
+  if (k==='vac'){ const v = (staff.vacant||[]).find(x => x.k===arg); if (!v) return 'Already filled.';
+    const wage = v.k==='tender' ? TENDERS[v.tier].wage : WORKERS[v.k].tiers[v.tier].wage; mgrRaise(wage*14 + S.cashFloor - cash, 'two weeks of wages'); mgrRehire(M);
+    return (staff.vacant||[]).some(x => x.k===arg) ? { no:'There is no leaf left to sell and the bank won’t lend more, so I can’t pay anyone.' } : 'Raised the cash and hired the replacement.'; }
+  if (k==='cash'){ const daily = mgrWage() + (staff.tender ? TENDERS[staff.tender].wage : 0) + staff.rollers.reduce((a,r) => a + rollerStats(r).wage, 0) + (staff.keeper ? KEEPER_WAGE : 0);
+    const got = mgrRaise(daily*14 - cash, 'wages'); return got > 0 ? `Raised ${fmt(got)}: about two weeks of wages.` : { no:'There is nothing I may sell and the bank won’t lend more.' }; }
+  if (k==='hot'){ const hot = lots.filter(l => l.stage==='fermenting' && l.temp >= 110); mgrRaise(hot.length*turnCost() - cash + 5, 'turning the pilones');
+    let n = 0; for (const l of hot){ if (cash < turnCost()) break; cash -= turnCost(); spend('Processing', turnCost()); l.temp = 85+wrnd()*2; l.turns++; l.hotWarned = false; n++; }
+    return n ? `Had ${n} pile${n>1?'s':''} turned.` : { no:'I couldn’t raise the money for a turn.' }; }
+  if (k==='mold'){ if (!know('pests')) return { no:'None of us knows how to treat blue mold. Ask Don Aurelio about pests.' };
+    const sick = map.flat().filter(t => t.owned && t.work==='seeded' && t.bmold>0); mgrRaise(sick.length*careCost('spray') - cash + 5, 'spray');
+    let n = 0; for (const t of sick){ if (cash < careCost('spray')) break; t.bmold = 0; t.prot = 21; t.pick = 2; cash -= careCost('spray'); spend('Crop care', careCost('spray')); n++; }
+    return n ? `Sprayed ${n} tile${n>1?'s':''}.` : { no:'I couldn’t raise the money for spray.' }; }
+  if (k==='pick'){ const ripe = map.flat().filter(t => t.owned && nextPrim(t) && t.g>=nextPrim(t).start); const n0 = Math.min(ripe.length, freeBarn(), 12);
+    mgrRaise((staff.hands ? n0*pieceRate() : n0*28) - cash + 5, 'the picking');
+    if (staff.hands) return cash >= pieceRate() ? 'Raised the cash: the field hands are picking again.' : { no:'I couldn’t raise the money to pay the field hands.' };
+    const n = Math.min(n0, Math.floor(cash/28)); if (!n) return { no:'I couldn’t raise the money for pickers.' };
+    const ts = ripe.sort((a,b) => urgency(b)-urgency(a)).slice(0, n); cash -= n*28; spend('Labor', n*28); harvest(ts, true); return `Hired day pickers for ${n} picking${n>1?'s':''}.`; }
+  if (k==='barn'){ const ripe = map.flat().filter(t => t.owned && nextPrim(t) && t.g>=nextPrim(t).start).length; let n = 0;
+    for (const l of lots.filter(l => l.stage==='cured' && !protectedLot(l)).sort((a,b) => a.q - b.q)){ if (freeBarn() >= Math.min(ripe, 12) || n>=4) break; const v = sellLot(l, M.price); mgrLog(`Sold ${lotName(l)} (cured) for ${fmt(v)} to make room in the barns.`); n++; }
+    return n ? `Sold ${n} lot${n>1?'s':''} of cured leaf to make room in the barns.` : { no:'Every lot in the barns is still curing or kept for your blends. Only another barn would help.' }; }
+  if (k==='ware'){ const wait = lots.filter(l => l.stage==='fermented').sort((a,b) => a.kg - b.kg)[0]; if (!wait) return 'Nothing is waiting.'; let n = 0;
+    for (const l of lots.filter(l => l.stage==='baled' && !protectedLot(l) && mgrSees(l) < GRADE_Q[S.keepMin]).sort((a,b) => a.q - b.q)){ if (ready('ware').some(w => wareCap(w)-wareUsed(w) >= wait.kg)) break; const v = sellLot(l, M.price); mgrLog(`Sold ${lotName(l)} (aged bales) for ${fmt(v)} to make room in the warehouse.`); n++; }
+    if (ready('ware').some(w => wareCap(w)-wareUsed(w) >= wait.kg)) return `Sold ${n} lot${n>1?'s':''} of lesser bales to make room.`;
+    const v = sellLot(wait, M.price); mgrLog(`Sold ${lotName(wait)} (fermented) for ${fmt(v)}: there was no room to age it.`); return `No lesser bales to clear, so I sold the waiting lot for ${fmt(v)} to free the pilón.`; }
+  if (k==='roll'){ if (S.seedMix==='blends') return { no:'The seed is in the plan already; it is the land that is short.' }; S.seedMix = 'blends'; return 'Changed the seed order to the blends’ mix, so the missing seed goes in the ground this season.'; }
+  if (k==='land'){ const P = fieldPlan(), short = Object.values(P.want).reduce((a,x) => a+x, 0); let n = 0, spent = 0;
+    for (const t of map.flat().filter(t => forSale(t) && !t.b && !t.city && ['field','grass','cleared'].includes(t.t)).sort((a,b) => a.price - b.price)){
+      if (n >= short || cash - t.price < S.cashFloor + 500) break; cash -= t.price; spend('Land', t.price); spent += t.price; t.owned = true; t.t = 'field'; n++; }
+    if (n) mgrLog(`Bought ${n} tile${n>1?'s':''} of open land for ${fmt(spent)} to plant for the blends.`);
+    return n ? `Bought ${n} tile${n>1?'s':''} of land for ${fmt(spent)}; I’ll plant ${n>1?'them':'it'} this season.` : { no:'There is no affordable open land for sale nearby. Clearing scrub or forest is your call.' }; }
+  if (k==='hum'){ if (staff.tender) return { no:'The tender is there; that barn just can’t hold its air in this weather.' };
+    if (cash < TENDERS.mid.wage*14 + S.cashFloor) mgrRaise(TENDERS.mid.wage*14 + S.cashFloor - cash, 'a barn tender');
+    if (cash < TENDERS.mid.wage*14) return { no:'I couldn’t raise the money for a barn tender.' }; staff.tender = 'mid'; return 'Hired Rogelio to tend the barns.'; }
+  return { no:'This one needs you.' };
+}
+function mgrHandle(key){
+  const r = mgrFix(key), first = farmMgr() ? farmMgr().name.split(' ')[0] : 'The manager';
+  if (r && r.no) return r;
+  if (staff.mgrAlerts) delete staff.mgrAlerts[key];
+  staff.mgrHandled = staff.mgrHandled || {}; staff.mgrHandled[key] = dayInt;
+  mgrLog(`Handled: ${r}`); return r;
+}
 function mgrAlert(key, text){
   staff.mgrAlerts = staff.mgrAlerts || {};
-  if (staff.mgrAlerts[key]) return; staff.mgrAlerts[key] = { d:dayInt, t:text };
+  if (staff.mgrAlerts[key]) return;
+  const S = mgrSet(), first = farmMgr() ? farmMgr().name.split(' ')[0] : '';
+  // standing order: handle it and tell me after. Once a week per problem; if it comes straight back, ask.
+  if (farmMgr() && S.problems==='handle' && !((staff.mgrHandled||{})[key] > dayInt-7)){
+    const r = mgrHandle(key); if (!(r && r.no)){ toast(`${first} handled it: ${r}`); return; } text += ` I tried to handle it: ${r.no}`; }
+  staff.mgrAlerts[key] = { d:dayInt, t:text };
   staff.mgrLog = staff.mgrLog || []; staff.mgrLog.unshift({ d:dayInt, t:`Needs you: ${text}`, slip:false }); staff.mgrLog.length = Math.min(staff.mgrLog.length, 14);
   const was = speedIdx || 1; setSpeed(0);
-  say(farmMgr() ? mgrCast() : 'mateo', text, [{ label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr'; setSpeed(was); } }, { label:'I’ll deal with it', fn:()=>setSpeed(was) }], null, true);
+  const choices = farmMgr() ? [
+    { label:'Handle it', fn:()=>{ const r = mgrHandle(key); if (r && r.no){ say(mgrCast(), `I can’t: ${r.no}`, [{ label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr'; toast('Still paused. Press play when you’re ready.'); } }, { label:'Leave it to me', fn:()=>setSpeed(was) }], null, true); } else { toast(`${first}: ${r}`); setSpeed(was); } } },
+    { label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr'; toast('Still paused. Press play when you’re ready.'); } },
+    { label:'Leave it to me', fn:()=>setSpeed(was) } ]
+    : [{ label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr'; toast('Still paused. Press play when you’re ready.'); } }, { label:'Leave it to me', fn:()=>setSpeed(was) }];
+  say(farmMgr() ? mgrCast() : 'mateo', text, choices, null, true);
   attention(`${farmMgr() ? farmMgr().name : 'The farm'} needs you. The game is paused.`);
 }
 // The manager walks the whole farm every morning. What can be fixed with the people and cash at hand is fixed and
@@ -3102,7 +3168,7 @@ function bizAct(kind, id, extra){
     const o = biz.orders.find(x => x.productId===p.id); if (o){ o.qty += 100; o.stalled = false; } else biz.orders.push({ id:biz.nextId++, productId:p.id, qty:100, done:0 }); return true; }
   if (kind==='more'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty += +extra || 100; o.stalled = false; } return true; }
   if (kind==='less'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty = Math.max(o.done + 1, o.qty - 50); } return true; }
-  if (kind==='nodisc'){ biz.noDiscount = extra==='1'; return true; }
+  if (kind==='nodisc'){ biz.noDiscount = extra==='1'; if (biz.noDiscount) dropDiscountAsks(); return true; }
   if (kind==='wsb'){ wsDraft.b = id; return true; }
   if (kind==='bcancel'){ const ids = biz.products.filter(p => p.blendId===id).map(p => p.id), n = biz.orders.filter(o => ids.includes(o.productId)).reduce((a,o) => a + o.qty - o.done, 0);
     biz.orders = biz.orders.filter(o => !ids.includes(o.productId)); const B = blendOf(id);
@@ -3442,7 +3508,7 @@ function peopleTick(){
   const season = [11,0,1,2,3].includes(curMonth()), stand = ready('stand')[0];
   const best = biz.products.filter(p => stockOf(p,true,1)>=25).sort((a,b)=>b.price-a.price)[0];
   if (stand && season && best && Math.random()<0.04 && cool('tourists', 25)){
-    let offer = Math.round(25*best.price*(0.72 + Math.random()*0.45)); if (biz.noDiscount) offer = Math.max(offer, Math.round(25*best.price)); const cheap = offer < 25*best.price;
+    let offer = Math.round(25*best.price*(0.72 + Math.random()*0.45)); if (biz.noDiscount) offer = Math.max(offer, Math.ceil(25*best.price)); const cheap = offer < 25*best.price;
     say('tourists', `We stopped for coffee and ended up staying all afternoon! Could you put together a box of 25 ${esc(best.name)} for us to take home? ${cheap ? `Since it’s a whole box, would you do it for ${fmt(offer)}?` : `We’d happily pay ${fmt(offer)}, with a little note in the lid.`}` + dealBox(shelfCompare(best, 1, 25, offer)),
       [{ label:`Sell the box (${fmt(offer)})`, fn:()=>{ const got = takeStock(best, 1, 25); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(best, 1, got, offer*got/25, 'deal'); biz.rep = Math.min(100, biz.rep+1.5); toast(`Sold a box of ${got} for ${fmt(offer*got/25)}. They promised to tell their friends.`); } }, { label:'Sorry, not today' }, ...(cheap ? [noDiscountBtn] : [])]);
   }
@@ -3470,7 +3536,10 @@ function peopleTick(){
     say('celestino', `I tasted some of your leaf at Beltrán’s. Not bad, for a newcomer. I’ll buy ${lotName(lot)}, all ${Math.round(lot.kg)} kg, for ${fmt(offer)}. That’s more than the factory will give you, and you know it.` + dealBox([['The factory would pay', `${Math.round(lot.kg)} kg × ${fmt2(price(lot))} = ${fmt(fac)}`], ['Don Celestino offers', `${fmt(offer)} · ${fmt2(offer/lot.kg)} a kg`], ['Above the factory', `+${fmt(offer-fac)} (+15%)`, 'up'], ['Or roll it yourself', `enough leaf for about ${Math.round(lot.kg/0.012).toLocaleString('en-US')} robustos`]], 'Leaf sold is money today. Leaf rolled into cigars is worth far more, but only if you can sell them.'), [{ label:`Sell it (${fmt(offer)})`, fn:()=>{ if (!lots.includes(lot)) return; cash += offer; finRev('rev.leaf', offer); year.leafSales += offer; year.soldKg += lot.kg; lots.splice(lots.indexOf(lot),1); toast(`Sold to Don Celestino for ${fmt(offer)}.`); } }, { label:'I’m keeping it' }]);
   }
 }
-const noDiscountBtn = { label:'No discounts, as a policy', fn:()=>{ biz.noDiscount = true; toast('From now on you sell at your shelf price. Nobody will ask for a discount; you can change this on the Sales tab.'); } };
+// requests for a discount already waiting in the queue go too, once the policy is set
+const isDiscountAsk = m => m.who==='collector' || (m.who==='tourists' && /would you do it for/.test(m.text));
+function dropDiscountAsks(){ const n = talk.queue.length; talk.queue = talk.queue.filter(m => !isDiscountAsk(m)); if (talk.queue.length !== n) renderTalk(); }
+const noDiscountBtn = { label:'No discounts, as a policy', fn:()=>{ biz.noDiscount = true; setTimeout(dropDiscountAsks, 0); toast('From now on you sell at your shelf price. Nobody will ask for a discount; you can change this on the Sales tab.'); } };
 function aurelioTick(){
   if (!talk.flags.hello && gameId) say('aurelio', 'So you’re the one who bought the land up the hill. Fifty years I’ve farmed this valley. Come and sit with me when you can. A cup of coffee costs nothing, and you have a lot to learn.', [{ label:'Visit him now', fn:()=>openElder() }, { label:'Later' }], 'hello');
   const L = LESSONS.find(x => x.need>0 && x.need<=elder.trust && !elder.read.has(x.id) && !talk.flags['les-'+x.id]);
@@ -5744,6 +5813,7 @@ function act(kind, id, extra){
   else if (kind==='hands'){ staff.hands = Math.max(0, Math.min(16, staff.hands + (+extra))); }
   else if (kind==='tender'){ const nt = extra==='none' ? null : extra; if (nt && (!TENDERS[nt] || (!learned('vent') && staff.tender!==nt))) return; staff.tender = nt; if (staff.tender) toast(staff.tender==='pro' ? 'Doña Carmen will tend your barns whenever leaf is curing. She watches the sky.' : staff.tender==='mid' ? 'Rogelio will tend your barns whenever leaf is curing.' : 'Tito will tend your barns. He’s cheap, and he’s family… of someone.'); }
   else if (kind==='manager'){ if (extra==='none') staff.manager = null; else if (FARM_MGRS[extra] && (pipelineReady() || staff.manager)){ const was = staff.manager; staff.manager = extra; mgrSet(); if (was!==extra) toast(`${FARM_MGRS[extra].name} runs the leaf now, by your standing orders.`); } }
+  else if (kind==='mgrfix'){ const r = mgrHandle(String(extra)); toast(r && r.no ? `${farmMgr() ? farmMgr().name.split(' ')[0] : 'The manager'} can’t: ${r.no}` : `${farmMgr().name.split(' ')[0]}: ${r}`); }
   else if (kind==='mgrset'){ const [k, v] = String(extra).split('='), O = MGR_OPTS[k]; const o = O && O.opts.find(x => String(x[0])===v); if (o){ mgrSet()[k] = o[0]; } }
   else if (kind==='handtier'){ if (!HAND_TIERS[extra] || (extra==='pro' && !learned('pick'))) return; staff.handTier = extra; }
   else if (kind==='crew'){ const [k, tier] = String(extra).split(':'), W0 = WORKERS[k]; if (!W0) return;
@@ -5823,14 +5893,15 @@ function managerCard(){
   h += `<div class="muted">${M ? M.note : 'Decides each day which leaf moves on through the pilón, the bales and the aging house, and which goes to the factory, by the standing orders below.'} ${MGR_HELP}</div>`;
   if (M){ const S0 = mgrSet(), d = mgrDuties(); h += `<div class="row" style="margin-top:5px"><span>Wage now</span><b>${fmt(mgrWage())} a day</b></div><div class="muted" style="font-size:11.5px">${fmt(M.wage)} for the leaf${S0.plant!=='off' ? ` + ${fmt(M.wage)} for running the fields` : ''}${S0.targets ? ` + ${fmt(M.wage)} for the cigar stock` : ''}.${d<3 ? ` Each extra duty below adds ${fmt(M.wage)} a day.` : ''}</div>`; }
   h += `<div style="margin-top:6px"><b style="font-size:12px">Standing orders</b></div>`;
-  const GROUPS = { leaf:'The leaf', fields:'The fields', stock:'Cigar stock' };
+  const GROUPS = { problems:'Problems', leaf:'The leaf', fields:'The fields', stock:'Cigar stock' };
   for (const [g, gname] of Object.entries(GROUPS)){ h += `<div class="wsstep" style="margin-top:7px">${gname}</div>`;
+  if (g==='problems') h += `<div class="muted" style="font-size:11px">Handling it can mean selling the poorest leaf that isn’t kept for your cigars, borrowing from the bank (up to $6,000), hiring help or buying open land for the plan. If it can’t be handled, or comes straight back within a week, the game pauses and asks you.</div>`;
   if (g==='fields' && !know('land')) h += `<div class="muted" style="font-size:11px">Cover crops and soil care wait until Don Aurelio teaches you about the land.</div>`;
   for (const [k, O] of Object.entries(MGR_OPTS).filter(([,O]) => (O.g||'leaf')===g)) h += `<div style="margin:5px 0 0"><div class="muted" style="font-size:11.5px">${O.label}</div><div class="vents" style="flex-wrap:wrap;gap:3px;margin-top:2px">${O.opts.map(([v,n]) => `<button class="btn sm${S[k]===v?' on':''}" data-act="mgrset" data-x="${k}=${v}">${n}</button>`).join('')}</div></div>`;
   if (g==='fields') h += fieldPlanHTML(); }
   h += `<div class="muted" style="margin-top:5px">Cured and fermented leaf held back waits in the barn or the pilón for you to decide. Lesser bales kept for cheaper blends age on in the warehouse. Every morning the manager also checks the barns, pilones, fields, warehouse, workshop and cash. With no tender, turner, sprayer or field hands, the manager sets the barn vents, has hot piles turned, sprays blue mold and hires day pickers, while there is money. Anything that can’t be handled pauses the game and comes to you. With a manager, your aging-house hand bales only what the manager sends.</div>`;
   const open = Object.values(staff.mgrAlerts||{});
-  if (M && open.length) h += `<div style="margin-top:6px"><b class="bad" style="font-size:12px">Needs you</b></div>` + open.map(a => `<div class="muted" style="font-size:11.5px;margin-top:2px">⚠️ ${esc(dateOf(a.d))}: ${esc(a.t)}</div>`).join('');
+  if (M && open.length) h += `<div style="margin-top:6px"><b class="bad" style="font-size:12px">Needs you</b></div>` + Object.entries(staff.mgrAlerts||{}).map(([k,a]) => `<div class="lot" style="display:flex;font-size:11.5px"><div class="grow muted">⚠️ ${esc(dateOf(a.d))}: ${esc(a.t)}</div><div class="acts"><button class="btn xs" data-act="mgrfix" data-x="${esc(k)}">Handle it</button></div></div>`).join('');
   else if (M) h += `<div class="muted" style="margin-top:6px">${M.name.split(' ')[0]} checks the barns, the pilones, the fields, the warehouse, the workshop and the cash every morning. Anything that can’t be handled pauses the game and comes to you.</div>`;
   if (M || st.moves){
     h += `<div class="row" style="margin-top:6px"><span>Decisions · misjudged</span><b class="${st.moves && st.slips/st.moves>0.15?'bad':''}">${st.moves} · ${st.slips}</b></div>`;
