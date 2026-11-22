@@ -1857,7 +1857,7 @@ function mgrSees(l){
   const M = farmMgr(); if (!l.mq || l.mq.s!==l.stage || l.mq.m!==staff.manager){ const z = (wrnd()+wrnd()+wrnd()-1.5)*2; l.mq = { s:l.stage, m:staff.manager, q:l.q*(1+z*M.noise) }; }
   return l.mq.q;
 }
-const protectedLot = l => l.bought || biz.blends.some(B => B.wrap===l.id || B.bind===l.id || B.fill.some(f => f.lot===l.id));
+const protectedLot = l => l.bought || biz.blends.some(B => !B.retired && (B.wrap===l.id || B.bind===l.id || B.fill.some(f => f.lot===l.id)));
 const reserveOk = l => lots.filter(x => x!==l && x.v===l.v && x.pr===l.pr && ['cured','fermented','baled'].includes(x.stage)).reduce((s2,x) => s2+x.kg, 0) >= staff.mgr.reserve;
 function mgrLog(text, slip){
   staff.mgrLog = staff.mgrLog || []; staff.mgrLog.unshift({ d:dayInt, t:text, slip:!!slip }); staff.mgrLog.length = Math.min(staff.mgrLog.length, 14);
@@ -1923,7 +1923,7 @@ function managerWatch(M){
     if (wait.length && !wait.some(l => ready('ware').some(w => wareCap(w)-wareUsed(w) >= l.kg))) raise('ware', `${wait.length} finished lot${wait.length>1?'s are':' is'} waiting to be baled and the aging warehouse is full. ${wait.length>1?'They hold':'It holds'} the pilones, so no new leaf can ferment.`); }
   // the workshop
   const stalled = biz.orders.filter(o => o.stalled).map(o => prodOf(o.productId)).filter(Boolean);
-  if (stalled.length) raise('roll', `Rolling of ${stalled.map(p => p.name).join(', ')} has stopped: its leaf ran out. A new blend needs you at the blending table.`);
+  if (stalled.length) raise('roll', `Rolling of ${stalled.map(p => p.name).join(', ')} has paused: its leaf ran out and there is nothing similar. Make a new blend, or retire this one, in the Workshop tab.`);
   // cash for wages
   const daily = M.wage + (staff.tender ? TENDERS[staff.tender].wage : 0) + staff.rollers.reduce((a,r) => a + rollerStats(r).wage, 0) + (staff.keeper ? KEEPER_WAGE : 0);
   if (cash < daily*3) { const dd = Math.max(0, Math.floor(cash/daily)); raise('cash', `There is cash for ${dd ? `about ${dd} more day${dd===1?'':'s'}` : 'less than a day'} of wages (${fmt(daily)} a day). After that, people start to quit.`); }
@@ -2438,7 +2438,7 @@ function pipeline(){
   const daysStock = sold > 0.05 ? sellable/sold : (sellable ? Infinity : 0);
   const out = [];
   const stalled = biz.orders.filter(x => x.stalled);
-  stalled.forEach(x => { const p = prodOf(x.productId); out.push(['bad', `${p.name} has stopped: it ran out of leaf. Make a new blend from the leaf you have.`]); });
+  stalled.forEach(x => { const p = prodOf(x.productId); out.push(['bad', `${p.name} is paused: its blend ran out of leaf. It restarts by itself when similar leaf comes in. Cancel it or retire the blend if you are done with it.`]); });
   if (pend && !staff.rollers.length) out.push(['bad', `${pend} cigars are on order, but nobody is rolling. Hire rollers.`]);
   const targeted = biz.products.filter(p => p.target);
   if (!pend && staff.rollers.length && empty7 && targeted.length){ const sug = targeted.map(p => `${p.name}: about ${Math.max(100, Math.ceil(soldPace(p.id)*42/50)*50)}`).join(', ');
@@ -2528,7 +2528,7 @@ function addBatch(p, g, n, cons, defects){
 // keep-on-hand targets: the workshop tops up its own orders
 function autoOrders(){
   for (const p of biz.products){
-    if (!p.target) continue;
+    if (!p.target || (blendOf(p.blendId)||{}).retired) continue;
     const need = p.target - stockOf(p) - pendingOf(p.id);
     if (need < 25) continue;
     const q = Math.ceil(need/25)*25, o = biz.orders.find(x => x.productId===p.id);
@@ -2537,26 +2537,31 @@ function autoOrders(){
   }
 }
 // when a lot in a blend runs low, the blender swaps in the closest leaf you have: same seed, same priming
+function roleLeaf(B, id){ const l = lots.find(x => x.id===id), was = biz.lotInfo && biz.lotInfo[id]; return { l, v: l ? l.v : was && was.v, pr: l ? l.pr : was && was.pr }; }
+const altLeaf = (id, v, pr, need) => leafLots().filter(x => x.id!==id && x.v===v && x.pr===pr && x.kg >= Math.max(1, need*3)).sort((a,c) => c.q - a.q || c.kg - a.kg)[0];
 function keepBlend(p){
-  const B = blendOf(p.blendId); if (!B) return false;
+  const B = blendOf(p.blendId); if (!B || B.retired) return false;
   const use = leafUse(p), roles = [['wrap', B.wrap], ['bind', B.bind], ...B.fill.map((f,i) => ['fill'+i, f.lot])];
   let changed = [];
   for (const [role, id] of roles){ const l = lots.find(x => x.id===id), need = (use[id]||0)*60; if (l && l.kg >= need) continue;
     const old = l || { v:null, pr:null }, was = B.made && biz.lotInfo && biz.lotInfo[id];
     const v = old.v ?? (was && was.v), pr = old.pr ?? (was && was.pr); if (v==null) continue;
-    const alt = leafLots().filter(x => x.id!==id && x.v===v && x.pr===pr && x.kg >= Math.max(1, need*3)).sort((a,c) => c.q - a.q || c.kg - a.kg)[0]; if (!alt) continue;
+    const alt = altLeaf(id, v, pr, need); if (!alt) continue;
     if (role==='wrap') B.wrap = alt.id; else if (role==='bind') B.bind = alt.id; else B.fill[+role.slice(4)].lot = alt.id;
     changed.push([id, alt]); }
   if (!changed.length) return false;
   const g = id => lots.find(l => l.id===id);
   if (g(B.wrap) && g(B.bind) && B.fill.every(f => g(f.lot))){ const before = B.profile.score; B.profile = blendProfile(g(B.wrap), g(B.bind), B.fill.map(f => ({ lot:g(f.lot), pct:f.pct })));
+    B.subs = [{ d:dayInt, sw:changed.map(([o,a]) => [o, a.id]), from:before, to:B.profile.score }, ...(B.subs||[])].slice(0, 6);
     toast(`Your blender kept ${B.name} going with similar leaf: ${changed.map(([o,a]) => `Lot ${a.id} for Lot ${o}`).join(', ')}. The blend now scores ${B.profile.score} (was ${before}).`); }
   return true;
 }
 function rememberLots(){ biz.lotInfo = biz.lotInfo || {}; for (const l of lots) if (!biz.lotInfo[l.id]) biz.lotInfo[l.id] = { v:l.v, pr:l.pr }; }
 function workshopTick(){
   rememberLots();
-  for (const o of biz.orders){ const p = prodOf(o.productId); if (p && keepBlend(p) && o.stalled){ o.stalled = false; } }
+  // every blend in use is checked daily, with or without orders, so one that ran dry picks up matching leaf when it comes in
+  for (const B of biz.blends) if (!B.retired) keepBlend({ blendId:B.id, vit:'robusto' });
+  for (const o of biz.orders){ const p = prodOf(o.productId); if (p && o.stalled && leafSupply(p).n > 0) o.stalled = false; }
   autoOrders();
   const shops = ready('galera'); if (!shops.length || !staff.rollers.length) return;
   const rec = dayRec();
@@ -2568,7 +2573,7 @@ function workshopTick(){
     let n = Math.min(o.qty - o.done, Math.round(RS.rate*V.rate*(0.9+0.2*Math.random())));
     const use = leafUse(p);
     for (const [id, kg] of Object.entries(use)){ const l = lots.find(x => x.id===+id); n = Math.min(n, l ? Math.floor(l.kg/kg) : 0); }
-    if (n<=0){ o.stalled = true; attention(`Production of ${p.name} stopped: one of its leaf lots ran out. Make a new blend with the leaf you have.`); continue; }
+    if (n<=0){ o.stalled = true; attention(`Production of ${p.name} is paused: one of its leaf lots ran out and there is no similar leaf. It restarts when matching leaf comes in; see the blend in the Workshop tab.`); continue; }
     let leafCost = 0;
     for (const [id, kg] of Object.entries(use)){ const l = lots.find(x => x.id===+id); leafCost += kg*n*price(l); l.kg -= kg*n; if (l.kg < 0.05) lots.splice(lots.indexOf(l),1); }
     const cons = Math.max(0.3, Math.min(0.99, RS.cons - (V.diff-1)*(1-RS.cons)*1.2 + (Math.random()-0.5)*0.04));
@@ -2826,13 +2831,54 @@ const rollRate = () => staff.rollers.reduce((a,r) => a + rollerStats(r).rate, 0)
 const avgCons = () => staff.rollers.length ? staff.rollers.reduce((a,r) => a + rollerStats(r).cons, 0)/staff.rollers.length : ROLLER_TIERS.skilled.cons;
 const vitSeconds = vit => { const c0 = avgCons(), c = Math.max(0.3, Math.min(0.99, c0 - (VITOLAS[vit].diff-1)*(1-c0)*1.2)); return secShare(c); };
 let wsDraft = { b:null, v:'robusto', q:100 };
+// A blend is a recipe: a seed and priming for the wrapper, the binder and each filler. It starts from the lots you
+// chose; as one runs low the blender moves to the best lot of the same seed and priming, so the blend carries on.
+const ROLE_NAME = { wrap:'Wrapper', bind:'Binder' };
+function blendRoles(B){
+  const g = VITOLAS.robusto.g/1000, rs = [['wrap', B.wrap, g*0.10, null], ['bind', B.bind, g*0.15, null], ...B.fill.map(f => ['fill', f.lot, g*0.75*f.pct/100, f.pct])];
+  return rs.map(([role, id, per, pct]) => { const R = roleLeaf(B, id), need = per*60, ok = R.l && R.l.kg >= need, alt = !ok && R.v!=null ? altLeaf(id, R.v, R.pr, need) : null;
+    return { role, id, pct, l:R.l, kind: R.v!=null ? `${VARS[R.v].name} ${PRIM[R.pr].name.toLowerCase()}` : 'unknown leaf', state: ok ? 'ok' : alt ? 'switch' : 'out', alt, n: R.l ? Math.floor(R.l.kg/per) : 0 }; });
+}
+function blendStatus(B){
+  if (B.retired) return { k:'retired', t:'Retired', cls:'muted' };
+  const R = blendRoles(B), n = leafSupply({ blendId:B.id, vit:'robusto' }).n;
+  if (R.some(r => r.state==='out')) return { k:'waiting', t:'Waiting for leaf', cls:'bad', n };
+  if (R.some(r => r.state==='switch') || n < 300) return { k:'low', t:'Running low', cls:'warn', n };
+  return { k:'ok', t:'In production', cls:'ok', n };
+}
+const BST_COL = { ok:'#2f7a43', warn:'#b5651d', bad:'#b23a2a', muted:'#8a7a60' };
+function blendCardHTML(B){
+  const P = B.profile, st = blendStatus(B), mine = biz.products.filter(p => p.blendId===B.id), ords = biz.orders.filter(o => mine.some(p => p.id===o.productId)), onOrder = ords.reduce((a,o) => a + o.qty - o.done, 0);
+  let h = `<div class="card"${B.retired?' style="opacity:.75"':''}><div class="row"><span class="t" style="opacity:1">${esc(B.name)} <span class="tg" style="background:${BST_COL[st.cls]};color:#fff">${st.t}</span></span><span>${P.score}/100</span></div>`;
+  h += `<div class="muted">${STRENGTH_WORDS(P.strength)} · ${P.notes.slice(0,3).join(', ')}</div>`;
+  if (!B.retired){
+    h += `<div style="margin-top:4px;font-size:11.5px"><b>Recipe</b> · what the blender looks for, and the lot in use now</div>`;
+    for (const r of blendRoles(B)) h += `<div class="row" style="font-size:11.5px"><span>${r.role==='fill' ? `Filler ${r.pct}%` : ROLE_NAME[r.role]} · ${r.kind}</span><span class="${r.state==='out'?'bad':r.state==='switch'?'':'muted'}">${r.l ? `Lot ${r.id}, ${grade(r.l.q)}, ${kgf(r.l.kg)}` : `Lot ${r.id} used up`}${r.state==='switch' ? ` · switching to Lot ${r.alt.id} (${grade(r.alt.q)})` : r.state==='out' ? ' · no similar leaf' : ''}</span></div>`;
+    h += `<div class="muted" style="margin-top:3px">${st.k==='waiting' ? `<b class="bad">Its orders are paused.</b> They and its keep-on-hand targets start again by themselves when you have ${blendRoles(B).filter(r => r.state==='out').map(r => r.kind).join(' and ')} leaf (cured or later). Or retire it.` : `Leaf for about ${st.n.toLocaleString('en-US')} Robustos.`}</div>`;
+  } else h += `<div class="muted" style="margin-top:3px">Retired: no orders, keep-on-hand targets off, and its leaf is free for other blends or to sell. Cigars already made still sell.</div>`;
+  if (mine.length) h += `<div class="muted" style="margin-top:3px">${mine.map(p => { const S = stockBy(p); return `${VITOLAS[p.vit].name}: ${(S.sell1+S.sell2).toLocaleString('en-US')} for sale, ${(S.rest+S.rest2).toLocaleString('en-US')} resting${pendingOf(p.id)?`, ${pendingOf(p.id).toLocaleString('en-US')} on order`:''}${p.target?`, target ${p.target}`:''}`; }).join(' · ')}</div>`;
+  if (B.subs && B.subs.length) h += `<div class="muted" style="margin-top:3px;font-size:11px">Switched leaf: ${B.subs.slice(0,3).map(x => `${dateAt(x.d)} ${x.sw.map(([o,n]) => `Lot ${o}→${n}`).join(', ')} (score ${x.from}→${x.to})`).join(' · ')}</div>`;
+  h += `<div class="vents" style="flex-wrap:wrap;gap:3px;margin-top:5px">`;
+  if (!B.retired) h += `<button class="btn xs" data-act="wspick" data-id="${B.id}" data-x="${(mine[0]||{}).vit||'robusto'}">Order…</button>`;
+  if (ords.length) h += `<button class="btn xs" data-act="bcancel" data-id="${B.id}">Cancel its orders (${onOrder.toLocaleString('en-US')})</button>`;
+  h += B.retired ? `<button class="btn xs" data-act="bretire" data-id="${B.id}" data-x="0">Bring it back</button>` : `<button class="btn xs" data-act="bretire" data-id="${B.id}" data-x="1" title="Cancel its orders, switch off its targets and free its leaf">Retire</button>`;
+  return h + `</div></div>`;
+}
+const BLEND_HELP = `A blend is a recipe: which seed and priming go into the wrapper, the binder and the filler. You start it from particular lots. When one runs low, your blender switches to your best lot of the same seed and priming, so the blend keeps going (its score can move a little with the new leaf). When there is nothing similar, its orders pause, and they start again by themselves when matching leaf comes in. Retire a blend you are finished with.`;
+function blendsHTML(){
+  if (!biz.blends.length) return `<div class="muted">${know('blend') ? 'No blends yet. Make one at the blending table.' : 'Don Aurelio hasn’t taught you to blend yet (“The blender’s table”).'}</div>`;
+  const live = biz.blends.filter(B => !B.retired), old = biz.blends.filter(B => B.retired);
+  let h = `<div class="muted" style="margin-bottom:4px">${BLEND_HELP}</div>` + live.map(blendCardHTML).join('');
+  if (old.length) h += `<details style="margin-top:4px"><summary class="muted" style="cursor:pointer">Retired blends (${old.length})</summary>${old.map(blendCardHTML).join('')}</details>`;
+  return h;
+}
 // the rolling queue: one line per order, rolled top to bottom
 function queueHTML(){
   if (!biz.orders.length) return `<div class="muted">Nothing is on order${staff.rollers.length ? ', so the rollers are idle (they still get half wage)' : ''}. Add an order below${biz.products.some(p => p.target)?', or raise a keep-on-hand target':''}.</div>`;
   const R = rollRate(); let t = 0, h = '';
   biz.orders.forEach((o,i) => { const p = prodOf(o.productId); if (!p) return; const V = VITOLAS[p.vit], left = o.qty - o.done, LS = leafSupply(p), perDay = R*V.rate, start = t;
     t += perDay ? left/perDay : 0; const fin = Math.max(1, Math.ceil(t)), B = blendOf(p.blendId);
-    const status = o.stalled ? `<b class="bad">Stopped: its leaf ran out.</b> Make a new blend at the blending table.` : !staff.rollers.length ? `<b class="bad">Waiting: you have no rollers.</b>` : start < 1 ? `<b>Rolling now</b> · about ${Math.round(perDay)} a day` : `<b>Next in line</b> · starts in about ${Math.ceil(start)} day${Math.ceil(start)===1?'':'s'}`;
+    const status = o.stalled ? `<b class="bad">Paused: its leaf ran out.</b> It restarts when similar leaf comes in, or cancel it` : !staff.rollers.length ? `<b class="bad">Waiting: you have no rollers.</b>` : start < 1 ? `<b>Rolling now</b> · about ${Math.round(perDay)} a day` : `<b>Next in line</b> · starts in about ${Math.ceil(start)} day${Math.ceil(start)===1?'':'s'}`;
     h += `<div class="lot"><span class="vthumb">${cigarSVG(p.vit, 92, wrapColOf(B))}</span><div class="grow"><b>${i+1}. ${o.qty.toLocaleString('en-US')} × ${esc(p.name)}</b>${o.auto?' <span class="tg" title="Ordered by itself to keep stock at your target">keep-on-hand</span>':''}`
       + `<div class="bar"><div style="width:${o.done/o.qty*100}%"></div></div><span class="muted">${status} · ${o.done.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} rolled</span>`
       + (o.stalled || !staff.rollers.length ? '' : `<br><span class="muted">Finished about ${dateAt(dayInt+fin)} · then ${REST_DAYS} days in the cedar room · <b>on sale about ${dateAt(dayInt+fin+REST_DAYS)}</b></span>`)
@@ -2843,9 +2889,11 @@ function queueHTML(){
 // placing an order: pick a blend, a shape and how many
 function orderFormHTML(){
   if (!biz.blends.length) return `<div class="muted">To order cigars you need a blend first: which leaf goes in the wrapper, binder and filler. ${know('blend') ? 'Make one at the blending table.' : 'Don Aurelio will teach you blending (“The blender’s table”).'}</div>`;
-  if (!biz.blends.some(B => B.id===wsDraft.b)) wsDraft.b = biz.blends[biz.blends.length-1].id;
+  const live = biz.blends.filter(B => !B.retired);
+  if (!live.length) return `<div class="muted">All your blends are retired. Bring one back below, or make a new one at the blending table.</div>`;
+  if (!live.some(B => B.id===wsDraft.b)) wsDraft.b = live[live.length-1].id;
   const B = blendOf(wsDraft.b), P = B.profile, V = VITOLAS[wsDraft.v], dummy = { blendId:B.id, vit:wsDraft.v }, LS = leafSupply(dummy), R = rollRate();
-  let h = `<div class="wsform"><div class="wsstep">1 · Which blend</div><div class="vents" style="flex-wrap:wrap;gap:3px">${biz.blends.map(x => `<button class="btn sm${x.id===B.id?' on':''}" data-act="wsb" data-id="${x.id}">${esc(x.name)} · ${x.profile.score}</button>`).join('')}</div>`;
+  let h = `<div class="wsform"><div class="wsstep">1 · Which blend</div><div class="vents" style="flex-wrap:wrap;gap:3px">${live.map(x => { const st = blendStatus(x); return `<button class="btn sm${x.id===B.id?' on':''}" data-act="wsb" data-id="${x.id}" title="${st.t}">${esc(x.name)} · ${x.profile.score}${st.k==='waiting'?' · no leaf':''}</button>`; }).join('')}</div>`;
   h += `<div class="muted" style="margin-top:2px">${esc(B.name)}: ${STRENGTH_WORDS(P.strength).toLowerCase()}, ${P.notes.slice(0,3).join(', ')}. Scores ${P.score}/100.</div>`;
   h += `<div class="wsstep">2 · Which shape (vitola)</div><div class="vgrid">`;
   for (const [k,V0] of Object.entries(VITOLAS)){ const I = VIT_INFO[k], ls = leafSupply({ blendId:B.id, vit:k }).n;
@@ -2881,6 +2929,7 @@ function targetsHTML(){
   if (!biz.products.length) return `<div class="muted">No cigars yet.</div>`;
   let h = `<div class="muted" style="margin-bottom:4px">The workshop orders by itself when stock (resting and for sale) falls below your target, while there is leaf. Aim for about six weeks of sales: three resting, three on the shelf.</div>`;
   for (const p of biz.products){ const have = stockOf(p), sp = soldPace(p.id), sug = sp>0.05 ? Math.max(50, Math.ceil(sp*42/50)*50) : null;
+    if ((blendOf(p.blendId)||{}).retired){ if (have) h += `<div class="lot"><div class="grow"><b>${esc(p.name)}</b><br><span class="muted">${have} on hand · blend retired, nothing more will be made</span></div></div>`; continue; }
     h += `<div class="lot"><div class="grow"><b>${esc(p.name)}</b><br><span class="muted">${have} on hand · ${pendingOf(p.id)} on order · sells ${sp.toFixed(1)} a day${sug?` · suggested ${sug}`:''}</span></div><div class="acts" style="align-items:center"><button class="btn sm" data-act="target" data-id="${p.id}" data-x="-50" ${p.target?'':'disabled'}>−50</button><b style="min-width:52px;text-align:center">${p.target?p.target:'off'}</b><button class="btn sm" data-act="target" data-id="${p.id}" data-x="50">+50</button></div></div>`; }
   return h;
 }
@@ -2893,6 +2942,7 @@ function workshopTab(){
   h += `<h4>The rolling queue</h4>` + queueHTML();
   h += `<h4>Order cigars</h4>` + orderFormHTML();
   h += `<div class="acts" style="justify-content:flex-start;margin:-2px 0 6px"><button class="btn sm" data-act="bench" ${know('blend')?'':'disabled'}>Open the blending table</button>${ready('galera').length?`<button class="btn sm" data-act="enter" data-x="workshop">Go inside the workshop</button>`:''}</div>`;
+  h += `<h4>Your blends</h4>` + blendsHTML();
   if (biz.products.length){ h += `<h4>The cedar room</h4>` + cedarHTML(); h += `<h4>Keep on hand</h4>` + targetsHTML(); }
   return h;
 }
@@ -2943,11 +2993,19 @@ function bizAct(kind, id, extra){
   if (kind==='more'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty += +extra || 100; o.stalled = false; } return true; }
   if (kind==='less'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty = Math.max(o.done + 1, o.qty - 50); } return true; }
   if (kind==='wsb'){ wsDraft.b = id; return true; }
+  if (kind==='bcancel'){ const ids = biz.products.filter(p => p.blendId===id).map(p => p.id), n = biz.orders.filter(o => ids.includes(o.productId)).reduce((a,o) => a + o.qty - o.done, 0);
+    biz.orders = biz.orders.filter(o => !ids.includes(o.productId)); const B = blendOf(id);
+    toast(`Cancelled ${n.toLocaleString('en-US')} ${B?B.name:''} cigars on order. What was already rolled stays in the cedar room.${biz.products.some(p => ids.includes(p.id) && p.target) ? ' Its keep-on-hand targets are still on and will order again: retire the blend to stop them.' : ''}`); return true; }
+  if (kind==='bretire'){ const B = blendOf(id); if (!B) return true; const ps = biz.products.filter(p => p.blendId===id);
+    if (extra==='1'){ B.retired = true; biz.orders = biz.orders.filter(o => !ps.some(p => p.id===o.productId)); ps.forEach(p => { if (p.target){ p.targetWas = p.target; p.target = 0; } });
+      toast(`${B.name} is retired: its orders are cancelled and its targets switched off. The cigars you have still sell.`); }
+    else { B.retired = false; ps.forEach(p => { if (p.targetWas){ p.target = p.targetWas; delete p.targetWas; } }); toast(`${B.name} is back${ps.some(p => p.target) ? ', with its keep-on-hand targets' : ''}.`); }
+    return true; }
   if (kind==='wsv'){ if (VITOLAS[extra]) wsDraft.v = extra; return true; }
   if (kind==='wsq'){ const x = String(extra); wsDraft.q = /^[+-]/.test(x) ? Math.max(25, Math.min(5000, wsDraft.q + +x)) : Math.max(25, +x || 100); return true; }
-  if (kind==='wspick'){ wsDraft.b = id; if (VITOLAS[extra]) wsDraft.v = extra; if (scene && scene.kind==='workshop') scene.tab = 'production'; return true; }
+  if (kind==='wspick'){ if ((blendOf(id)||{}).retired) return true; wsDraft.b = id; if (VITOLAS[extra]) wsDraft.v = extra; if (scene && scene.kind==='workshop') scene.tab = 'production'; return true; }
   if (kind==='wsroom'){ openScene('workshop', { tab:extra||'overview' }); return true; }
-  if (kind==='wsgo'){ const B = blendOf(wsDraft.b); if (!B) return true; const vit = wsDraft.v, q = wsDraft.q;
+  if (kind==='wsgo'){ const B = blendOf(wsDraft.b); if (!B || B.retired) return true; const vit = wsDraft.v, q = wsDraft.q;
     let p = biz.products.find(x => x.blendId===B.id && x.vit===vit);
     if (!p){ p = normProduct({ id:biz.nextId++, blendId:B.id, vit, name:`${B.name} ${VITOLAS[vit].name}`, price:Math.max(2, Math.round((2 + B.profile.score/16)*2)/2), batches:[], sold:0 }); biz.products.push(p); }
     const o = biz.orders.find(x => x.productId===p.id); if (o){ o.qty += q; o.stalled = false; } else biz.orders.push({ id:biz.nextId++, productId:p.id, qty:q, done:0 });
@@ -3635,11 +3693,7 @@ function workshopSide(s){
     h += `<h4>The lector</h4><div class="muted">${staff.lector?'Profesor Benítez reads to the rollers: the morning news, then a novel. Steadier hands, fewer seconds. $15 a day.':'Nobody reads to your rollers yet. In the great galeras of Cuba, a lector reads aloud while the rollers work.'}</div>${staff.lector?'<div class="acts" style="justify-content:flex-start;margin-top:4px"><button class="btn sm" data-act="lector" data-x="0">Let him go</button></div>':''}`;
   }
   if (s.tab==='blends'){
-    h += `<div class="acts" style="justify-content:flex-start"><button class="btn" data-act="bench" ${know('blend')?'':'disabled'}>Sit at the blending table</button></div>`;
-    if (!know('blend')) h += `<div class="muted" style="margin-top:6px">Don Aurelio hasn’t taught you to blend yet (“The blender’s table”).</div>`;
-    if (!biz.blends.length) h += `<div class="muted" style="margin-top:6px">No blends yet.</div>`;
-    for (const B of biz.blends){ const P = B.profile, mine = biz.products.filter(p => p.blendId===B.id);
-      h += `<div class="card"><div class="row"><span class="t" style="opacity:1">${esc(B.name)}</span><span>${P.score}/100</span></div><div class="muted">${STRENGTH_WORDS(P.strength)} · ${P.notes.slice(0,3).join(', ')}</div>${mine.length?`<div class="muted">Rolled as: ${mine.map(p => VITOLAS[p.vit].name).join(', ')}</div>`:''}<div class="muted" style="margin-top:3px">Order it as:</div><div class="vents" style="flex-wrap:wrap">${Object.entries(VITOLAS).map(([k,V]) => `<button class="btn sm" data-act="wspick" data-id="${B.id}" data-x="${k}" title="${V.size} in, ${V.g} g of leaf each. Opens the order form.">${V.name}…</button>`).join('')}</div></div>`; }
+    h += `<div class="acts" style="justify-content:flex-start;margin-bottom:4px"><button class="btn" data-act="bench" ${know('blend')?'':'disabled'}>Sit at the blending table</button></div>` + blendsHTML();
   }
   return h;
 }
