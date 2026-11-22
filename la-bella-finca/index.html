@@ -1666,7 +1666,7 @@ const WORKERS = {
     tiers:{ mid:{ name:'Yoania', wage:7, kg:180, q:0, note:'Bales about 180 kg a day. Clean, honest work.' },
             pro:{ name:'Doña Mercedes', wage:12, kg:320, q:0.03, note:'About 320 kg a day, and she sorts every hand by color and size before it is baled: +3% quality.' } } },
 };
-const freshStaff = () => ({ hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false, handTier:'mid', crew:{ sprayer:null, turner:null, baler:null }, learned:{}, crewWages:0, crewWarned:{}, vacant:[], manager:null, mgr:null, mgrLog:[], mgrStats:{ moves:0, slips:0 } });
+const freshStaff = () => ({ hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false, handTier:'mid', crew:{ sprayer:null, turner:null, baler:null }, learned:{}, crewWages:0, crewWarned:{}, vacant:[], mgrAlerts:{}, manager:null, mgr:null, mgrLog:[], mgrStats:{ moves:0, slips:0 } });
 const staff = freshStaff();
 const learned = k => !!(staff.learned && staff.learned[k]);
 const LEARN_MSG = { vent:'You’ve tended a curing barn yourself. Now you can hire a barn tender in Operations → People.', pick:'You’ve picked leaf with your own hands. An experienced crew will work for you now (Operations → People).',
@@ -1679,8 +1679,10 @@ const workerOf = k => staff.crew && staff.crew[k] ? WORKERS[k].tiers[staff.crew[
 function workerQuit(name, job, k, tier){
   if (k!=='manager' && farmMgr()){
     staff.vacant = (staff.vacant||[]).filter(v => v.k!==k); staff.vacant.push({ k, tier, d:dayInt });
-    mgrLog(`${name} (${job.toLowerCase()}) quit: there was no cash for the wage. A replacement will be hired once the wages can be paid.`);
-    toast(`${name} quit. ${farmMgr().name} will hire a new ${job.toLowerCase()} when there is cash to pay one.`); return;
+    mgrLog(`${name} (${job.toLowerCase()}) quit: there was no cash for the wage.`);
+    mgrRehire(farmMgr());
+    if (staff.vacant.some(v => v.k===k)) mgrAlert('vac:'+k, `${name} quit this morning: there was no money for the wage, and there isn’t enough to hire anyone in ${name.split(' ')[0]==='Doña'?'her':'his'} place. ${JOB_GAP[k]} I will hire again as soon as two weeks of wages are in hand.`);
+    return;
   }
   const was = speedIdx; setSpeed(0);
   say('mateo', `Patrón, ${name} has gone. ${k==='manager' ? 'The farm manager' : 'Your '+job.toLowerCase()} quit this morning: there was no money for the wage. ${k==='manager' ? 'Nobody is deciding about the leaf now. It is all yours again.' : 'That work is yours again until you hire someone.'}`,
@@ -1696,6 +1698,8 @@ function mgrRehire(M){
     staff.vacant = staff.vacant.filter(x => x!==v);
     const nm = v.k==='tender' ? TENDERS[v.tier].name : WORKERS[v.k].tiers[v.tier].name;
     mgrLog(`Hired ${nm} back as ${v.k==='tender' ? 'barn tender' : WORKERS[v.k].job.toLowerCase()}.`);
+    if (staff.mgrAlerts) delete staff.mgrAlerts['vac:'+v.k];
+    toast(`${M.name} hired ${nm} back. The ${v.k==='tender' ? 'barn tender' : WORKERS[v.k].job.toLowerCase()}’s work is being done again.`);
   }
 }
 function payCrew(k, w){
@@ -1710,7 +1714,7 @@ function migrateStaff(had){
   if (!TENDERS[staff.tender]) staff.tender = null;
   staff.crew = Object.assign({}, d.crew, staff.crew || {}); for (const k in staff.crew) if (!WORKERS[k] || (staff.crew[k] && !WORKERS[k].tiers[staff.crew[k]])) staff.crew[k] = null;
   staff.crewWages = staff.crewWages || 0; staff.crewWarned = staff.crewWarned || {};
-  staff.vacant = staff.vacant || [];
+  staff.vacant = staff.vacant || []; staff.mgrAlerts = staff.mgrAlerts || {};
   if (!FARM_MGRS[staff.manager]) staff.manager = null; mgrSet(); staff.mgrLog = staff.mgrLog || []; staff.mgrStats = staff.mgrStats || { moves:0, slips:0 };
   if (!had || !had.learned){
     const own = lots.filter(l => !l.bought), L = staff.learned = {};
@@ -1776,8 +1780,8 @@ function balerTick(){
     }
   }
 }
-function tenderSetsVent(b, out, leafMoist){
-  const T0 = TENDERS[staff.tender];
+function tenderSetsVent(b, out, leafMoist, T1){
+  const T0 = T1 || TENDERS[staff.tender];
   if (wx==='Storm' && wrnd() < T0.stormNap){ b.vent = 'open'; return; }      // asleep in the hammock, doors banging
   if (wrnd() < T0.forget) return;                                             // didn't check today
   const ranked = ['open','half','closed'].map(v => { const k=v==='open'?0.5:v==='half'?0.2:0.04; return [v, Math.abs(b.hum+(out-b.hum)*k+leafMoist-72)]; }).sort((a,c)=>a[1]-c[1]).map(x=>x[0]);
@@ -1852,11 +1856,73 @@ function mgrSell(l, why, min){
   const seen = mgrSees(l), note = min ? slipNote(l, seen, min) : '', kg = l.kg, v = sellLot(l, farmMgr().price);
   mgrLog(`Sold ${lotName(l)} (${kgf(kg)}, ${l.stage}) for ${fmt(v)}: ${why}.${note}`, !!note);
 }
+// What goes undone when a hand quits, in the manager's words
+const JOB_GAP = {
+  tender:'Nobody is tending the curing barns full time. I’ll set the vents when I can, but I am no barn tender, and the leaf will feel it.',
+  sprayer:'Nobody is spraying for blue mold. I’ll have the worst of it sprayed while there is money for the spray.',
+  turner:'Nobody is turning the pilones. I’ll have any pile that runs hot turned while we can pay for the turn.',
+  baler:'Nobody is baling finished leaf. I’ll have it baled while there is money for the burlap.',
+};
+const MGR_VENT = { mid:{ acc:0.6, forget:0.25, stormNap:0 }, pro:{ acc:0.85, forget:0.1, stormNap:0 } };
+const mgrCast = () => staff.manager==='pro' ? 'ofelia' : 'osvaldo';
+// Something critical the manager can't put right alone: stop the clock and tell the player, once, until it's fixed.
+function mgrAlert(key, text){
+  staff.mgrAlerts = staff.mgrAlerts || {};
+  if (staff.mgrAlerts[key]) return; staff.mgrAlerts[key] = { d:dayInt, t:text };
+  staff.mgrLog = staff.mgrLog || []; staff.mgrLog.unshift({ d:dayInt, t:`Needs you: ${text}`, slip:false }); staff.mgrLog.length = Math.min(staff.mgrLog.length, 14);
+  const was = speedIdx || 1; setSpeed(0);
+  say(farmMgr() ? mgrCast() : 'mateo', text, [{ label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr'; setSpeed(was); } }, { label:'I’ll deal with it', fn:()=>setSpeed(was) }], null, true);
+  attention(`${farmMgr() ? farmMgr().name : 'The farm'} needs you. The game is paused.`);
+}
+// The manager walks the whole farm every morning. What can be fixed with the people and cash at hand is fixed and
+// logged; what can't is raised with you at once. An alert clears itself when the problem is gone.
+function managerWatch(M){
+  const now = new Set(), S = mgrSet(), raise = (k, t) => { now.add(k); mgrAlert(k, t); };
+  for (const v of staff.vacant||[]) now.add('vac:'+v.k);
+  // the curing barns: covered by the manager when there is no tender; if the air still won't come right, say so
+  for (const b of ready('barn')) if (lots.some(l => l.loc===b.id && l.stage==='curing') && (b.offDays||0) >= 3)
+    raise('hum:'+b.id, `The ${bName(b).toLowerCase()} has been ${b.hum>80?'too damp':'too dry'} (${Math.round(b.hum)}%) for ${b.offDays} days, and ${staff.tender ? 'the tender can’t bring it right' : 'I can’t keep it right without a barn tender'}. The curing leaf is losing quality.`);
+  // the pilones: with no turner, have any pile that runs hot turned
+  if (!workerOf('turner')) for (const l of lots.filter(l => l.stage==='fermenting' && l.temp >= 110)){
+    if (cash >= turnCost()){ cash -= turnCost(); spend('Processing', turnCost()); l.temp = 85+wrnd()*2; l.turns++; l.hotWarned = false; mgrLog(`Had ${lotName(l)} turned: the pile was running hot.`); }
+    else raise('hot', `The pilón with ${lotName(l)} is at ${Math.round(l.temp)}°F and there is no money to pay for a turn. Above 115°F the leaf scorches.`);
+  }
+  // blue mold: with no sprayer, spray the worst of it
+  if (!workerOf('sprayer')){
+    const sick = map.flat().filter(t => t.owned && t.work==='seeded' && t.bmold>0).sort((a,b) => b.bmold-a.bmold);
+    if (sick.length && !know('pests')) raise('mold', `Blue mold is on ${sick.length} tile${sick.length>1?'s':''} and none of us knows how to treat it. Ask Don Aurelio about pests.`);
+    else if (sick.length){ let n = 0; const c = careCost('spray');
+      for (const t of sick.slice(0, 6)){ if (cash < c) break; t.bmold = 0; t.prot = 21; t.pick = 2; cash -= c; spend('Crop care', c); n++; }
+      if (n) mgrLog(`Had ${n} tile${n>1?'s':''} sprayed for blue mold.`);
+      const left = sick.length - n; if (left > 0 && cash < c) raise('mold', `Blue mold is on ${left} tile${left>1?'s':''} and there is no money for spray. It spreads fast in cool, wet weather.`); }
+  }
+  // ripe leaf: make sure it is being picked
+  const ripe = map.flat().filter(t => t.owned && nextPrim(t) && t.g>=nextPrim(t).start).sort((a,b) => urgency(b)-urgency(a));
+  if (ripe.length){
+    const roomSale = S.makeRoom && lots.some(l => l.stage==='cured' && !protectedLot(l));
+    if (freeBarn()<=0 && !roomSale) raise('barn', `Ripe leaf is waiting on ${ripe.length} tile${ripe.length>1?'s':''} and every barn is full${S.makeRoom?', with nothing I may sell to make room':''}. Each priming keeps its quality for about four weeks.`);
+    else if (freeBarn()>0 && !staff.hands){ const n = Math.min(ripe.length, freeBarn(), 12, Math.floor(cash/28));
+      if (n>0){ const ts = ripe.slice(0, n); cash -= n*28; spend('Labor', n*28); harvest(ts, true); ts.forEach(t => { t.pick = 3; }); mgrLog(`Hired day pickers for ${n} ripe picking${n>1?'s':''}.`); }
+      else raise('pick', `Leaf is ripe on ${ripe.length} tile${ripe.length>1?'s':''}, there are no field hands, and no money for day pickers.`); }
+    else if (staff.hands && cash < pieceRate()) raise('pick', `The field hands have stopped picking: there is no money to pay them. Leaf is ripe on ${ripe.length} tile${ripe.length>1?'s':''}.`);
+  }
+  // finished leaf with nowhere to age
+  if (know('time')){ const wait = lots.filter(l => l.stage==='fermented' && mgrSees(l) >= GRADE_Q[S.baleMin]);
+    if (wait.length && !wait.some(l => ready('ware').some(w => wareCap(w)-wareUsed(w) >= l.kg))) raise('ware', `${wait.length} finished lot${wait.length>1?'s are':' is'} waiting to be baled and the aging warehouse is full. ${wait.length>1?'They hold':'It holds'} the pilones, so no new leaf can ferment.`); }
+  // the workshop
+  const stalled = biz.orders.filter(o => o.stalled).map(o => prodOf(o.productId)).filter(Boolean);
+  if (stalled.length) raise('roll', `Rolling of ${stalled.map(p => p.name).join(', ')} has stopped: its leaf ran out. A new blend needs you at the blending table.`);
+  // cash for wages
+  const daily = M.wage + (staff.tender ? TENDERS[staff.tender].wage : 0) + staff.rollers.reduce((a,r) => a + rollerStats(r).wage, 0) + (staff.keeper ? KEEPER_WAGE : 0);
+  if (cash < daily*3) { const dd = Math.max(0, Math.floor(cash/daily)); raise('cash', `There is cash for ${dd ? `about ${dd} more day${dd===1?'':'s'}` : 'less than a day'} of wages (${fmt(daily)} a day). After that, people start to quit.`); }
+  for (const k of Object.keys(staff.mgrAlerts||{})) if (!now.has(k)) delete staff.mgrAlerts[k];
+}
 function managerTick(){
   const M = farmMgr(); if (!M) return;
   if (cash < M.wage){ staff.manager = null; workerQuit(M.name, 'Farm manager', 'manager'); return; }
   mgrRehire(M);
   cash -= M.wage; staff.crewWages = (staff.crewWages||0) + M.wage; spend('Wages', M.wage);
+  managerWatch(M);                                             // every day, whatever else he gets to
   if (wrnd() > M.act) return;                                  // not today
   const S = mgrSet();
   // 1. cured leaf: the best into free pilones, the rest to the factory or held
@@ -3029,6 +3095,7 @@ const CAST = {
   aurelio:  { name:'Don Aurelio', role:'Your neighbor, fifty years a grower', p:{ custom:null } },
   mateo:    { name:'Mateo', role:'Foreman of your field hands', p:{ skin:'#a8703f', hairStyle:'short', hairColor:'#22160d', beard:'mustache', hat:'straw', shirt:'#4f7fa8', bg:'#cfe3c2' } },
   carmen:   { name:'Doña Carmen', role:'Barn tender', p:{ skin:'#8a5536', hairStyle:'bun', hairColor:'#3a2a20', old:true, hat:'scarf', scarf:'#b83a2c', shirt:'#efe8d8', bg:'#f0dcc0', earring:true, lips:'#9c4a3a' } },
+  osvaldo:  { name:'Osvaldo Peña', role:'Your farm manager', p:{ skin:'#a87048', hairStyle:'short', hairColor:'#2a2018', beard:'mustache', hat:'straw', shirt:'#7a5a3a', bg:'#e6dcc4' } },
   ofelia:   { name:'Ofelia Cruz', role:'Leaf buyer, looking for a farm to run', p:{ skin:'#b98258', hairStyle:'bun', hairColor:'#3b2a1e', shirt:'#2f5d62', glasses:true, earring:true, necklace:true, lips:'#9c4a3a', bg:'#d9e6df' } },
   tito:     { name:'Tito', role:'Your cheap barn tender', p:{ skin:'#c58b5c', hairStyle:'curly', hairColor:'#1d140c', hat:'cap', cap:'#d84a3a', shirt:'#e8c35a', bg:'#d8e8f0' } },
   beltran:  { name:'Señora Beltrán', role:'Tobacconist in San Rafael', p:{ skin:'#d9a57e', hairStyle:'long', hairColor:'#3a2418', shirt:'#6b2d3a', glasses:true, earring:true, necklace:true, lashes:true, lips:'#a8424a', bg:'#ead2c4' } },
@@ -5479,7 +5546,10 @@ function managerCard(){
   h += `<div class="muted">${M ? M.note : 'Decides each day which leaf moves on through the pilón, the bales and the aging house, and which goes to the factory, by the standing orders below.'} ${MGR_HELP}</div>`;
   h += `<div style="margin-top:6px"><b style="font-size:12px">Standing orders</b></div>`;
   for (const [k, O] of Object.entries(MGR_OPTS)) h += `<div style="margin:5px 0 0"><div class="muted" style="font-size:11.5px">${O.label}</div><div class="vents" style="flex-wrap:wrap;gap:3px;margin-top:2px">${O.opts.map(([v,n]) => `<button class="btn sm${S[k]===v?' on':''}" data-act="mgrset" data-x="${k}=${v}">${n}</button>`).join('')}</div></div>`;
-  h += `<div class="muted" style="margin-top:5px">Cured and fermented leaf held back waits in the barn or the pilón for you to decide. Lesser bales kept for cheaper blends age on in the warehouse. Turning the pilones is still yours or your turner’s; with a manager, your aging-house hand bales only what the manager sends.</div>`;
+  h += `<div class="muted" style="margin-top:5px">Cured and fermented leaf held back waits in the barn or the pilón for you to decide. Lesser bales kept for cheaper blends age on in the warehouse. Every morning the manager also checks the barns, pilones, fields, warehouse, workshop and cash. With no tender, turner, sprayer or field hands, the manager sets the barn vents, has hot piles turned, sprays blue mold and hires day pickers, while there is money. Anything that can’t be handled pauses the game and comes to you. With a manager, your aging-house hand bales only what the manager sends.</div>`;
+  const open = Object.values(staff.mgrAlerts||{});
+  if (M && open.length) h += `<div style="margin-top:6px"><b class="bad" style="font-size:12px">Needs you</b></div>` + open.map(a => `<div class="muted" style="font-size:11.5px;margin-top:2px">⚠️ ${esc(dateOf(a.d))}: ${esc(a.t)}</div>`).join('');
+  else if (M) h += `<div class="muted" style="margin-top:6px">${M.name.split(' ')[0]} checks the barns, the pilones, the fields, the warehouse, the workshop and the cash every morning. Anything that can’t be handled pauses the game and comes to you.</div>`;
   if (M || st.moves){
     h += `<div class="row" style="margin-top:6px"><span>Decisions · misjudged</span><b class="${st.moves && st.slips/st.moves>0.15?'bad':''}">${st.moves} · ${st.slips}</b></div>`;
     for (const e of (staff.mgrLog||[]).slice(0,6)) h += `<div class="muted" style="font-size:11.5px;margin-top:2px">${e.slip?'⚠️ ':''}${esc(dateOf(e.d))}: ${esc(e.t)}</div>`;
@@ -5510,7 +5580,7 @@ function renderOps(force){
     const st = b.hum>88?'<span class="bad">Too damp, mold risk</span>':b.hum>80?'<span class="bad">Damp</span>':b.hum<58?'<span class="bad">Too dry, leaf may lock green</span>':b.hum<65?'<span class="bad">Dry</span>':'<span class="ok">Good</span>';
     const inUse = lots.some(l=>l.loc===b.id && l.stage==='curing');
     h += `<div class="row"><span>Humidity</span><span>${Math.round(b.hum)}% · ${inUse?st:`<span class="muted">${barnUsed(b)?'holding cured leaf':'empty'}</span>`}</span></div>${gauge(b.hum,40,100,65,80,88,'hum')}`;
-    h += `<div class="row"><span>Vents</span><span class="vents">${['open','half','closed'].map(v=>`<button class="btn sm${b.vent===v?' on':''}" data-act="vent" data-id="${b.id}" data-x="${v}" ${staff.tender?'disabled':''}>${v[0].toUpperCase()+v.slice(1)}</button>`).join('')}</span></div>`;
+    h += `<div class="row"><span>Vents</span><span class="vents">${['open','half','closed'].map(v=>`<button class="btn sm${b.vent===v?' on':''}" data-act="vent" data-id="${b.id}" data-x="${v}" ${staff.tender||farmMgr()?'disabled':''}>${v[0].toUpperCase()+v.slice(1)}</button>`).join('')}</span></div>`;
     for (const l of lots.filter(l=>l.loc===b.id)){
       freePiles(); const fermFree = ready('ferm').some(f=>f.piles.some(p=>!p));
       h += `<div class="lot"><span class="sw" style="background:${leafColor(l)}"></span><div class="grow"><b>${lotName(l)}</b><br><span class="muted">${kgf(l.kg)} · ${l.stage==='curing'?`curing, day ${Math.floor(l.cd)} of ${PRIM[l.pr].cure}`:`cured <span class="grade">${grade(l.q)}</span>`}<br><i>${PRIM[l.pr].traits}</i></span>${l.stage==='curing'?`<div class="bar"><div style="width:${l.cd/PRIM[l.pr].cure*100}%"></div></div>`:''}</div>`;
@@ -5634,6 +5704,7 @@ function dailyTick(){
     const curing = lots.filter(l => l.loc===b.id && l.stage==='curing');
     const leafMoist = curing.length ? 0.6 : 0;
     if (staff.tender) tenderSetsVent(b, out, leafMoist);
+    else if (farmMgr() && curing.length) tenderSetsVent(b, out, leafMoist, MGR_VENT[staff.manager]);
     const k = b.vent==='open'?0.5 : b.vent==='half'?0.2 : 0.04;
     b.hum += (out - b.hum)*k + leafMoist + (wrnd()-0.5)*2;
     b.hum = Math.max(35, Math.min(99, b.hum));
