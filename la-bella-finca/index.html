@@ -1847,13 +1847,13 @@ const MGR_OPTS = {
   reserve:  { label:'Always keep, of each seed and priming', opts:[[0,'Nothing'],[50,'50 kg'],[100,'100 kg'],[250,'250 kg'],[500,'500 kg']] },
   cashFloor:{ label:'If cash falls below', opts:[[0,'Never sell for cash'],[500,'$500'],[1000,'$1,000'],[3000,'$3,000'],[8000,'$8,000']] },
   makeRoom: { label:'Barns full at harvest', opts:[[true,'Sell the poorest cured leaf'],[false,'Wait for me']] },
-  plant:    { g:'fields', label:'Planting', opts:[['off','I plant'],['need','What my blends need, +20%'],['all','Every free field']] },
+  plant:    { g:'fields', label:'Planting (adds the base wage)', opts:[['off','I plant'],['need','What my blends need, +20%'],['all','Every free field']] },
   seedMix:  { g:'fields', label:'Which seed', opts:[['blends','In the mix my blends use'],['criollo','All Criollo'],['corojo','All Corojo'],['habano','All Habano'],['broadleaf','All Broadleaf']] },
   plantWhen:{ g:'fields', label:'When to plant', opts:[['season','October to January, as Don Aurelio says'],['any','Any month']] },
   stagger:  { g:'fields', label:'Spread plantings', opts:[[true,'A few each week, so harvests fit the barns'],[false,'All at once']] },
   rest:     { g:'fields', label:'Rest fields with a cover crop', opts:[['never','Never'],['two','After two crops in a row'],['every','After every crop']] },
   soil:     { g:'fields', label:'Soil care before planting', opts:[[true,'Lime, feed and drain as needed'],[false,'Leave the soil to me']] },
-  targets:  { g:'stock', label:'Cigar keep-on-hand targets', opts:[[false,'I set them'],[true,'Keep them at six weeks of sales']] },
+  targets:  { g:'stock', label:'Cigar keep-on-hand targets (adds the base wage)', opts:[[false,'I set them'],[true,'Keep them at six weeks of sales']] },
 };
 const MGR_HELP = 'The finest leaf goes the whole way, cured, fermented, baled and aged, into your own cigars. Lesser leaf earns its keep at the factory, or in a cheaper house blend. Leaf in any of your blends, and leaf you bought, is never sold.';
 const pipelineReady = () => ['barn','ferm','ware','galera','stand'].every(t => ready(t).length>0);
@@ -1883,6 +1883,9 @@ const JOB_GAP = {
   baler:'Nobody is baling finished leaf. I’ll have it baled while there is money for the burlap.',
 };
 const MGR_VENT = { mid:{ acc:0.6, forget:0.25, stormNap:0 }, pro:{ acc:0.85, forget:0.1, stormNap:0 } };
+// The base wage runs the leaf. Running the fields adds the base wage again, and so does keeping the cigar stock targets.
+const mgrDuties = () => { const S = mgrSet(); return 1 + (S.plant!=='off' ? 1 : 0) + (S.targets ? 1 : 0); };
+const mgrWage = () => farmMgr() ? farmMgr().wage * mgrDuties() : 0;
 const mgrCast = () => staff.manager==='pro' ? 'ofelia' : 'osvaldo';
 // Something critical the manager can't put right alone: stop the clock and tell the player, once, until it's fixed.
 function mgrAlert(key, text){
@@ -1929,13 +1932,26 @@ function managerWatch(M){
   if (know('time')){ const wait = lots.filter(l => l.stage==='fermented' && mgrSees(l) >= GRADE_Q[S.baleMin]);
     if (wait.length && !wait.some(l => ready('ware').some(w => wareCap(w)-wareUsed(w) >= l.kg))) raise('ware', `${wait.length} finished lot${wait.length>1?'s are':' is'} waiting to be baled and the aging warehouse is full. ${wait.length>1?'They hold':'It holds'} the pilones, so no new leaf can ferment.`); }
   // the field plan: more tiles needed than the farm has
-  if (S.plant==='need' && plantingOK()){ const P = fieldPlan(), short = Object.values(P.want).reduce((a,x) => a+x, 0), free = mgrFieldTiles().filter(t => t.work==='plowed' || t.work==='stalks' || (t.work===null && t.t==='field')).length;
+  // only once the season is mostly gone (December on): earlier, harvested fields are still coming free for replanting
+  if (S.plant==='need' && plantingOK() && (S.plantWhen==='any' || [11,0].includes(curMonth()))){ const P = fieldPlan(), short = Object.values(P.want).reduce((a,x) => a+x, 0), free = mgrFieldTiles().filter(t => t.work==='plowed' || t.work==='stalks' || (t.work===null && t.t==='field')).length;
     if (short > free + 2) raise('land', `The blends need about ${short} more tiles planted this season, and only ${free} field${free===1?' is':'s are'} free. Buy or clear more land, or the leaf for your blends will run short next year.`); }
   // the workshop
   const stalled = biz.orders.filter(o => o.stalled).map(o => prodOf(o.productId)).filter(Boolean);
-  if (stalled.length) raise('roll', `Rolling of ${stalled.map(p => p.name).join(', ')} has paused: its leaf ran out and there is nothing similar. Make a new blend, or retire this one, in the Workshop tab.`);
+  if (stalled.length && S.plant!=='off'){
+    // she runs the planting: the missing seed goes in the plan, and she tells you only if the land can't carry it
+    const P = fieldPlan(), missing = [...new Set(stalled.flatMap(p => blendOf(p.blendId) ? blendRoles(blendOf(p.blendId)).filter(r => r.state==='out' && r.v!=null).map(r => r.v) : []))];
+    const planned = missing.filter(v => (P.grow[v]||0) > 0 || (P.want[v]||0) > 0 || (P.need[v]||0) > 0);
+    staff.mgrNoted = staff.mgrNoted || {};
+    for (const p of stalled){ if ((staff.mgrNoted[p.id]||-99) > dayInt-30) continue; staff.mgrNoted[p.id] = dayInt;
+      const kinds = blendOf(p.blendId) ? blendRoles(blendOf(p.blendId)).filter(r => r.state==='out').map(r => r.kind) : [];
+      mgrLog(`${p.name} is paused until the next harvest of ${kinds.join(' and ') || 'its leaf'}. ${planted(kinds) ? 'It is growing now.' : plantingOK() ? 'It is in this season’s planting.' : 'It goes in the ground when planting season opens in October.'}`); }
+    function planted(){ return missing.some(v => (P.grow[v]||0) > 0); }
+    const unplanned = missing.filter(v => !planned.includes(v));
+    if (unplanned.length) raise('roll', `Rolling of ${stalled.map(p => p.name).join(', ')} has paused: its ${unplanned.map(v => VARS[v].name).join(' and ')} leaf ran out, and your seed order is ${VARS[S.seedMix] ? 'all '+VARS[S.seedMix].name.replace('-type','') : 'set elsewhere'}, so I won’t plant it. Change “Which seed” under The fields to the blends’ mix, or retire the blend.`);
+  }
+  else if (stalled.length) raise('roll', `Rolling of ${stalled.map(p => p.name).join(', ')} has paused: its leaf ran out and there is nothing similar. Make a new blend, or retire this one, in the Workshop tab.`);
   // cash for wages
-  const daily = M.wage + (staff.tender ? TENDERS[staff.tender].wage : 0) + staff.rollers.reduce((a,r) => a + rollerStats(r).wage, 0) + (staff.keeper ? KEEPER_WAGE : 0);
+  const daily = mgrWage() + (staff.tender ? TENDERS[staff.tender].wage : 0) + staff.rollers.reduce((a,r) => a + rollerStats(r).wage, 0) + (staff.keeper ? KEEPER_WAGE : 0);
   if (cash < daily*3) { const dd = Math.max(0, Math.floor(cash/daily)); raise('cash', `There is cash for ${dd ? `about ${dd} more day${dd===1?'':'s'}` : 'less than a day'} of wages (${fmt(daily)} a day). After that, people start to quit.`); }
   for (const k of Object.keys(staff.mgrAlerts||{})) if (!now.has(k)) delete staff.mgrAlerts[k];
 }
@@ -1949,7 +1965,8 @@ function blendDemand(){
   let tot = 0; const rate = {};
   const gOfB = {};
   for (const B of live){ const ps = biz.products.filter(p => p.blendId===B.id); let r = 0, gs = 0;
-    for (const p of ps){ const x = Math.max(salesPace(p.id, 60), (p.target||0)/42); r += x; gs += x*VITOLAS[p.vit].g; }
+    // a blend that ran dry sells nothing for a while: plan from its longer history, and never for less than 5 a day
+    for (const p of ps){ const x = Math.max(salesPace(p.id, 60), salesPace(p.id, 180), (p.target||0)/42, 5/ps.length); r += x; gs += x*VITOLAS[p.vit].g; }
     rate[B.id] = r; gOfB[B.id] = r ? gs/r/1000 : VITOLAS.robusto.g/1000; tot += r; }
   for (const B of live){ const r = tot > 0 ? rate[B.id] : 20/Math.max(1, live.length), g = gOfB[B.id];   // no sales yet: plan for 20 a day
     const roles = [[B.wrap, 0.10], [B.bind, 0.15], ...B.fill.map(f => [f.lot, 0.75*f.pct/100])];
@@ -2020,9 +2037,10 @@ function managerTargets(){
 }
 function managerTick(){
   const M = farmMgr(); if (!M) return;
-  if (cash < M.wage){ staff.manager = null; workerQuit(M.name, 'Farm manager', 'manager'); return; }
+  const W = mgrWage();
+  if (cash < W){ staff.manager = null; workerQuit(M.name, 'Farm manager', 'manager'); return; }
   mgrRehire(M);
-  cash -= M.wage; staff.crewWages = (staff.crewWages||0) + M.wage; spend('Wages', M.wage);
+  cash -= W; staff.crewWages = (staff.crewWages||0) + W; spend('Wages', W);
   managerWatch(M);                                             // every day, whatever else he gets to
   managerTargets();
   if (wrnd() > M.act) return;                                  // not today
@@ -2925,10 +2943,10 @@ let wsDraft = { b:null, v:'robusto', q:100 };
 // A blend is a recipe: a seed and priming for the wrapper, the binder and each filler. It starts from the lots you
 // chose; as one runs low the blender moves to the best lot of the same seed and priming, so the blend carries on.
 const ROLE_NAME = { wrap:'Wrapper', bind:'Binder' };
-function blendRoles(B){
+function blendRoles(B){ // each part of the recipe, with its seed (v) and priming (pr)
   const g = VITOLAS.robusto.g/1000, rs = [['wrap', B.wrap, g*0.10, null], ['bind', B.bind, g*0.15, null], ...B.fill.map(f => ['fill', f.lot, g*0.75*f.pct/100, f.pct])];
   return rs.map(([role, id, per, pct]) => { const R = roleLeaf(B, id), need = per*60, ok = R.l && R.l.kg >= need, alt = !ok && R.v!=null ? altLeaf(id, R.v, R.pr, need) : null;
-    return { role, id, pct, l:R.l, kind: R.v!=null ? `${VARS[R.v].name} ${PRIM[R.pr].name.toLowerCase()}` : 'unknown leaf', state: ok ? 'ok' : alt ? 'switch' : 'out', alt, n: R.l ? Math.floor(R.l.kg/per) : 0 }; });
+    return { role, id, pct, v:R.v, pr:R.pr, l:R.l, kind: R.v!=null ? `${VARS[R.v].name} ${PRIM[R.pr].name.toLowerCase()}` : 'unknown leaf', state: ok ? 'ok' : alt ? 'switch' : 'out', alt, n: R.l ? Math.floor(R.l.kg/per) : 0 }; });
 }
 function blendStatus(B){
   if (B.retired) return { k:'retired', t:'Retired', cls:'muted' };
@@ -3354,8 +3372,8 @@ const CAST = {
   aurelio:  { name:'Don Aurelio', role:'Your neighbor, fifty years a grower', p:{ custom:null } },
   mateo:    { name:'Mateo', role:'Foreman of your field hands', p:{ skin:'#a8703f', hairStyle:'short', hairColor:'#22160d', beard:'mustache', hat:'straw', shirt:'#4f7fa8', bg:'#cfe3c2' } },
   carmen:   { name:'Doña Carmen', role:'Barn tender', p:{ skin:'#8a5536', hairStyle:'bun', hairColor:'#3a2a20', old:true, hat:'scarf', scarf:'#b83a2c', shirt:'#efe8d8', bg:'#f0dcc0', earring:true, lips:'#9c4a3a' } },
-  osvaldo:  { name:'Osvaldo Peña', role:'Your farm manager', p:{ skin:'#a87048', hairStyle:'short', hairColor:'#2a2018', beard:'mustache', hat:'straw', shirt:'#7a5a3a', bg:'#e6dcc4' } },
-  ofelia:   { name:'Ofelia Cruz', role:'Leaf buyer, looking for a farm to run', p:{ skin:'#b98258', hairStyle:'bun', hairColor:'#3b2a1e', shirt:'#2f5d62', glasses:true, earring:true, necklace:true, lips:'#9c4a3a', bg:'#d9e6df' } },
+  osvaldo:  { name:'Osvaldo Peña', get role(){ return staff.manager==='mid' ? 'Your farm manager' : 'Ran the cooperative’s leaf house'; }, p:{ skin:'#a87048', hairStyle:'short', hairColor:'#2a2018', beard:'mustache', hat:'straw', shirt:'#7a5a3a', bg:'#e6dcc4' } },
+  ofelia:   { name:'Ofelia Cruz', get role(){ return staff.manager==='pro' ? 'Your farm manager' : 'Leaf buyer, looking for a farm to run'; }, p:{ skin:'#b98258', hairStyle:'bun', hairColor:'#3b2a1e', shirt:'#2f5d62', glasses:true, earring:true, necklace:true, lips:'#9c4a3a', bg:'#d9e6df' } },
   tito:     { name:'Tito', role:'Your cheap barn tender', p:{ skin:'#c58b5c', hairStyle:'curly', hairColor:'#1d140c', hat:'cap', cap:'#d84a3a', shirt:'#e8c35a', bg:'#d8e8f0' } },
   beltran:  { name:'Señora Beltrán', role:'Tobacconist in San Rafael', p:{ skin:'#d9a57e', hairStyle:'long', hairColor:'#3a2418', shirt:'#6b2d3a', glasses:true, earring:true, necklace:true, lashes:true, lips:'#a8424a', bg:'#ead2c4' } },
   ines:     { name:'Doña Inés', role:'Keeps your roadside stand', p:{ skin:'#b67b52', hairStyle:'bun', hairColor:'#2a1a12', shirt:'#e86a56', apron:'#f6efe0', earring:true, lashes:true, lips:'#a14a3c', bg:'#f3e2c4' } },
@@ -5803,6 +5821,7 @@ function managerCard(){
   let h = `<div class="card${opsFocus==='mgr'?' hl':''}" id="op-mgr"><div class="row"><span class="t" style="opacity:1">Farm manager</span><span>${M?M.name:'Nobody'}</span></div>`;
   h += `<div class="vents" style="margin:4px 0">${hireBtn('manager','none',!M,'Decide myself',true)}${Object.entries(FARM_MGRS).map(([k,T0]) => hireBtn('manager', k, staff.manager===k, `${T0.name} · ${fmt(T0.wage)}/day · ${TIER_WORD[k]}`, true)).join('')}</div>`;
   h += `<div class="muted">${M ? M.note : 'Decides each day which leaf moves on through the pilón, the bales and the aging house, and which goes to the factory, by the standing orders below.'} ${MGR_HELP}</div>`;
+  if (M){ const S0 = mgrSet(), d = mgrDuties(); h += `<div class="row" style="margin-top:5px"><span>Wage now</span><b>${fmt(mgrWage())} a day</b></div><div class="muted" style="font-size:11.5px">${fmt(M.wage)} for the leaf${S0.plant!=='off' ? ` + ${fmt(M.wage)} for running the fields` : ''}${S0.targets ? ` + ${fmt(M.wage)} for the cigar stock` : ''}.${d<3 ? ` Each extra duty below adds ${fmt(M.wage)} a day.` : ''}</div>`; }
   h += `<div style="margin-top:6px"><b style="font-size:12px">Standing orders</b></div>`;
   const GROUPS = { leaf:'The leaf', fields:'The fields', stock:'Cigar stock' };
   for (const [g, gname] of Object.entries(GROUPS)){ h += `<div class="wsstep" style="margin-top:7px">${gname}</div>`;
