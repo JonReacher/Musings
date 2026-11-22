@@ -1836,7 +1836,7 @@ const FARM_MGRS = {
   pro: { name:'Ofelia Cruz', wage:28, noise:0.02, act:1, price:1.05, note:'Twenty years buying leaf for the factory in town. She reads a hand of leaf at a glance, acts the same day, and the buyers pay her 5% more.' },
 };
 const GRADE_Q = { 'A+':1.2, A:1.05, B:0.9, C:0.75, D:0 };
-const MGR_DEFAULT = { fermMin:'B', curedLow:'sell', baleMin:'B', fermLow:'sell', keepMin:'A', lowBales:6, reserve:100, cashFloor:1000, makeRoom:true };
+const MGR_DEFAULT = { fermMin:'B', curedLow:'sell', baleMin:'B', fermLow:'sell', keepMin:'A', lowBales:6, reserve:100, cashFloor:1000, makeRoom:true, plant:'off', seedMix:'blends', plantWhen:'season', stagger:true, rest:'two', soil:true, targets:false };
 const MGR_OPTS = {
   fermMin:  { label:'Ferment cured leaf graded', opts:[['A+','A+'],['A','A or better'],['B','B or better'],['C','C or better'],['D','All of it']] },
   curedLow: { label:'Cured leaf below that', opts:[['sell','Sell it cured'],['hold','Hold it for me']] },
@@ -1847,6 +1847,13 @@ const MGR_OPTS = {
   reserve:  { label:'Always keep, of each seed and priming', opts:[[0,'Nothing'],[50,'50 kg'],[100,'100 kg'],[250,'250 kg'],[500,'500 kg']] },
   cashFloor:{ label:'If cash falls below', opts:[[0,'Never sell for cash'],[500,'$500'],[1000,'$1,000'],[3000,'$3,000'],[8000,'$8,000']] },
   makeRoom: { label:'Barns full at harvest', opts:[[true,'Sell the poorest cured leaf'],[false,'Wait for me']] },
+  plant:    { g:'fields', label:'Planting', opts:[['off','I plant'],['need','What my blends need, +20%'],['all','Every free field']] },
+  seedMix:  { g:'fields', label:'Which seed', opts:[['blends','In the mix my blends use'],['criollo','All Criollo'],['corojo','All Corojo'],['habano','All Habano'],['broadleaf','All Broadleaf']] },
+  plantWhen:{ g:'fields', label:'When to plant', opts:[['season','October to January, as Don Aurelio says'],['any','Any month']] },
+  stagger:  { g:'fields', label:'Spread plantings', opts:[[true,'A few each week, so harvests fit the barns'],[false,'All at once']] },
+  rest:     { g:'fields', label:'Rest fields with a cover crop', opts:[['never','Never'],['two','After two crops in a row'],['every','After every crop']] },
+  soil:     { g:'fields', label:'Soil care before planting', opts:[[true,'Lime, feed and drain as needed'],[false,'Leave the soil to me']] },
+  targets:  { g:'stock', label:'Cigar keep-on-hand targets', opts:[[false,'I set them'],[true,'Keep them at six weeks of sales']] },
 };
 const MGR_HELP = 'The finest leaf goes the whole way, cured, fermented, baled and aged, into your own cigars. Lesser leaf earns its keep at the factory, or in a cheaper house blend. Leaf in any of your blends, and leaf you bought, is never sold.';
 const pipelineReady = () => ['barn','ferm','ware','galera','stand'].every(t => ready(t).length>0);
@@ -1921,6 +1928,9 @@ function managerWatch(M){
   // finished leaf with nowhere to age
   if (know('time')){ const wait = lots.filter(l => l.stage==='fermented' && mgrSees(l) >= GRADE_Q[S.baleMin]);
     if (wait.length && !wait.some(l => ready('ware').some(w => wareCap(w)-wareUsed(w) >= l.kg))) raise('ware', `${wait.length} finished lot${wait.length>1?'s are':' is'} waiting to be baled and the aging warehouse is full. ${wait.length>1?'They hold':'It holds'} the pilones, so no new leaf can ferment.`); }
+  // the field plan: more tiles needed than the farm has
+  if (S.plant==='need' && plantingOK()){ const P = fieldPlan(), short = Object.values(P.want).reduce((a,x) => a+x, 0), free = mgrFieldTiles().filter(t => t.work==='plowed' || t.work==='stalks' || (t.work===null && t.t==='field')).length;
+    if (short > free + 2) raise('land', `The blends need about ${short} more tiles planted this season, and only ${free} field${free===1?' is':'s are'} free. Buy or clear more land, or the leaf for your blends will run short next year.`); }
   // the workshop
   const stalled = biz.orders.filter(o => o.stalled).map(o => prodOf(o.productId)).filter(Boolean);
   if (stalled.length) raise('roll', `Rolling of ${stalled.map(p => p.name).join(', ')} has paused: its leaf ran out and there is nothing similar. Make a new blend, or retire this one, in the Workshop tab.`);
@@ -1929,13 +1939,94 @@ function managerWatch(M){
   if (cash < daily*3) { const dd = Math.max(0, Math.floor(cash/daily)); raise('cash', `There is cash for ${dd ? `about ${dd} more day${dd===1?'':'s'}` : 'less than a day'} of wages (${fmt(daily)} a day). After that, people start to quit.`); }
   for (const k of Object.keys(staff.mgrAlerts||{})) if (!now.has(k)) delete staff.mgrAlerts[k];
 }
+// ---------- the manager's fields ----------
+// What the blends need, by seed: cigars a day from sales or targets, times the leaf of each seed and priming in the
+// recipe. A tile gives all three primings, so the seed with the tightest priming sets how many tiles it needs.
+const PLANT_MONTHS = [9,10,11,0];
+const YIELD_EST = 0.9; // a fair season, after losses
+function blendDemand(){
+  const live = biz.blends.filter(B => !B.retired), D = {};
+  let tot = 0; const rate = {};
+  const gOfB = {};
+  for (const B of live){ const ps = biz.products.filter(p => p.blendId===B.id); let r = 0, gs = 0;
+    for (const p of ps){ const x = Math.max(salesPace(p.id, 60), (p.target||0)/42); r += x; gs += x*VITOLAS[p.vit].g; }
+    rate[B.id] = r; gOfB[B.id] = r ? gs/r/1000 : VITOLAS.robusto.g/1000; tot += r; }
+  for (const B of live){ const r = tot > 0 ? rate[B.id] : 20/Math.max(1, live.length), g = gOfB[B.id];   // no sales yet: plan for 20 a day
+    const roles = [[B.wrap, 0.10], [B.bind, 0.15], ...B.fill.map(f => [f.lot, 0.75*f.pct/100])];
+    for (const [id, sh] of roles){ const R = roleLeaf(B, id); if (R.v==null) continue; const k = R.v+':'+R.pr; D[k] = (D[k]||0) + r*g*sh*365; } }
+  return D; // kg a year, by "seed:priming"
+}
+function fieldPlan(){
+  const D = blendDemand(), S = mgrSet(), need = {}, have = {}, grow = {};
+  for (const l of leafLots()){ const k = l.v+':'+l.pr; have[k] = (have[k]||0) + l.kg; }
+  for (const t of map.flat()) if (t.owned && t.work==='seeded' && t.v) grow[t.v] = (grow[t.v]||0) + 1;
+  for (const [k, kg] of Object.entries(D)){ const [v, pr] = k.split(':'), per = VARS[v].kg*PRIM[+pr].share*YIELD_EST, short = Math.max(0, kg*1.2 - (have[k]||0)*0.5);
+    need[v] = Math.max(need[v]||0, Math.ceil(short/per)); }
+  if (S.seedMix!=='blends' && VARS[S.seedMix]){ const n = Object.values(need).reduce((a,x) => a+x, 0); for (const v in need) delete need[v]; need[S.seedMix] = n; }
+  const want = {}; for (const v in need) want[v] = Math.max(0, need[v] - (grow[v]||0));
+  return { D, need, grow, want, kgYear:Object.values(D).reduce((a,x) => a+x, 0) };
+}
+const mgrFieldTiles = () => map.flat().filter(t => t.owned && !t.b && !t.city && (['plowed','stalks','cover','seeded'].includes(t.work) || (t.work===null && t.t==='field')));
+function plantingOK(){ return mgrSet().plantWhen==='any' || PLANT_MONTHS.includes(curMonth()); }
+function needsRest(t, S){ const so = t.soil; if (!know('land') || S.rest==='never') return so.shank > 0.3 && know('land'); return S.rest==='every' || so.consec >= 2 || so.shank > 0.2; }
+function soilFix(t, S){ // what the soil needs before a crop, and what it costs
+  if (!S.soil || !know('land')) return [];
+  const so = t.soil, out = [];
+  if (so.ph < 5.7) out.push('lime'); if (so.nit < 0.5) out.push(so.nit < 0.4 && drainOf(t) < 0.6 ? 'compost' : 'fert'); if ((drainOf(t) < 0.5 || so.shank > 0.05) && so.drain < 0.95) out.push('ditch');
+  return out;
+}
+function managerFields(M){
+  const S = mgrSet(); if (S.plant==='off' && S.rest==='never' && !S.soil) return;
+  let work = M===FARM_MGRS.pro ? 14 : 9;   // tiles of field work a day
+  const floor = S.cashFloor, pay = (c, cat) => { if (cash - c < floor) return false; cash -= c; spend(cat, c); return true; };
+  const done = { plow:0, cover:0, plant:{}, soil:0 };
+  // 1. after harvest: rest the ground or turn it over for the next crop
+  for (const t of mgrFieldTiles().filter(t => t.work==='stalks')){ if (work<=0) break;
+    if (needsRest(t, S)){ if (!pay(soilCost('cover'), 'Soil')) break; t.work = 'cover'; t.g = 0; done.cover++; }
+    else if (S.plant!=='off'){ if (!pay(120, 'Fieldwork')) break; t.work = 'plowed'; t.g = 0; t.v = null; t.hp = 1; done.plow++; }
+    work--; }
+  // 2. planting
+  if (S.plant!=='off' && plantingOK()){
+    const P = fieldPlan(), cap = S.stagger ? Math.max(4, Math.round(ready('barn').reduce((a,b) => a + barnCap(b), 0)*0.75/4)) : 999;   // about a quarter of the barns each week
+    const recent = map.flat().filter(t => t.owned && t.work==='seeded' && t.g < 7).length;
+    let room = Math.max(0, cap - recent), want = { ...P.want };
+    let total = Object.values(want).reduce((a,x) => a+x, 0);
+    const ground = mgrFieldTiles().filter(t => (t.work==='plowed' || (t.work===null && t.t==='field')) && !needsRest(t, S)).sort((a,b) => soilScore(b) - soilScore(a));
+    if (S.plant==='all'){ const w = Object.keys(P.need).length ? P.need : { [VARS[S.seedMix] ? S.seedMix : 'criollo']:1 }, sum = Object.values(w).reduce((a,x) => a+x, 0) || 1;
+      want = {}; for (const v in w) want[v] = Math.round(ground.length * w[v]/sum + 0.49); total = ground.length; }
+    for (const t of ground){ if (work<=0 || room<=0 || total<=0) break;
+      const v = Object.entries(want).filter(([,n]) => n>0).sort((a,b) => b[1]-a[1])[0]; if (!v) break;
+      const fixes = soilFix(t, S), seedC = Math.round(VARS[v[0]].cost*(perk('seedwise')?0.8:1)), cost = (t.work==='plowed' ? 0 : 120) + seedC + fixes.reduce((a,k) => a + soilCost(k), 0);
+      if (cash - cost < floor) break;
+      if (t.work!=='plowed'){ cash -= 120; spend('Fieldwork', 120); }
+      for (const k of fixes){ cash -= soilCost(k); spend('Soil', soilCost(k)); const keep = soilAct; soilAct = k; apply('soil', t); soilAct = keep; done.soil++; }
+      cash -= seedC; spend('Seed & planting', seedC); if (t.t!=='field') t.t = 'field';
+      elder.stats.planted++; Object.assign(t, { work:'seeded', g:0, v:v[0], hp:1, pr:0, seen:-1, top:0, worm:0, bmold:0, prot:0, shankHit:false });
+      want[v[0]]--; total--; room--; work--; done.plant[v[0]] = (done.plant[v[0]]||0) + 1; }
+  }
+  const planted = Object.entries(done.plant).map(([v,n]) => `${n} ${VARS[v].name.replace('-type','')}`).join(', ');
+  if (planted) mgrLog(`Planted ${planted}${done.soil?`, with ${done.soil} soil treatment${done.soil>1?'s':''}`:''}.`);
+  if (done.cover) mgrLog(`Put ${done.cover} harvested field${done.cover>1?'s':''} under a cover crop to rest.`);
+  if (done.plow) mgrLog(`Plowed ${done.plow} harvested field${done.plow>1?'s':''} for the next crop.`);
+}
+// keep-on-hand targets that follow sales: six weeks, three resting and three on the shelf
+const salesPace = (pid, n) => sumDays(n, r => pUnits(r, pid)) / spanDays(n);
+function managerTargets(){
+  if (!mgrSet().targets || dayInt % 7) return;
+  for (const p of biz.products){ const B = blendOf(p.blendId); if (!B || B.retired) continue; const sp = salesPace(p.id, 60); if (sp < 0.2) continue;
+    // six weeks of sales on a 60-day average; never more than a quarter lower in one week, so an empty shelf doesn't talk the target down
+    const old = p.target || 0, aim = Math.max(100, Math.ceil(sp*42/50)*50), t = old ? Math.max(aim, Math.floor(old*0.75/50)*50) : aim;
+    if (Math.abs(t - old) >= Math.max(50, old*0.1)){ mgrLog(`Set the keep-on-hand target for ${p.name} to ${t} (was ${old||'off'}): it sells about ${sp.toFixed(1)} a day.`); p.target = t; } }
+}
 function managerTick(){
   const M = farmMgr(); if (!M) return;
   if (cash < M.wage){ staff.manager = null; workerQuit(M.name, 'Farm manager', 'manager'); return; }
   mgrRehire(M);
   cash -= M.wage; staff.crewWages = (staff.crewWages||0) + M.wage; spend('Wages', M.wage);
   managerWatch(M);                                             // every day, whatever else he gets to
+  managerTargets();
   if (wrnd() > M.act) return;                                  // not today
+  managerFields(M);
   const S = mgrSet();
   // 1. cured leaf: the best into free pilones, the rest to the factory or held
   const cured = lots.filter(l => l.stage==='cured').sort((a,b) => mgrSees(b)-mgrSees(a));
@@ -2361,7 +2452,7 @@ const SEGMENTS = {
 };
 const biz = { blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:null, seg:{}, beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{} };
 function freshSegStats(){ const o = {}; for (const k in SEGMENTS) o[k] = { visits:0, buyers:0, sticks:0, revenue:0, tooStrong:0, tooMild:0, tooPricey:0, harsh:0, liked:{} }; return o; }
-function resetBiz(){ talk.queue = []; talk.flags = {}; talk.cd = {}; if (typeof renderTalk==='function' && $('talk')) $('talk').classList.remove('show'); Object.assign(biz, { brand:null, today:null, blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:newWeek(), seg:freshSegStats(), beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{} }); staff.rollers = []; staff.keeper = false; staff.lector = false; }
+function resetBiz(){ talk.queue = []; talk.flags = {}; talk.cd = {}; if (typeof renderTalk==='function' && $('talk')) $('talk').classList.remove('show'); Object.assign(biz, { brand:null, today:null, blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:newWeek(), seg:freshSegStats(), beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{}, noDiscount:false }); staff.rollers = []; staff.keeper = false; staff.lector = false; }
 function newWeek(){ return { day:dayInt, visitors:0, buyers:0, sticks:0, revenue:0, wholesale:0, made:0 }; }
 const prodOf = id => biz.products.find(p => p.id===id), blendOf = id => biz.blends.find(b => b.id===id);
 // ---------- the calendar: real days of the week ----------
@@ -2952,6 +3043,7 @@ function salesTab(){
     h += `<div class="card"><b>The roadside stand</b><div class="muted">${WEEKDAYS[weekday(dayInt)]}: ${open?'open today':'closed today'}. Prices, customers and daily sales are inside.</div><div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn" data-act="enter" data-x="stand">Go to the stand</button></div></div>`;
     h += `<div class="kpis">${kpi('Last 7 days', `${sold} sold`, fmt(rev))}${kpi('Visitors', D7.reduce((s2,r)=>s2+r.vis,0), `${pct(D7.reduce((s2,r)=>s2+r.buy,0), D7.reduce((s2,r)=>s2+r.vis,0))} bought`)}${kpi('Keeper', staff.keeper?'Doña Inés':'You', staff.keeper?'open daily':'weekends only')}</div>`;
   } else h += `<h4>Roadside stand</h4><div class="muted">Build a roadside cigar stand (Build tool) on your land, next to a road. Locals, tourists and, in time, aficionados will stop.</div>`;
+  if (ready('stand').length) h += `<div class="card"><b>Discount requests</b><div class="muted">${biz.noDiscount ? 'Your policy: no discounts. Customers who want a deal don’t ask; tourists who want a box pay the shelf price.' : 'Now and then tourists and collectors ask for a deal on a box. Some good for word of mouth, some just cost you money.'}</div><div class="vents" style="margin-top:4px"><button class="btn sm${biz.noDiscount?'':' on'}" data-act="nodisc" data-x="0">Hear them out</button><button class="btn sm${biz.noDiscount?' on':''}" data-act="nodisc" data-x="1">No discounts, as a policy</button></div></div>`;
   h += beltranCard();
   return h;
 }
@@ -2992,6 +3084,7 @@ function bizAct(kind, id, extra){
     const o = biz.orders.find(x => x.productId===p.id); if (o){ o.qty += 100; o.stalled = false; } else biz.orders.push({ id:biz.nextId++, productId:p.id, qty:100, done:0 }); return true; }
   if (kind==='more'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty += +extra || 100; o.stalled = false; } return true; }
   if (kind==='less'){ const o = biz.orders.find(x => x.id===id); if (o){ o.qty = Math.max(o.done + 1, o.qty - 50); } return true; }
+  if (kind==='nodisc'){ biz.noDiscount = extra==='1'; return true; }
   if (kind==='wsb'){ wsDraft.b = id; return true; }
   if (kind==='bcancel'){ const ids = biz.products.filter(p => p.blendId===id).map(p => p.id), n = biz.orders.filter(o => ids.includes(o.productId)).reduce((a,o) => a + o.qty - o.done, 0);
     biz.orders = biz.orders.filter(o => !ids.includes(o.productId)); const B = blendOf(id);
@@ -3331,19 +3424,19 @@ function peopleTick(){
   const season = [11,0,1,2,3].includes(curMonth()), stand = ready('stand')[0];
   const best = biz.products.filter(p => stockOf(p,true,1)>=25).sort((a,b)=>b.price-a.price)[0];
   if (stand && season && best && Math.random()<0.04 && cool('tourists', 25)){
-    const offer = Math.round(25*best.price*(0.72 + Math.random()*0.45)), cheap = offer < 25*best.price;
+    let offer = Math.round(25*best.price*(0.72 + Math.random()*0.45)); if (biz.noDiscount) offer = Math.max(offer, Math.round(25*best.price)); const cheap = offer < 25*best.price;
     say('tourists', `We stopped for coffee and ended up staying all afternoon! Could you put together a box of 25 ${esc(best.name)} for us to take home? ${cheap ? `Since it’s a whole box, would you do it for ${fmt(offer)}?` : `We’d happily pay ${fmt(offer)}, with a little note in the lid.`}` + dealBox(shelfCompare(best, 1, 25, offer)),
-      [{ label:`Sell the box (${fmt(offer)})`, fn:()=>{ const got = takeStock(best, 1, 25); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(best, 1, got, offer*got/25, 'deal'); biz.rep = Math.min(100, biz.rep+1.5); toast(`Sold a box of ${got} for ${fmt(offer*got/25)}. They promised to tell their friends.`); } }, { label:'Sorry, not today' }]);
+      [{ label:`Sell the box (${fmt(offer)})`, fn:()=>{ const got = takeStock(best, 1, 25); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(best, 1, got, offer*got/25, 'deal'); biz.rep = Math.min(100, biz.rep+1.5); toast(`Sold a box of ${got} for ${fmt(offer*got/25)}. They promised to tell their friends.`); } }, { label:'Sorry, not today' }, ...(cheap ? [noDiscountBtn] : [])]);
   }
   // a collector wants a club price
   const fine = biz.products.filter(p => stockOf(p,true,1)>=20 && (p.rateN||0)>=5 && p.rateSum/p.rateN>=3.2).sort((a,b)=>b.rateSum/b.rateN - a.rateSum/a.rateN)[0];
-  if (stand && fine && biz.rep>=30 && Math.random()<0.025 && cool('collector', 45)){
+  if (stand && fine && biz.rep>=30 && !biz.noDiscount && Math.random()<0.025 && cool('collector', 45)){
     const n = 20, offer = Math.round(n*fine.price*(0.85 - Math.random()*0.12)*2)/2, counter = Math.round(n*fine.price*0.93*2)/2;
     const sell = amt => { const got = takeStock(fine, 1, n); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(fine, 1, got, amt*got/n, 'deal'); biz.rep = Math.min(100, biz.rep+2); toast(`Mr. Álvarez took ${got} ${fine.name} for ${fmt2(amt*got/n)}. Aficionados will hear about you.`); };
     say('collector', `I smoked one of your ${esc(fine.name)} at El Gordo’s bar. Very good. I run a cigar club in Miami, twenty members who love to discover a new farm. I’d take ${n} today for ${fmt2(offer)}. A club price, you understand. If they like them, they’ll come looking for you.` + dealBox(shelfCompare(fine, 1, n, offer)),
       [{ label:`Sell ${n} for ${fmt2(offer)}`, fn:() => sell(offer) },
        { label:`Counter: ${fmt2(counter)}`, fn:() => { if (Math.random() < 0.5) { say('collector', `“You drive a hard bargain. ${fmt2(counter)} it is.”`); sell(counter); } else say('collector', '“Then I’ll pass, my friend. Good luck with the farm.”'); } },
-       { label:'No, thank you' }]);
+       { label:'No, thank you' }, noDiscountBtn]);
   }
   // the fiesta
   const dd = new Date(Date.UTC(2025,9,1) + dayInt*864e5);
@@ -3359,6 +3452,7 @@ function peopleTick(){
     say('celestino', `I tasted some of your leaf at Beltrán’s. Not bad, for a newcomer. I’ll buy ${lotName(lot)}, all ${Math.round(lot.kg)} kg, for ${fmt(offer)}. That’s more than the factory will give you, and you know it.` + dealBox([['The factory would pay', `${Math.round(lot.kg)} kg × ${fmt2(price(lot))} = ${fmt(fac)}`], ['Don Celestino offers', `${fmt(offer)} · ${fmt2(offer/lot.kg)} a kg`], ['Above the factory', `+${fmt(offer-fac)} (+15%)`, 'up'], ['Or roll it yourself', `enough leaf for about ${Math.round(lot.kg/0.012).toLocaleString('en-US')} robustos`]], 'Leaf sold is money today. Leaf rolled into cigars is worth far more, but only if you can sell them.'), [{ label:`Sell it (${fmt(offer)})`, fn:()=>{ if (!lots.includes(lot)) return; cash += offer; finRev('rev.leaf', offer); year.leafSales += offer; year.soldKg += lot.kg; lots.splice(lots.indexOf(lot),1); toast(`Sold to Don Celestino for ${fmt(offer)}.`); } }, { label:'I’m keeping it' }]);
   }
 }
+const noDiscountBtn = { label:'No discounts, as a policy', fn:()=>{ biz.noDiscount = true; toast('From now on you sell at your shelf price. Nobody will ask for a discount; you can change this on the Sales tab.'); } };
 function aurelioTick(){
   if (!talk.flags.hello && gameId) say('aurelio', 'So you’re the one who bought the land up the hill. Fifty years I’ve farmed this valley. Come and sit with me when you can. A cup of coffee costs nothing, and you have a lot to learn.', [{ label:'Visit him now', fn:()=>openElder() }, { label:'Later' }], 'hello');
   const L = LESSONS.find(x => x.need>0 && x.need<=elder.trust && !elder.read.has(x.id) && !talk.flags['les-'+x.id]);
@@ -5693,13 +5787,28 @@ function peopleCards(){
   if (pipelineReady() || staff.manager) h += managerCard();
   return h;
 }
+function fieldPlanHTML(){
+  const S = mgrSet(); if (S.plant==='off') return `<div class="muted" style="margin-top:4px;font-size:11.5px">You plant. ${S.rest!=='never' || S.soil ? 'The manager still rests harvested fields and cares for the soil by the orders above.' : ''}</div>`;
+  const P = fieldPlan(), vs = [...new Set([...Object.keys(P.need), ...Object.keys(P.grow)])];
+  let h = `<div style="margin-top:6px;font-size:11.5px"><b>Field plan</b> · ${plantingOK() ? 'planting now' : `next planting from October`}</div>`;
+  if (!vs.length) return h + `<div class="muted" style="font-size:11.5px">No blends to plant for yet${S.plant==='all' ? `: free fields get ${VARS[VARS[S.seedMix]?S.seedMix:'criollo'].name}` : ''}.</div>`;
+  h += `<table class="dtab"><thead><tr><th>Seed</th><th>Blends use</th><th>Tiles needed</th><th>Growing</th></tr></thead><tbody>`;
+  for (const v of vs){ const kg = Object.entries(P.D).filter(([k]) => k.startsWith(v+':')).reduce((a,[,x]) => a+x, 0);
+    h += `<tr><td>${VARS[v].name}</td><td>${kg ? kgf(kg)+'/yr' : '—'}</td><td>${P.need[v]||0}</td><td>${P.grow[v]||0}</td></tr>`; }
+  const free = mgrFieldTiles().filter(t => t.work==='plowed' || t.work==='stalks' || (t.work===null && t.t==='field')).length, resting = mgrFieldTiles().filter(t => t.work==='cover').length;
+  return h + `</tbody></table><div class="muted" style="font-size:11px">Tiles needed covers a year of your blends plus 20%, less leaf already in stock. ${free} field${free===1?'':'s'} free, ${resting} resting under a cover crop. The manager plants only land that is already a field: buying and clearing land stay with you.</div>`;
+}
 function managerCard(){
   const M = farmMgr(), S = mgrSet(), st = staff.mgrStats || { moves:0, slips:0 };
   let h = `<div class="card${opsFocus==='mgr'?' hl':''}" id="op-mgr"><div class="row"><span class="t" style="opacity:1">Farm manager</span><span>${M?M.name:'Nobody'}</span></div>`;
   h += `<div class="vents" style="margin:4px 0">${hireBtn('manager','none',!M,'Decide myself',true)}${Object.entries(FARM_MGRS).map(([k,T0]) => hireBtn('manager', k, staff.manager===k, `${T0.name} · ${fmt(T0.wage)}/day · ${TIER_WORD[k]}`, true)).join('')}</div>`;
   h += `<div class="muted">${M ? M.note : 'Decides each day which leaf moves on through the pilón, the bales and the aging house, and which goes to the factory, by the standing orders below.'} ${MGR_HELP}</div>`;
   h += `<div style="margin-top:6px"><b style="font-size:12px">Standing orders</b></div>`;
-  for (const [k, O] of Object.entries(MGR_OPTS)) h += `<div style="margin:5px 0 0"><div class="muted" style="font-size:11.5px">${O.label}</div><div class="vents" style="flex-wrap:wrap;gap:3px;margin-top:2px">${O.opts.map(([v,n]) => `<button class="btn sm${S[k]===v?' on':''}" data-act="mgrset" data-x="${k}=${v}">${n}</button>`).join('')}</div></div>`;
+  const GROUPS = { leaf:'The leaf', fields:'The fields', stock:'Cigar stock' };
+  for (const [g, gname] of Object.entries(GROUPS)){ h += `<div class="wsstep" style="margin-top:7px">${gname}</div>`;
+  if (g==='fields' && !know('land')) h += `<div class="muted" style="font-size:11px">Cover crops and soil care wait until Don Aurelio teaches you about the land.</div>`;
+  for (const [k, O] of Object.entries(MGR_OPTS).filter(([,O]) => (O.g||'leaf')===g)) h += `<div style="margin:5px 0 0"><div class="muted" style="font-size:11.5px">${O.label}</div><div class="vents" style="flex-wrap:wrap;gap:3px;margin-top:2px">${O.opts.map(([v,n]) => `<button class="btn sm${S[k]===v?' on':''}" data-act="mgrset" data-x="${k}=${v}">${n}</button>`).join('')}</div></div>`;
+  if (g==='fields') h += fieldPlanHTML(); }
   h += `<div class="muted" style="margin-top:5px">Cured and fermented leaf held back waits in the barn or the pilón for you to decide. Lesser bales kept for cheaper blends age on in the warehouse. Every morning the manager also checks the barns, pilones, fields, warehouse, workshop and cash. With no tender, turner, sprayer or field hands, the manager sets the barn vents, has hot piles turned, sprays blue mold and hires day pickers, while there is money. Anything that can’t be handled pauses the game and comes to you. With a manager, your aging-house hand bales only what the manager sends.</div>`;
   const open = Object.values(staff.mgrAlerts||{});
   if (M && open.length) h += `<div style="margin-top:6px"><b class="bad" style="font-size:12px">Needs you</b></div>` + open.map(a => `<div class="muted" style="font-size:11.5px;margin-top:2px">⚠️ ${esc(dateOf(a.d))}: ${esc(a.t)}</div>`).join('');
@@ -5919,7 +6028,7 @@ function serialize(){
   const tiles = map.slice(0, NR_FARM).flat().map(t => [t.t, t.owned?1:0, t.work||0, r3(t.g), t.v||0, r3(t.hp??1), t.pr||0, t.seen??-1, t.top||0, r3(t.worm), r3(t.bmold), t.prot||0, t.shankHit?1:0, t.pick||0, r3(t.tested), t.b||0, t.price, r3(t.soil.ph), r3(t.soil.nit), r3(t.soil.drain), r3(t.soil.shank), t.soil.consec, Math.min(9999, Math.round(t.soil.fallow))]);
   return { v:2, cols:NC, meta:gameMeta, cash, debt, days, dayInt, wx, wxQ, nextB, nextLot, variety, tiles, buildings, lots, staff:{...staff}, year, lastAlert:{...lastAlert},
     talk:{ flags:talk.flags, cd:talk.cd },
-    biz:{ lotInfo:biz.lotInfo||{}, brand:biz.brand||null, today:biz.today||null, blends:biz.blends, products:biz.products, orders:biz.orders, nextId:biz.nextId, rep:biz.rep, comments:biz.comments, weeks:biz.weeks, cur:biz.cur, seg:biz.seg, beltran:biz.beltran, daily:biz.daily, log:biz.log, lastLog:biz.lastLog, reg:biz.reg },
+    biz:{ lotInfo:biz.lotInfo||{}, brand:biz.brand||null, today:biz.today||null, blends:biz.blends, products:biz.products, orders:biz.orders, nextId:biz.nextId, rep:biz.rep, comments:biz.comments, weeks:biz.weeks, cur:biz.cur, seg:biz.seg, beltran:biz.beltran, daily:biz.daily, log:biz.log, lastLog:biz.lastLog, reg:biz.reg, noDiscount:!!biz.noDiscount },
     city:JSON.parse(JSON.stringify(city)), fin:fin ? JSON.parse(JSON.stringify(fin)) : null,
     elder:{ trust:elder.trust, read:[...elder.read], cd:elder.cd, roof:elder.roof, seed:elder.seed, said:elder.said, done:[...elder.done], perks:[...elder.perks], stats:elder.stats }, cam:{...cam} };
 }
