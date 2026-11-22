@@ -388,7 +388,7 @@ const BTYPES = {
 };
 const BUILDABLE = ['barn','ferm','ware','galera','stand'];
 const BALE_COST = 0.25;
-const turnCost = () => perk('pilonHands') ? 20 : 40;
+const turnCost = () => perk('pilonHands') ? 14 : 24;
 
 // ================= map =================
 const map = [], buildings = []; let nextB = 1;
@@ -591,7 +591,7 @@ const TOOLS = [
   { id:'seed',    name:'Plant',    hint:'$50–95 / tile' },
   { id:'care',    name:'Care',     hint:'Top · pests' },
   { id:'build',   name:'Build',    hint:'Barns & more' },
-  { id:'harvest', name:'Harvest',  hint:'$35 / picking' },
+  { id:'harvest', name:'Harvest',  hint:'$28 / picking' },
 ];
 const REASON = {
   buy:'Nothing for sale here. Buy open, scrub, forest or field land, or a building marked For Sale.',
@@ -652,7 +652,7 @@ function unitCost(tl, t){
     case 'clear': return t.t==='forest'?450:150;
     case 'plow': return 120;
     case 'seed': return Math.round(VARS[variety].cost * (perk('seedwise')?0.8:1));
-    case 'harvest': return 35;
+    case 'harvest': return 28;
     case 'soil': return soilCost(soilAct);
     case 'care': return careCost(careAct);
   } return 0;
@@ -977,7 +977,7 @@ const lvl = (x, names) => names[Math.max(0, Math.min(names.length-1, Math.floor(
 const lastAlert = { worm:-99, mold:-99, shank:-99, top:-99 };
 const CARE_PER_HAND = 6;
 const boss = () => perk('goodBoss') ? 0.85 : 1;
-const topPiece = () => Math.round((perk('topper')?9:12)*boss()*HT().rate), wormPiece = () => Math.round((perk('pestEye')?8:10)*boss()*HT().rate);
+const topPiece = () => Math.round((perk('topper')?7:9)*boss()*HT().rate), wormPiece = () => Math.round((perk('pestEye')?6:8)*boss()*HT().rate);
 function fieldTick(){
   const m = curMonth(), cool = [10,11,0,1].includes(m), wetW = wx==='Rain'||wx==='Storm'||wx==='Cloudy';
   let newWorm=0, newMold=0, newShank=0, needTop=0; const seeded = [];
@@ -1322,14 +1322,47 @@ function rollCost(){ const ms = lastMonths(3), cost = ms.reduce((s,m) => s + (m.
 // ---------- the Finance tab ----------
 function financeTab(){
   finEnsure(); const st = finStage();
-  const subs = { A:[['cash','Cash book']], B:[['cash','Cash'],['pl','Profit & loss'],['products','Products'],['forecast','Forecast']],
-    C:[['dash','Dashboard'],['pl','P&L'],['bs','Balance sheet'],['cf','Cash flow'],['budget','Budget'],['stores','Stores'],['products','Products'],['forecast','Forecast'],['bank','Bank']],
-    D:[['dash','Dashboard'],['pl','P&L'],['bs','Balance sheet'],['cf','Cash flow'],['budget','Budget'],['markets','Markets'],['fx','Currencies'],['stores','Stores'],['products','Products'],['forecast','Forecast'],['bank','Bank'],['board','Board'],['capital','Investors']] }[st];
+  const subs = { A:[['cash','Cash book'],['hist','History']], B:[['cash','Cash'],['hist','History'],['pl','Profit & loss'],['products','Products'],['forecast','Forecast']],
+    C:[['dash','Dashboard'],['hist','History'],['pl','P&L'],['bs','Balance sheet'],['cf','Cash flow'],['budget','Budget'],['stores','Stores'],['products','Products'],['forecast','Forecast'],['bank','Bank']],
+    D:[['dash','Dashboard'],['hist','History'],['pl','P&L'],['bs','Balance sheet'],['cf','Cash flow'],['budget','Budget'],['markets','Markets'],['fx','Currencies'],['stores','Stores'],['products','Products'],['forecast','Forecast'],['bank','Bank'],['board','Board'],['capital','Investors']] }[st];
   let sub = fin.sub; if (!subs.some(s => s[0]===sub)) sub = subs[0][0];
   let h = `<div class="finhead"><div><b>${st==='D'?'Group finance':st==='A'?'Money':'Finance'}</b> <span class="tg">${FIN_STAGES[st]}</span></div><span class="muted">${monthLabel(dayInt)} · day ${dayDate(dayInt).getUTCDate()}</span></div>`;
   if (subs.length > 1) h += `<div class="tabs fintabs">${subs.map(([k,n]) => `<button class="btn xs${sub===k?' on':''}" data-act="f_sub" data-x="${k}">${n}</button>`).join('')}</div>`;
-  const f = { cash:finCashBook, pl:finPLView, products:finProducts, forecast:finForecastView, dash:finDash, bs:finBSView, cf:finCFView, budget:finBudgetView, stores:finStores, bank:finBank, markets:finMarkets, fx:finFX, board:finBoard, capital:finCapital }[sub];
+  const f = { hist:finHistory, cash:finCashBook, pl:finPLView, products:finProducts, forecast:finForecastView, dash:finDash, bs:finBSView, cf:finCFView, budget:finBudgetView, stores:finStores, bank:finBank, markets:finMarkets, fx:finFX, board:finBoard, capital:finCapital }[sub];
   return h + f(st);
+}
+// Two kinds of pay: piece-rate labor is paid per job done (each picking, each tile topped or cleared of hornworms, the
+// day pickers you hire with the Harvest tool); wages are paid by the day to the people you keep on.
+const CAT_NAME = { Labor:'Field labor (piece rate)', Wages:'Farm wages (by the day)', Processing:'Leaf processing (turning, baling)', Rollers:'Rollers’ wages', Lector:'The lector', Shopkeeper:'Stand keeper' };
+const catName = k => CAT_NAME[k] || k;
+const IN_REV = ['rev.stand','rev.beltran','rev.shops','rev.abroad','rev.leaf'];
+function cashInOf(m){ const o = { ...(m.cashIn||{}) }; for (const k of IN_REV) if (m.rev && m.rev[k]) o[FIN_LINES[k]] = (o[FIN_LINES[k]]||0) + m.rev[k]; return o; }
+const addInto = (acc, o) => { for (const k in o) acc[k] = (acc[k]||0) + o[k]; return acc; };
+// every closed month is kept (six years of them): money in and out by year, by month, and by category
+function finHistory(st){
+  fin.sel = fin.sel || {};
+  const all = [...fin.months.map(m => ({ m, label:m.label, d0:m.d0 })), { m:fin.cur, label:`${monthLabel(fin.cur.d0)} (to date)`, d0:fin.cur.d0 }];
+  const years = [...new Set(all.map(x => fyOf(x.d0)))].sort((a,b) => a-b);
+  const yr = years.includes(fin.sel.hy) ? fin.sel.hy : years[years.length-1];
+  const tot = y => { const ms = all.filter(x => fyOf(x.d0)===y), i = ms.reduce((a,x) => addInto(a, cashInOf(x.m)), {}), o = ms.reduce((a,x) => addInto(a, x.m.cashOut||{}), {}); return { i, o, ti:finSum(i), to:finSum(o), n:ms.length }; };
+  const T = Object.fromEntries(years.map(y => [y, tot(y)]));
+  let h = `<div class="muted">Every month since the books began, up to six years. A farm year runs October to September.</div>`;
+  h += `<h4>Year by year</h4>` + fstmt(['Money in','Money out','Net'], years.map(y => [`Year ${y}${y===fyOf(dayInt)?' (to date)':''}${T[y].n<12 && y!==fyOf(dayInt)?` · ${T[y].n} mo`:''}`, [T[y].ti, -T[y].to, T[y].ti - T[y].to], y===yr?'sub':'']));
+  h += `<div class="tabs fintabs" style="margin-top:6px">${years.map(y => `<button class="btn xs${y===yr?' on':''}" data-act="f_hy" data-x="${y}">Year ${y}</button>`).join('')}</div>`;
+  const prevY = years.includes(yr-1) ? yr-1 : null, A = T[yr], B = prevY ? T[prevY] : null;
+  const rowsOf = (a, b) => { const ks = [...new Set([...Object.keys(a), ...Object.keys(b||{})])].sort((x,y) => (a[y]||0) - (a[x]||0)); return ks.length ? ks.map(k => [catName(k), b ? [a[k]||0, b[k]||0] : [a[k]||0], '']) : [['<span class="muted">Nothing</span>', b ? [0,0] : [0], '']]; };
+  const cols = [`Year ${yr}`].concat(prevY ? [`Year ${prevY}`] : []);
+  h += `<h4>Where the money went · Year ${yr}</h4>` + fstmt(cols, [['Money in', null, 'h'], ...rowsOf(A.i, B && B.i), ['Total in', [A.ti].concat(B ? [B.ti] : []), 'sub'], ['Money out', null, 'h'], ...rowsOf(A.o, B && B.o).map(r => [r[0], r[1].map(v => -v), '']), ['Total out', [-A.to].concat(B ? [-B.to] : []), 'sub'], ['Net cash flow', [A.ti - A.to].concat(B ? [B.ti - B.to] : []), 'tot']]);
+  // the months of that year
+  const ms = all.filter(x => fyOf(x.d0)===yr);
+  h += `<h4>Month by month · Year ${yr}</h4>` + fstmt(['Money in','Money out','Net'], ms.map(x => { const i = finSum(cashInOf(x.m)), o = finSum(x.m.cashOut||{}); return [x.label, [i, -o, i - o], x.d0===fin.sel.hm?'sub':'']; }));
+  h += `<div class="muted" style="margin-top:4px">Open a month:</div><div class="tabs fintabs">${ms.map(x => `<button class="btn xs${x.d0===fin.sel.hm?' on':''}" data-act="f_hm" data-x="${x.d0}">${x.label.replace(' (to date)','')}</button>`).join('')}</div>`;
+  const pick = ms.find(x => x.d0===fin.sel.hm);
+  if (pick){ const i = cashInOf(pick.m), o = pick.m.cashOut||{};
+    h += `<h4>${pick.label}</h4>` + fstmt([pick.label.replace(' (to date)','')], [['Money in', null, 'h'], ...rowsOf(i), ['Total in', [finSum(i)], 'sub'], ['Money out', null, 'h'], ...rowsOf(o).map(r => [r[0], r[1].map(v => -v), '']), ['Total out', [-finSum(o)], 'sub'], ['Net cash flow', [finSum(i) - finSum(o)], 'tot']]); }
+  const H = fin.cashHist.slice(-365).filter((x,i,a) => i % 3 === (a.length-1) % 3);
+  if (H.length > 2) h += `<h4>Cash, the last ${Math.round((H[H.length-1][0]-H[0][0])/30)} months</h4>` + fline({ vals:H.map(x => x[1]), labels:H.map(x => dateAt(x[0])) });
+  return h + `<div class="muted fsnote">${CAT_NAME.Labor} is paid per job: each picking, each tile topped or cleared of hornworms. ${CAT_NAME.Wages} are paid by the day to the people you keep on: barn tender, sprayer, pilón turner, aging-house hand and farm manager. Books from before the finance update start when it arrived.</div>`;
 }
 function finCashBook(st){
   const m = fin.cur, prev = lastMonths(1)[0], inT = finSum(m.cashIn) + ['rev.stand','rev.beltran','rev.shops','rev.abroad','rev.leaf'].reduce((s,k) => s + (m.rev[k]||0), 0), outT = finSum(m.cashOut);
@@ -1337,7 +1370,7 @@ function finCashBook(st){
   const runway = wk < 0 ? cash/(-wk) : null;
   let h = `<div class="kpis">${kpi('Cash now', fmt(cash), debt ? `owe the bank ${fmt(debt)}` : 'no bank debt')}${kpi('In this month', fmt(inT), `since ${dateAt(m.d0)}`)}${kpi('Out this month', fmt(outT), '')}${kpi(wk<0?'Cash lasts':'Cash grows', wk<0 ? (runway > 52 ? 'over a year' : `${Math.round(runway)} weeks`) : `${fmt(wk)}/wk`, `last ${D} days’ pace`, wk<0 && runway < 8 ? 'bad' : '')}</div>`;
   if (H.length > 2) h += `<h4>Cash, last ${H.length} days</h4>` + fline({ vals:H.map(x => x[1]), labels:H.map(x => dateAt(x[0])) });
-  const lines = (o1, o2) => { const keys = [...new Set([...Object.keys(o1||{}), ...Object.keys(o2||{})])].sort((a,b) => (o1[b]||0) - (o1[a]||0)); return keys.length ? keys.map(k => [k, [o1[k]||0, o2 ? (o2[k]||0) : null], '']) : [['<span class="muted">Nothing yet</span>', [0, o2 ? 0 : null], '']]; };
+  const lines = (o1, o2) => { const keys = [...new Set([...Object.keys(o1||{}), ...Object.keys(o2||{})])].sort((a,b) => (o1[b]||0) - (o1[a]||0)); return keys.length ? keys.map(k => [catName(k), [o1[k]||0, o2 ? (o2[k]||0) : null], '']) : [['<span class="muted">Nothing yet</span>', [0, o2 ? 0 : null], '']]; };
   const inNow = { ...m.cashIn }; for (const k of ['rev.stand','rev.beltran','rev.shops','rev.abroad','rev.leaf']) if (m.rev[k]) inNow[FIN_LINES[k]] = (inNow[FIN_LINES[k]]||0) + m.rev[k];
   const inPrev = prev ? { ...prev.cashIn } : null; if (prev) for (const k of ['rev.stand','rev.beltran','rev.shops','rev.abroad','rev.leaf']) if (prev.rev[k]) inPrev[FIN_LINES[k]] = (inPrev[FIN_LINES[k]]||0) + prev.rev[k];
   const cols = ['This month', prev ? prev.label : 'Last month'];
@@ -1542,6 +1575,9 @@ function finCapital(st){
 function finAct(kind, id, extra){
   if (!kind.startsWith('f_')) return false; finEnsure();
   if (kind==='f_sub') fin.sub = extra;
+  fin.sel = fin.sel || {};
+  if (kind==='f_hy'){ fin.sel.hy = +extra; fin.sel.hm = null; }
+  if (kind==='f_hm') fin.sel.hm = fin.sel.hm===+extra ? null : +extra;
   if (kind==='f_budget'){ fin.budgetGrowth = +extra; const B = finAutoBudget(); B.set = true; fin.budget = B; }
   if (kind==='f_term') takeTerm(+extra);
   if (kind==='f_repay' && fin.term){ const a = Math.min(fin.term.bal, 10000, Math.max(0,cash)); fin.term.bal -= a; cash -= a; finCash('out', 'Term loan repaid early', a); if (fin.term.bal > 0) fin.term.pay = fin.term.bal*fin.term.rate/(1-Math.pow(1+fin.term.rate,-Math.max(12, 60 - Math.round((dayInt-fin.term.start)/30)))); }
@@ -1590,7 +1626,7 @@ function showYearReview(){
   h += `<div class="row"><span>Leaf sold</span><span>${kgf(year.soldKg)} for ${fmt(year.leafSales)}</span></div><div class="row"><span>Leaf still on hand</span><span>${kgf(stock)}</span></div>`;
   h += `<div class="row"><span>Don Aurelio’s trust</span><span>${year.trust0} → ${elder.trust}</span></div></div>`;
   h += `<div class="etext"><h3>The money</h3>`;
-  h += spent.length ? spent.map(([k,v]) => `<div class="row"><span>${k}</span><span>${fmt(v)}</span></div>`).join('') : '<div class="muted">You spent nothing this year.</div>';
+  h += spent.length ? spent.map(([k,v]) => `<div class="row"><span>${catName(k)}</span><span>${fmt(v)}</span></div>`).join('') : '<div class="muted">You spent nothing this year.</div>';
   h += `<div class="row" style="border-top:1.5px solid #d9c38f;margin-top:4px;padding-top:4px"><span>Total spent</span><span>${fmt(spentTotal)}</span></div><div class="row"><span>Leaf sales</span><span>${fmt(year.leafSales)}</span></div>${year.cigarSales?`<div class="row"><span>Cigar sales</span><span>${fmt(year.cigarSales)}</span></div>`:''}`;
   h += `<div class="row"><span><b>Net for the year</b></span><span class="${net>=0?'ok':'bad'}">${fmt(net)}</span></div><div class="row"><span>Cash now</span><span>${fmt(cash)}</span></div><div class="row"><span>Owed to the bank</span><span class="${debt?'bad':''}">${fmt(debt)}</span></div></div></div>`;
   h += `<div class="said" style="margin-top:12px"><b>Don Aurelio:</b> ${word}</div>`;
@@ -1605,32 +1641,32 @@ const PICK_PER_HAND = 4;
 // comes once you have picked leaf yourself and know what you are paying for
 const HAND_TIERS = {
   mid: { name:'Day crew',         pick:4, care:6, rate:1,   q:1,    note:'Local day labor. They pick what is ripe and do it well enough.' },
-  pro: { name:'Experienced crew', pick:5, care:8, rate:1.4, q:1.03, note:'Mateo’s cousins from the hills. Faster, and gentle with the leaf: +3% quality on what they pick.' },
+  pro: { name:'Experienced crew', pick:5, care:8, rate:1.25, q:1.03, note:'Mateo’s cousins from the hills. Faster, and gentle with the leaf: +3% quality on what they pick.' },
 };
 const HT = () => HAND_TIERS[staff.handTier] || HAND_TIERS.mid;
-const pieceRate = () => Math.round(30*boss()*HT().rate); // per picking (one priming from one tile)
+const pieceRate = () => Math.round(24*boss()*HT().rate); // per picking (one priming from one tile)
 const TENDERS = {
-  cheap: { name:'Tito', wage:8,  acc:0.45, forget:0.15, stormNap:0.35, note:'A neighbor’s nephew, cheap and cheerful. He sometimes forgets to check the barn, and he has been known to sleep through a storm.' },
-  mid:   { name:'Rogelio', wage:16, acc:0.78, forget:0.05, stormNap:0.05, note:'He cured for the cooperative for ten years. Steady and sensible; once in a while he reads the sky wrong.' },
-  pro:   { name:'Doña Carmen', wage:28, acc:0.93, forget:0.02, stormNap:0, note:'Thirty years in barns. She sets the vents for the weather every day, and she is rarely wrong.' },
+  cheap: { name:'Tito', wage:5,  acc:0.45, forget:0.15, stormNap:0.35, note:'A neighbor’s nephew, cheap and cheerful. He sometimes forgets to check the barn, and he has been known to sleep through a storm.' },
+  mid:   { name:'Rogelio', wage:9, acc:0.78, forget:0.05, stormNap:0.05, note:'He cured for the cooperative for ten years. Steady and sensible; once in a while he reads the sky wrong.' },
+  pro:   { name:'Doña Carmen', wage:15, acc:0.93, forget:0.02, stormNap:0, note:'Thirty years in barns. She sets the vents for the weather every day, and she is rarely wrong.' },
 };
 // skilled hands for the rest of the leaf work. Each job has a median and a highly skilled hire, and you can hire for a
 // job only after you have done it yourself. What to plant, what to ferment and what to sell stay your decisions.
 const WORKERS = {
-  sprayer: { job:'Sprayer', learn:'spray', lock:'Spray a tile for blue mold yourself first (Care → Spray).', paid:'Paid on days you have a crop in the field, plus the spray.',
+  sprayer: { job:'Sprayer', learn:'spray', lock:'Spray a tile for blue mold yourself first (Care → Spray).', paid:'Paid only on days there is spraying to do, plus the spray.',
     does:'Walks the fields every morning and sprays blue mold where it shows.',
-    tiers:{ mid:{ name:'Ernesto', wage:14, cap:6, miss:0.1, guard:false, note:'Sprays what he finds sick, up to 6 tiles a day. Some mornings he doesn’t get out to the far fields.' },
-            pro:{ name:'Don Fermín', wage:24, cap:12, miss:0.02, guard:true, note:'Up to 12 tiles a day. He also sprays the healthy plants around an outbreak, before it reaches them.' } } },
-  turner:  { job:'Pilón turner', learn:'turn', lock:'Turn one of your own pilones yourself first.', paid:'Paid on days a pile is fermenting. No charge per turn.',
+    tiers:{ mid:{ name:'Ernesto', wage:8, cap:6, miss:0.1, guard:false, note:'Sprays what he finds sick, up to 6 tiles a day. Some mornings he doesn’t get out to the far fields.' },
+            pro:{ name:'Don Fermín', wage:13, cap:12, miss:0.02, guard:true, note:'Up to 12 tiles a day. He also sprays the healthy plants around an outbreak, before it reaches them.' } } },
+  turner:  { job:'Pilón turner', learn:'turn', lock:'Turn one of your own pilones yourself first.', paid:'Paid only on days he turns a pile. No charge per turn.',
     does:'Checks the pilones every day and turns them when the heat is up.',
-    tiers:{ mid:{ name:'Rafael', wage:14, at:[110,113], miss:0.08, q:0, note:'Turns when the pile runs hot, usually in time. Now and then a pile scorches before he gets to it.' },
-            pro:{ name:'Maestro Leandro', wage:26, at:[106,110], miss:0.01, q:0.02, note:'Forty years in the escogida. Turns right in the band and builds a tight pile: +2% quality from his pilones.' } } },
+    tiers:{ mid:{ name:'Rafael', wage:9, at:[110,113], miss:0.08, q:0, note:'Turns when the pile runs hot, usually in time. Now and then a pile scorches before he gets to it.' },
+            pro:{ name:'Maestro Leandro', wage:15, at:[106,110], miss:0.01, q:0.02, note:'Forty years in the escogida. Turns right in the band and builds a tight pile: +2% quality from his pilones.' } } },
   baler:   { job:'Aging-house hand', learn:'bale', lock:'Sort, bale and age a lot yourself first.', paid:'Paid on days there is leaf to bale, plus the burlap.',
     does:'Sorts finished leaf out of the pilones, bales it and stacks it to age, as long as the warehouse has room.',
-    tiers:{ mid:{ name:'Yoania', wage:12, kg:180, q:0, note:'Bales about 180 kg a day. Clean, honest work.' },
-            pro:{ name:'Doña Mercedes', wage:22, kg:320, q:0.03, note:'About 320 kg a day, and she sorts every hand by color and size before it is baled: +3% quality.' } } },
+    tiers:{ mid:{ name:'Yoania', wage:7, kg:180, q:0, note:'Bales about 180 kg a day. Clean, honest work.' },
+            pro:{ name:'Doña Mercedes', wage:12, kg:320, q:0.03, note:'About 320 kg a day, and she sorts every hand by color and size before it is baled: +3% quality.' } } },
 };
-const freshStaff = () => ({ hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false, handTier:'mid', crew:{ sprayer:null, turner:null, baler:null }, learned:{}, crewWages:0, crewWarned:{}, manager:null, mgr:null, mgrLog:[], mgrStats:{ moves:0, slips:0 } });
+const freshStaff = () => ({ hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false, handTier:'mid', crew:{ sprayer:null, turner:null, baler:null }, learned:{}, crewWages:0, crewWarned:{}, vacant:[], manager:null, mgr:null, mgrLog:[], mgrStats:{ moves:0, slips:0 } });
 const staff = freshStaff();
 const learned = k => !!(staff.learned && staff.learned[k]);
 const LEARN_MSG = { vent:'You’ve tended a curing barn yourself. Now you can hire a barn tender in Operations → People.', pick:'You’ve picked leaf with your own hands. An experienced crew will work for you now (Operations → People).',
@@ -1638,9 +1674,33 @@ const LEARN_MSG = { vent:'You’ve tended a curing barn yourself. Now you can hi
   bale:'You’ve sorted and baled leaf yourself. You can hire an aging-house hand in Operations → People.' };
 function learn(k){ if (!staff.learned) staff.learned = {}; if (staff.learned[k]) return; staff.learned[k] = true; setTimeout(() => toast(LEARN_MSG[k]), 600); }
 const workerOf = k => staff.crew && staff.crew[k] ? WORKERS[k].tiers[staff.crew[k]] : null;
+// Someone critical quit (they couldn't be paid). With a farm manager, the manager finds a replacement when the cash is
+// there; without one, the game pauses so you can see it and decide.
+function workerQuit(name, job, k, tier){
+  if (k!=='manager' && farmMgr()){
+    staff.vacant = (staff.vacant||[]).filter(v => v.k!==k); staff.vacant.push({ k, tier, d:dayInt });
+    mgrLog(`${name} (${job.toLowerCase()}) quit: there was no cash for the wage. A replacement will be hired once the wages can be paid.`);
+    toast(`${name} quit. ${farmMgr().name} will hire a new ${job.toLowerCase()} when there is cash to pay one.`); return;
+  }
+  const was = speedIdx; setSpeed(0);
+  say('mateo', `Patrón, ${name} has gone. ${k==='manager' ? 'The farm manager' : 'Your '+job.toLowerCase()} quit this morning: there was no money for the wage. ${k==='manager' ? 'Nobody is deciding about the leaf now. It is all yours again.' : 'That work is yours again until you hire someone.'}`,
+    [{ label:'Show me the people', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 0; setSpeed(was||1); } }, { label:'All right', fn:()=>setSpeed(was||1) }], null, true);
+  attention(`${name} quit: you couldn’t pay the wage. The game is paused.`);
+}
+// the manager fills vacancies once there is a couple of weeks of wages in hand, above your cash floor
+function mgrRehire(M){
+  for (const v of [...(staff.vacant||[])]){
+    const wage = v.k==='tender' ? TENDERS[v.tier].wage : WORKERS[v.k].tiers[v.tier].wage;
+    if (cash < wage*14 + mgrSet().cashFloor) continue;
+    if (v.k==='tender'){ if (!staff.tender) staff.tender = v.tier; } else if (!staff.crew[v.k]) staff.crew[v.k] = v.tier;
+    staff.vacant = staff.vacant.filter(x => x!==v);
+    const nm = v.k==='tender' ? TENDERS[v.tier].name : WORKERS[v.k].tiers[v.tier].name;
+    mgrLog(`Hired ${nm} back as ${v.k==='tender' ? 'barn tender' : WORKERS[v.k].job.toLowerCase()}.`);
+  }
+}
 function payCrew(k, w){
   const T0 = workerOf(k); if (!T0) return false;
-  if (cash < w){ toast(`${T0.name} quit. You couldn’t pay the wage.`); staff.crew[k] = null; return false; }
+  if (cash < w){ const tier = staff.crew[k]; staff.crew[k] = null; workerQuit(T0.name, WORKERS[k].job, k, tier); return false; }
   cash -= w; staff.crewWages = (staff.crewWages||0) + w; spend('Wages', w); return true;
 }
 // old saves have none of this; fill it in, and credit the skills their farm already shows they have
@@ -1650,6 +1710,7 @@ function migrateStaff(had){
   if (!TENDERS[staff.tender]) staff.tender = null;
   staff.crew = Object.assign({}, d.crew, staff.crew || {}); for (const k in staff.crew) if (!WORKERS[k] || (staff.crew[k] && !WORKERS[k].tiers[staff.crew[k]])) staff.crew[k] = null;
   staff.crewWages = staff.crewWages || 0; staff.crewWarned = staff.crewWarned || {};
+  staff.vacant = staff.vacant || [];
   if (!FARM_MGRS[staff.manager]) staff.manager = null; mgrSet(); staff.mgrLog = staff.mgrLog || []; staff.mgrStats = staff.mgrStats || { moves:0, slips:0 };
   if (!had || !had.learned){
     const own = lots.filter(l => !l.bought), L = staff.learned = {};
@@ -1663,11 +1724,9 @@ function migrateStaff(had){
 function staffTick(){
   if (staff.tender && lots.some(l => l.stage==='curing')){   // tenders are paid only on days there is leaf curing
     const w = TENDERS[staff.tender].wage;
-    if (cash < w){ toast(`${TENDERS[staff.tender].name} quit. You couldn’t pay the wage.`); staff.tender = null; }
+    if (cash < w){ const tier = staff.tender; staff.tender = null; workerQuit(TENDERS[tier].name, 'Barn tender', 'tender', tier); }
     else { cash -= w; staff.wages += w; spend('Wages', w); }
   }
-  if (workerOf('sprayer') && map.flat().some(t => t.owned && t.work==='seeded')) payCrew('sprayer', workerOf('sprayer').wage);
-  if (workerOf('turner') && lots.some(l => l.stage==='fermenting')) payCrew('turner', workerOf('turner').wage);
 }
 // the sprayer: blue mold first, worst first; the skilled one also guards the plants around an outbreak
 function sprayerTick(){
@@ -1677,6 +1736,7 @@ function sprayerTick(){
   const sick = seeded.filter(t => t.bmold>0).sort((a,b) => b.bmold-a.bmold), todo = [...sick];
   if (T0.guard) for (const t of sick) for (let dr=-2;dr<=2;dr++) for (let dc=-2;dc<=2;dc++){ const nb = T(t.r+dr,t.c+dc); if (nb && nb.owned && nb.work==='seeded' && !nb.bmold && !(nb.prot>0) && !todo.includes(nb)) todo.push(nb); }
   let n = 0; const c = careCost('spray');
+  if (todo.length && !payCrew('sprayer', T0.wage)) return;
   for (const t of todo){ if (n>=T0.cap) break; if (cash < c){ if (!staff.crewWarned.spray){ staff.crewWarned.spray = true; attention(`${T0.name} has no money for spray. You’re out of cash.`); } return; }
     t.bmold = 0; t.prot = 21; t.pick = 2; cash -= c; spend('Crop care', c); n++; }
   staff.crewWarned.spray = false;
@@ -1685,11 +1745,13 @@ function sprayerTick(){
 // the pilón turner: after the day's heat has built, turn any pile that has reached his mark
 function turnerTick(){
   const T0 = workerOf('turner'); if (!T0) return;
+  const due = [];
   for (const f of ready('ferm')) for (const pid of f.piles){
     const l = lots.find(x => x.id===pid); if (!l || l.stage!=='fermenting') continue;
     const mark = T0.at[0] + (T0.at[1]-T0.at[0])*wrnd();
-    if (l.temp >= mark && wrnd() >= T0.miss){ l.temp = 85+wrnd()*2; l.turns++; l.hotWarned = false; if (T0.q) l.proTurns = (l.proTurns||0)+1; }
-  }
+    if (l.temp >= mark && wrnd() >= T0.miss) due.push(l); }
+  if (!due.length || !payCrew('turner', T0.wage)) return;
+  for (const l of due){ l.temp = 85+wrnd()*2; l.turns++; l.hotWarned = false; if (T0.q) l.proTurns = (l.proTurns||0)+1; }
 }
 // the aging-house hand: sorts and bales finished leaf a few hundred kilos a day, while the warehouse has room
 function balerTick(){
@@ -1754,8 +1816,8 @@ function sellLot(l, k){
 // orders. How well they are followed depends on who you hire: a skilled manager misreads leaf now and then and lets
 // things sit; a great one reads leaf like Don Aurelio and gets a better price from the buyers.
 const FARM_MGRS = {
-  mid: { name:'Osvaldo Peña', wage:35, noise:0.09, act:0.7, price:1, note:'Ran the leaf house at the cooperative. He follows your orders, but he grades by eye in a hurry and lets work wait a day or two.' },
-  pro: { name:'Ofelia Cruz', wage:60, noise:0.02, act:1, price:1.05, note:'Twenty years buying leaf for the factory in town. She reads a hand of leaf at a glance, acts the same day, and the buyers pay her 5% more.' },
+  mid: { name:'Osvaldo Peña', wage:16, noise:0.09, act:0.7, price:1, note:'Ran the leaf house at the cooperative. He follows your orders, but he grades by eye in a hurry and lets work wait a day or two.' },
+  pro: { name:'Ofelia Cruz', wage:28, noise:0.02, act:1, price:1.05, note:'Twenty years buying leaf for the factory in town. She reads a hand of leaf at a glance, acts the same day, and the buyers pay her 5% more.' },
 };
 const GRADE_Q = { 'A+':1.2, A:1.05, B:0.9, C:0.75, D:0 };
 const MGR_DEFAULT = { fermMin:'B', curedLow:'sell', baleMin:'B', fermLow:'sell', keepMin:'A', lowBales:6, reserve:100, cashFloor:1000, makeRoom:true };
@@ -1792,7 +1854,8 @@ function mgrSell(l, why, min){
 }
 function managerTick(){
   const M = farmMgr(); if (!M) return;
-  if (cash < M.wage){ toast(`${M.name} quit. You couldn’t pay the wage.`); staff.manager = null; return; }
+  if (cash < M.wage){ staff.manager = null; workerQuit(M.name, 'Farm manager', 'manager'); return; }
+  mgrRehire(M);
   cash -= M.wage; staff.crewWages = (staff.crewWages||0) + M.wage; spend('Wages', M.wage);
   if (wrnd() > M.act) return;                                  // not today
   const S = mgrSet();

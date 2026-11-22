@@ -16,7 +16,7 @@ The scenes, people and street views are painted in a stylized look: soft light, 
 - **Build a brand.** Piece together a logo, name, palette and band in the brand studio.
 - **Open a shop in town.** Old Señor Ibarra's hardware store on Calle Real in San Rafael is for sale for $9,500. Buy it, fit it out and run it as a small first shop: cheap to learn retail on, before the city. Its sales count toward the city's goals.
 
-- **Keep the books.** Operations → Finance grows with the company. On the farm it is a cash book: what came in, what went out, and how long the cash lasts. Once you sell under your own name it adds a monthly profit and loss, what each cigar earns after leaf and rolling, how busy the workshop is, break-even and a 13-week cash forecast.
+- **Keep the books.** Operations → Finance grows with the company. On the farm it is a cash book: what came in, what went out, and how long the cash lasts. Its History view keeps every month since the books began (up to six years): money in and out by year, by month and by category. Once you sell under your own name it adds a monthly profit and loss, what each cigar earns after leaf and rolling, how busy the workshop is, break-even and a 13-week cash forecast.
 
 ## The late game: Puerto Celeste
 
