@@ -149,6 +149,13 @@
   .formrow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
   .formrow label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.7}
   #printout{display:none}
+  .lessonbar{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 6px}
+  .btn.lessonlink{font-weight:800;background:#f3ecd9;border-color:#b99a5c}
+  .btn.locked,.btn.lessonlink.locked{opacity:.55}
+  .gl{border-bottom:1px dotted #9a7a4a;cursor:help}
+  .card.nb p{font-size:13px;line-height:1.5}
+  .card.hl{box-shadow:0 0 0 2px #c98612 inset}
+  textarea.journal{width:100%;font:13px Nunito,sans-serif;padding:7px 9px;border:2px solid #b99a5c;border-radius:8px;background:#fffdf6;color:var(--ink);resize:vertical}
   @media print{ body.printing > *:not(#printout){display:none !important} body.printing #printout{display:block;padding:10px;font:12px/1.45 Nunito,sans-serif;color:#000} body.printing #printout .said{font-style:italic} }
   #msglog{position:fixed;left:50%;top:84px;transform:translateX(-50%);width:min(580px,94vw);max-height:calc(100vh - 120px);display:none;flex-direction:column;padding:12px 14px;z-index:14;font-size:13px;line-height:1.45}
   #msglog.show{display:flex}
@@ -170,6 +177,7 @@
   #msglog .mitem .deal,#msglog .mitem .dnote{font-size:11.5px}
   .mbadge{display:inline-block;min-width:16px;padding:0 4px;border-radius:9px;background:#c94f3a;color:#fff;font-size:10.5px;line-height:16px;text-align:center;margin-left:2px}
   .tmore a{color:inherit}
+  #talk.left{right:auto;left:14px}
   #talk{position:fixed;right:14px;bottom:122px;width:min(470px,92vw);display:none;gap:14px;padding:14px 16px;z-index:12;align-items:flex-start}
   body.inscene #talk{right:auto;left:14px;bottom:14px}
   #talk.show{display:flex;animation:talkin .35s cubic-bezier(.2,.9,.3,1.2)}
@@ -822,7 +830,7 @@ function swapKeep(el, html){
   el.innerHTML = html; el.scrollTop = top;
   if (sig){ const c = [...pick()].find(x => keepSig(x)===sig); if (c) el.scrollTop += (c.getBoundingClientRect().top - el.getBoundingClientRect().top) - off; }
 }
-$('opsBtn').onclick = () => { opsOpen = !opsOpen; opsFocus = 0, opsJump = true; renderOps(true); };
+$('opsBtn').onclick = () => { opsOpen = !opsOpen; opsFocus = 0, opsJump = true; renderOps(true); $('talk').classList.toggle('left', opsOpen); };
 // ---------- Messages: everything people said and every notice, newest first ----------
 function openMsgLog(open){
   msgOpen = open ?? !msgOpen;
@@ -851,6 +859,8 @@ function renderMsgLog(){
 }
 $('msgBtn').onclick = () => openMsgLog();
 $('gradeBtn').onclick = () => { if ($('review').classList.contains('show') && reportOpen){ $('review').classList.remove('show'); reportOpen = false; setSpeed(reviewPrev); } else openReport(); };
+$('review').addEventListener('click', e => { if (e.target.closest('[data-rc-open]')){ e.preventDefault(); openReport(); } });
+$('review').addEventListener('input', e => { const t = e.target.closest('[data-journal]'); if (!t) return; (fin.journal || (fin.journal = {}))[t.dataset.journal] = t.value.slice(0, 2000); markDirty(); });
 $('review').addEventListener('click', e => { const b = e.target.closest('[data-rc]'); if (!b) return;
   if (b.dataset.rc==='copy'){ const t = reportText(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('The report card is copied. Paste it anywhere.'), () => { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('The report card is copied.'); } catch(_){} ta.remove(); }); }
   if (b.dataset.rc==='print'){ const w = $('printout'); w.innerHTML = reportHTML(true); document.body.classList.add('printing'); window.print(); setTimeout(() => document.body.classList.remove('printing'), 500); } });
@@ -1235,9 +1245,10 @@ function finBS(){
 const GRADE_CATS = [
   { k:'profit', name:'Profitability', w:25, lesson:'numbers', bench:'EBITDA margin of 15% or more' },
   { k:'cash',   name:'Cash and safety', w:20, lesson:'cash', bench:'three months of costs in the bank' },
-  { k:'growth', name:'Growth', w:15, lesson:'scale', bench:'sales up 10% or more on a year ago' },
+  { k:'growth', name:'Growth', w:10, lesson:'scale', bench:'sales up 10% or more on a year ago' },
   { k:'debt',   name:'Debt and risk', w:15, lesson:'chain', bench:'net debt under 2× EBITDA, no channel over 60% of sales' },
-  { k:'brand',  name:'Customers and brand', w:15, lesson:'story', bench:'a rated cigar and a name people know' },
+  { k:'brand',  name:'Customers and brand', w:10, lesson:'story', bench:'a rated cigar and a name people know' },
+  { k:'rigor',  name:'Knows the numbers', w:10, lesson:'numbers', bench:'reads the books every month and answers questions about them correctly' },
   { k:'ops',    name:'Operations and quality', w:10, lesson:'people', bench:'few seconds, few empty shelves, no one walking out' },
 ];
 const STAGE_W = { A:1, B:2, C:3, D:4 };
@@ -1266,17 +1277,22 @@ function gradeMonth(rec){
   const D = lastDays(30), made = D.reduce((a,r) => a + r.made + r.made2, 0), sec = made ? D.reduce((a,r) => a + r.made2, 0)/made : null;
   const sm = city.shops ? city.shops.map(S => (S.months||[]).slice(-1)[0]).filter(Boolean) : [], vis = sm.reduce((a,m) => a + (m.vis||0), 0), lost = sm.reduce((a,m) => a + (m.walk||0) + (m.empty||0), 0);
   sc.ops = clamp100((sec==null ? 70 : 100 - sec*250) - (vis ? Math.min(40, lost/vis*400) : 0));
-  const total = Math.round(GRADE_CATS.reduce((a,c) => a + sc[c.k]*c.w, 0)/100);
+  // rigor: did they open their books this month and the months before, and can they answer questions about them?
+  const keys = Array.from({ length:6 }, (_,i) => monthKeyOf(dayInt - 1 - i*30)), viewed = keys.filter(k => fin.viewed && fin.viewed[k]).length/6;
+  const qz = (fin.quizzes||[]).filter(z => z.d > dayInt - 200), acc = qz.length ? qz.reduce((a,z) => a + z.right/z.n, 0)/qz.length : 0.3;
+  sc.rigor = clamp100(viewed*45 + acc*55);
+  const total = Math.round(GRADE_CATS.reduce((a,c) => a + (sc[c.k] ?? 50)*c.w, 0)/100);
   (fin.grades || (fin.grades = [])).push({ key:rec.key, label:rec.label, d:dayInt, st, sc, total, rev:Math.round(rec.pl.rev), net:Math.round(rec.pl.net), cash:Math.round(cash) });
   if (fin.grades.length > 120) fin.grades.shift();
   updateGradeBtn();
 }
+const GRADE_TIPS2 = { rigor:['You know your numbers before you decide. That is the habit that separates owners from gamblers.', 'You decide by feel. Open Finance every month and take Doña Victoria’s questions (or Señor Ortega’s) on your own books.'] };
 const letterOf = v => v>=93?'A':v>=90?'A−':v>=87?'B+':v>=83?'B':v>=80?'B−':v>=77?'C+':v>=73?'C':v>=70?'C−':v>=67?'D+':v>=60?'D':'F';
 // the course grade: later months and later stages weigh more
 function courseGrade(){
   const G = (fin && fin.grades) || []; if (!G.length) return null;
   let sw = 0, sv = 0; const cat = {}; GRADE_CATS.forEach(c => cat[c.k] = 0);
-  G.forEach((g,i) => { const w = STAGE_W[g.st] * (1 + 2*i/Math.max(1, G.length-1)); sw += w; sv += g.total*w; GRADE_CATS.forEach(c => cat[c.k] += g.sc[c.k]*w); });
+  G.forEach((g,i) => { const w = STAGE_W[g.st] * (1 + 2*i/Math.max(1, G.length-1)); sw += w; sv += g.total*w; GRADE_CATS.forEach(c => cat[c.k] += (g.sc[c.k] ?? 50)*w); });
   GRADE_CATS.forEach(c => cat[c.k] = Math.round(cat[c.k]/sw));
   const L = lasting(), score = Math.round(Math.max(0, Math.min(100, sv/sw + (L.passed - 3)*2)));   // a lasting business moves the grade a few points
   return { score, letter:letterOf(score), cat, L, months:G.length };
@@ -1304,6 +1320,7 @@ const GRADE_TIPS = {
   growth:['Sales keep climbing, and not by accident.', 'Sales are flat or falling. Find the customers you are missing: a new channel, a better street, or a cigar people talk about.'],
   debt:['You borrow carefully and no single customer can sink you.', 'Too much debt for what you earn, or too much of your business in one channel. Pay down before you expand, and spread your sales.'],
   brand:['People know your name and trust your cigars.', 'Too few people know you. Get a rating, tell the farm’s story, and make the price, the room and the cigar say the same thing.'],
+  rigor:GRADE_TIPS2.rigor,
   ops:['The work is done well: good cigars, full shelves, nobody left waiting.', 'Customers walk out unserved or find the shelves empty, or the rollers make too many seconds. Fix the basics before growing.'],
 };
 function reportHTML(print){
@@ -1315,7 +1332,8 @@ function reportHTML(print){
   h += `<div class="kpis" style="margin-top:8px">${kpi('Course grade', `${C.letter} · ${C.score}`, 'later months and later stages count more')}${kpi('This month', `${letterOf(G[G.length-1].total)} · ${G[G.length-1].total}`, G[G.length-1].label)}${kpi('A lasting business', `${C.L.passed} of 6`, 'see the checklist below')}</div>`;
   if (G.length >= 2) h += `<h4>Fundamentals, month by month</h4>` + fline({ vals:G.map(g => g.total), labels:G.map(g => g.label.split(' ')[0] + ' ' + g.label.split(' ').slice(-1)), fy:v => Math.round(v), color:'#3f7a4a' });
   h += `<h4>The six fundamentals</h4><table class="fs fsk"><tbody>` + GRADE_CATS.map(c => { const v = C.cat[c.k], now = G[G.length-1].sc[c.k];
-    return `<tr><td><b>${c.name}</b> <span class="muted">· ${c.w}% of the grade · aim for ${c.bench}</span><div class="muted">${GRADE_TIPS[c.k][v >= 70 ? 0 : 1]}${v < 70 && !print ? ` Reread Doña Victoria’s “${(V_LESSONS.find(L => L.id===c.lesson)||{}).title}”.` : ''}</div></td><td class="${v>=70?'okc':v>=50?'':'negc'}">${letterOf(v)} · ${v}<div class="muted">now ${now}</div></td></tr>`; }).join('') + `</tbody></table>`;
+    const now0 = G[G.length-1].sc[c.k] ?? '—';
+    return `<tr><td><b>${c.name}</b> <span class="muted">· ${c.w}% of the grade · aim for ${c.bench}</span><div class="muted">${GRADE_TIPS[c.k][v >= 70 ? 0 : 1]}${v < 70 && !print ? ` Reread Doña Victoria’s “${(V_LESSONS.find(L => L.id===c.lesson)||{}).title}”.` : ''}</div></td><td class="${v>=70?'okc':v>=50?'':'negc'}">${letterOf(v)} · ${v}<div class="muted">now ${now0}</div></td></tr>`; }).join('') + `</tbody></table>`;
   h += `<h4>Did they build a lasting business?</h4>` + verdicts(C.L.items.map(([t, ok, d]) => [ok ? 'ok' : 'bad', `${t}: ${d}`]));
   // by stage: the mistakes of the early farm next to the habits of the company
   const byStage = Object.keys(STAGE_W).map(st => { const g = G.filter(x => x.st===st); return g.length ? [st, g.length, Math.round(g.reduce((a,x) => a + x.total, 0)/g.length)] : null; }).filter(Boolean);
@@ -1325,8 +1343,11 @@ function reportHTML(print){
   const F = fin.fails || {}, failTxt = [F.payroll && `${F.payroll} time${F.payroll>1?'s':''} someone quit unpaid`, F.walkout && `${F.walkout} shop walkout${F.walkout>1?'s':''}`, F.rent && `${F.rent} missed rent`, F.loan && `${F.loan} missed loan payment${F.loan>1?'s':''}`, F.evict && `${F.evict} eviction${F.evict>1?'s':''}`, F.overdrawn && `${F.overdrawn} day${F.overdrawn>1?'s':''} overdrawn`].filter(Boolean);
   const read = elder.read.size, vread = city.read ? city.read.length : 0, vdone = city.done ? city.done.length : 0;
   h += `<h4>Teacher’s comments</h4><div class="said">${G.length >= 6 ? `Fundamentals ${avg(last) > avg(first)+3 ? `improved from ${avg(first)} in the first months to ${avg(last)} lately` : avg(last) < avg(first)-3 ? `slipped from ${avg(first)} in the first months to ${avg(last)} lately` : `held steady around ${avg(last)}`}. ` : ''}${strong.length ? `Strongest in ${strong.join(', ')}. ` : ''}${weak.length ? `Needs work on ${weak.join(', ')}. ` : ''}${failTxt.length ? `On the record: ${failTxt.join(', ')}. ` : 'Never missed a wage, a rent or a loan payment. '}${C.L.passed >= 5 ? 'This is a business that could outlive its founder.' : C.L.passed >= 3 ? 'The business stands, but it is not yet one you could leave alone for a year.' : 'Not yet a lasting business: the fundamentals above are where to start.'}</div>`;
-  h += `<div class="row"><span>Lessons learned</span><span>Don Aurelio ${read} of ${LESSONS.length} · Doña Victoria ${vread} of ${V_LESSONS.length} (${vdone} challenges done)</span></div>`;
-  if (!print) h += `<div class="acts" style="justify-content:flex-start;margin-top:10px"><button class="btn sm" data-rc="copy">Copy as text</button><button class="btn sm" data-rc="print">Print</button></div><div class="muted" style="margin-top:4px">How it is graded: six fundamentals scored every month (weights shown above), averaged with later months and later stages weighing more, then adjusted a few points for the lasting-business checklist.</div>`;
+  const QZ = (fin.quizzes||[]), taken = QZ.filter(z => !z.skip), rightAll = taken.reduce((a,z) => a + z.right, 0), nAll = taken.reduce((a,z) => a + z.n, 0);
+  h += `<div class="row"><span>Lessons learned</span><span>Don Aurelio ${read} of ${LESSONS.length} · business lessons ${(fin.learned||[]).length} of ${FARM_BIZ.length} · Doña Victoria ${vread} of ${V_LESSONS.length} (${vdone} challenges done)</span></div>`;
+  h += `<div class="row"><span>Questions on their own books</span><span>${taken.length} quiz${taken.length===1?'':'zes'} · ${nAll ? `${rightAll} of ${nAll} right (${Math.round(rightAll/nAll*100)}%)` : 'none yet'}${QZ.length - taken.length ? ` · ${QZ.length - taken.length} skipped` : ''}</span></div>`;
+  h += journalHTML(print);
+  if (!print) h += `<div class="acts" style="justify-content:flex-start;margin-top:10px"><button class="btn sm" data-rc="copy">Copy as text</button><button class="btn sm" data-rc="print">Print</button><button class="btn sm" data-notebook="1">Open the notebook</button></div><div class="muted" style="margin-top:4px">How it is graded: six fundamentals scored every month (weights shown above), averaged with later months and later stages weighing more, then adjusted a few points for the lasting-business checklist.</div>`;
   return h;
 }
 function reportText(){
@@ -1334,11 +1355,221 @@ function reportText(){
   const L = [`REPORT CARD · ${biz.brand ? biz.brand.name : 'La Bella Finca'}`, `${(gameMeta && gameMeta.player) || 'Student'} · ${dateStr()} · ${G.length} months of books`, '', `Course grade: ${C.letter} (${C.score}/100)`, ''];
   GRADE_CATS.forEach(c => L.push(`${c.name.padEnd(24)} ${letterOf(C.cat[c.k]).padEnd(3)} ${String(C.cat[c.k]).padStart(3)}   (${c.w}% · aim for ${c.bench})`));
   L.push('', 'A lasting business:'); C.L.items.forEach(([t, ok, d]) => L.push(`  [${ok?'x':' '}] ${t}: ${d}`));
+  const J = fin.journal || {}; if (Object.keys(J).length){ L.push('', 'Journal:'); Object.keys(J).sort((a,b) => a-b).forEach(y => { if (J[y] && J[y].trim()) L.push(`  Year ${y}: ${J[y].trim().replace(/\n+/g,' ')}`); }); }
   L.push('', 'Month by month:'); G.forEach(g => L.push(`  ${g.label.padEnd(10)} ${FIN_STAGES[g.st].padEnd(18)} ${letterOf(g.total).padEnd(3)} ${String(g.total).padStart(3)}   revenue ${fmt(g.rev)} · net ${fmt(g.net)}`));
   return L.join('\n');
 }
+// the journal: a few lines a year on why, written by the student (as a real assignment would ask)
+const JOURNAL_Q = ['What was your biggest decision this year, and which numbers did you look at before you made it?', 'What went wrong this year, what did it cost, and what would you do differently?', 'Which number in your books worries you most right now, and what is your plan for it?'];
+function journalHTML(print){
+  const J = fin.journal || {}, y = fyOf(dayInt), ys = Object.keys(J).map(Number).filter(k => k!==y && J[k] && J[k].trim()).sort((a,b) => a-b);
+  let h = `<h4>Journal</h4>`;
+  for (const k of ys) h += `<div class="row" style="align-items:flex-start"><span><b>Year ${k}</b></span><span style="text-align:left;max-width:75%">${esc(J[k])}</span></div>`;
+  if (print) return h + (J[y] ? `<div class="row" style="align-items:flex-start"><span><b>Year ${y}</b></span><span style="text-align:left;max-width:75%">${esc(J[y])}</span></div>` : '');
+  return h + `<div class="muted" style="margin:2px 0 4px">Year ${y}: ${JOURNAL_Q[(y-1) % JOURNAL_Q.length]}</div><textarea class="journal" data-journal="${y}" rows="3" placeholder="A few sentences. It prints with your report card.">${esc(J[y]||'')}</textarea>`;
+}
 let reportOpen = false;
 function openReport(){ reviewPrev = speedIdx || 1; setSpeed(0); reportOpen = true; const el = $('review'); el.innerHTML = reportHTML(); el.classList.add('show'); }
+// ================= the glossary: every term the books use, in plain words =================
+const GLOSS = {
+  'Revenue':['Everything customers paid you for, before any costs.', 'numbers'],
+  'Total revenue':['Everything customers paid you for, before any costs.', 'numbers'],
+  'Production costs':['What you spent making the product: field work, curing, leaf bought, the rollers.', 'fcost'],
+  'Change in leaf and cigar stock':['Leaf and cigars made this month but not yet sold are still worth something, so they are added back. Selling old stock does the opposite.', 'fcycle'],
+  'Gross profit':['Revenue minus the cost of the cigars and leaf you sold. What is left to pay for everything else.', 'numbers'],
+  'Gross margin':['Gross profit as a share of revenue. Premium cigar brands aim for 50% or more.', 'numbers'],
+  'Operating expenses':['The costs of running the business that are not the product itself: rent, staff, utilities, marketing, insurance.', 'breakeven'],
+  'EBITDA':['Earnings before interest, taxes, depreciation and amortization: what the business earns from running, before paying for its debts and its buildings wearing out.', 'numbers'],
+  'EBITDA margin':['EBITDA as a share of revenue. 15% or more is healthy for a growing brand.', 'numbers'],
+  'Depreciation':['The cost of a barn, a shop fit-out or a building, spread over the years it lasts instead of all at once.', 'cash'],
+  'Operating profit (EBIT)':['EBITDA minus depreciation: the profit from running the business.', 'numbers'],
+  'Interest':['What your loans cost you this period.', 'floan'],
+  'Net profit':['What is left after every cost, interest included. Profit is not cash: a sale on credit is profit before it is cash.', 'cash'],
+  'Net margin':['Net profit as a share of revenue.', 'numbers'],
+  'Net cash flow':['Money in minus money out. It can differ from profit: buying a barn costs cash today but is spread over years in profit.', 'cash'],
+  'Money in':['Cash that arrived: sales paid, loans received, payments collected.', 'cash'],
+  'Money out':['Cash that left: wages, seed, rent, leaf, loan payments.', 'cash'],
+  'Operating costs / revenue':['How much of every dollar sold goes to rent, staff and overheads. Under 45% leaves room for profit.', 'breakeven'],
+  'Days sales outstanding':['How many days, on average, accounts and distributors take to pay you.', 'chain'],
+  'Days of inventory':['How long leaf and cigars sit before they sell. Aging needs some; too much is cash asleep in the warehouse.', 'cash'],
+  'Cash conversion cycle':['Days from paying for leaf and labor to collecting the sale. The longer it is, the more cash you need to grow.', 'fcycle'],
+  'Current ratio':['What you own that turns to cash within a year, divided by what you owe within a year. Below 1 is danger; 1.5 or more is comfortable.', 'cash'],
+  'Net debt':['Everything you owe the banks, minus the cash you hold.', 'floan'],
+  'Net debt / EBITDA':['How many years of earnings it would take to pay off the debt. Banks get nervous above 3.', 'floan'],
+  'Interest cover':['EBITDA divided by interest: how many times over you can pay the interest. Below 2 is dangerous.', 'floan'],
+  'Gross margin %':['Gross profit as a share of revenue.', 'numbers'],
+  'Cash now':['The money in the bank today.', 'cash'],
+  'Revenue, 3 months':['Sales over the last three closed months.', 'numbers'],
+  'Margin':['Price minus cost, as a share of price. A $2 cigar sold for $4 has a 50% margin (and a 100% markup).', 'numbers'],
+  'Contribution':['What each sale leaves after its own costs (the cigar, the tax). It contributes to paying the fixed costs, then to profit.', 'breakeven'],
+  'Break-even':['The sales you need just to cover your fixed costs: fixed costs divided by the contribution of each sale.', 'breakeven'],
+  'Markup':['Price minus cost, as a share of cost. Not the same as margin.', 'numbers'],
+  '4-wall profit':['A store’s own result before company overheads: its sales less its cigars, rent, staff, utilities, tax and marketing.', 'breakeven'],
+  'Occupancy':['Rent and utilities as a share of a store’s sales. Under 12–15% is healthy.', 'lease'],
+  'Conversion':['The share of people who came in and bought something.', 'people'],
+  'Avg ticket':['What the average paying customer spends.', 'breakeven'],
+  'Payback':['How long until the money you put into something has come back to you.', 'breakeven'],
+  'Net present value':['Future profits counted in today’s dollars (a dollar next year is worth less than a dollar today). Positive means the investment beats the return you require.', 'lease'],
+  'Equity':['What the business is worth to its owners on the books: everything it owns minus everything it owes.', 'legacy'],
+  'Receivables':['Money customers owe you for things already delivered.', 'chain'],
+  'Inventory':['Leaf and cigars you have made or bought but not yet sold. Cash you have already spent.', 'cash'],
+  'Working capital':['The cash tied up in running the business: inventory and receivables, less what you owe suppliers.', 'fcycle'],
+  'Runway':['How long the cash lasts at the current rate of spending.', 'cash'],
+  'Covenant':['A promise in a loan contract, such as keeping net debt under 3.5× EBITDA. Break it and the loan costs more.', 'floan'],
+  'Valuation':['What the company might sell for: here, EBITDA times a multiple that grows with growth, ratings and reach, less net debt.', 'legacy'],
+  'Hedge':['Fixing an exchange rate in advance, for a small cost, so a currency swing can’t wipe out your margin.', 'world'],
+};
+const glossKey = t => { const k = String(t).replace(/<[^>]+>/g,'').replace(/\s*·.*$/,'').trim(); return GLOSS[k] ? k : null; };
+const glossWrap = label => { const k = glossKey(label); return k ? `<span class="gl" title="${GLOSS[k][0].replace(/"/g,'&quot;')}" data-gloss="${k}">${label}</span>` : label; };
+function finGlossary(){
+  const ks = Object.keys(GLOSS).filter((k,i,a) => !['Total revenue','Gross margin %'].includes(k)).sort((a,b) => a.localeCompare(b));
+  return `<div class="muted">Every term in your books, in plain words. Hover over a term anywhere in Finance to see it; click it to open this glossary there.</div>` +
+    ks.map(k => `<div class="card gloss" id="gl-${k.replace(/[^a-z0-9]/gi,'')}"><b>${k}</b><div class="muted">${GLOSS[k][0]}</div>${lessonOf(GLOSS[k][1]) ? `<div style="margin-top:3px">${lessonLink(GLOSS[k][1])}</div>` : ''}</div>`).join('');
+}
+
+// ================= the notebook: every business lesson, linked to the books, and the books linked back =================
+// Farm-stage lessons in business, from the people who know it before Doña Victoria arrives
+const FARM_BIZ = [
+  { id:'fcost', who:'beltran', title:'What a cigar really costs', body:[
+    'Before you tell me your price, tell me your cost. Not the leaf alone: the wrapper, the binder, the filler, the minutes of the roller’s day, and the cedar. Most growers who roll their own know the price and guess the cost.',
+    'Count the leaf at what the factory would have paid you for it, even if it came from your own field. You could have sold that leaf instead. That is what the cigar cost you.',
+    'Price above that cost, or every cigar you sell makes you poorer, only more slowly.' ] },
+  { id:'fwhole', who:'beltran', title:'Why a shop pays half', body:[
+    'I pay you about half of what I charge. You think I am robbing you. I pay rent, I pay my niece behind the counter, I pay the tax, and I lose the cigars that dry out in July. What is left for me is less than you think.',
+    'Selling to a shop gives you volume your stand never could, and you never stand behind a counter. Selling at your stand gives you the whole price, and the whole work. Know which cigar goes where, and what each one leaves you.',
+    'And never sell at your stand for less than I do. If you undercut the people who sell for you, they stop selling for you.' ] },
+  { id:'fcycle', who:'aurelio', title:'The year between planting and getting paid', body:[
+    'You pay for seed in October, pickers in January, the barn all spring, the pilón in summer. The factory pays when the leaf is fermented. Roll it, and the cigars rest a month and sell over a season. Count it: a year or more between the first peso out and the last peso in.',
+    'That is why farmers go broke in good years. The crop is beautiful and the bank account is empty. Your cash book shows every peso in and out; the forecast shows the weeks ahead. Look at them before you plant more than you can carry.',
+    'Grow only what you can afford to wait for.' ] },
+  { id:'floan', who:'ortega', title:'What a loan really costs', body:[
+    'One percent a month sounds small. It is twelve percent a year, and you pay it every month whether the leaf is ready or not: two thousand dollars costs you twenty a month, two hundred and forty a year.',
+    'Borrow for something that will earn more than the interest, and before you sign, write down the month you will pay it back. A loan for a barn that cures more leaf can pay for itself. A loan to cover wages only buys time: use the time to fix why the cash ran out.',
+    'The bank is happy to lend to people who do not need it. Ask me when the sun is shining.' ] },
+];
+// where each lesson lives in the game: lesson → screens
+const LESSON_GO = {
+  fcost:['fin:products','fin:pl'], fwhole:['tab:sales','fin:products'], fcycle:['fin:cash','fin:forecast'], floan:['fin:bank','fin:cash'],
+  numbers:['fin:products','fin:pl'], street:['city:overview'], lease:['fin:stores'], breakeven:['fin:stores','fin:budget'], cash:['fin:cf','fin:forecast','fin:cash'],
+  brand:['city:brand'], people:['fin:stores'], story:['city:growth'], chain:['tab:sales','fin:dash'], scale:['tab:workshop','fin:products'], world:['fin:markets','city:growth'], legacy:['fin:capital','city:growth'],
+};
+// screens → lessons (shown as a small bar at the top of each)
+const SCREEN_LESSONS = {
+  'fin:cash':['fcycle','cash'], 'fin:hist':['fcycle'], 'fin:pl':['fcost','numbers'], 'fin:products':['fcost','numbers'], 'fin:forecast':['fcycle','cash'],
+  'fin:dash':['numbers','cash'], 'fin:bs':['cash'], 'fin:cf':['cash'], 'fin:budget':['breakeven'], 'fin:stores':['breakeven','lease','people'], 'fin:bank':['floan','cash'],
+  'fin:markets':['world','chain'], 'fin:fx':['world'], 'fin:board':['legacy'], 'fin:capital':['legacy'], 'tab:sales':['fwhole','chain'], 'tab:workshop':['fcost','scale'], 'city:brand':['brand','story'],
+};
+const GO_NAME = { 'fin:products':'Finance → Products', 'fin:pl':'Finance → Profit & loss', 'fin:cash':'Finance → Cash book', 'fin:forecast':'Finance → Forecast', 'fin:bank':'Finance → Bank', 'fin:stores':'Finance → Stores', 'fin:budget':'Finance → Budget', 'fin:cf':'Finance → Cash flow', 'fin:dash':'Finance → Dashboard', 'fin:markets':'Finance → Markets', 'fin:capital':'Finance → Investors', 'fin:bs':'Finance → Balance sheet', 'fin:gloss':'Finance → Glossary', 'tab:sales':'Operations → Sales', 'tab:workshop':'Operations → Workshop', 'city:overview':'City → Shops', 'city:brand':'City → Brand', 'city:growth':'City → Growth' };
+const learnedFarm = id => !!(fin && fin.learned && fin.learned.includes(id));
+const lessonOf = id => FARM_BIZ.find(L => L.id===id) || V_LESSONS.find(L => L.id===id);
+const lessonKnown = id => FARM_BIZ.some(L => L.id===id) ? learnedFarm(id) : vKnow(id);
+const goOk = t => { const [k, v] = t.split(':'); if (k==='fin') return FIN_SUBS[finStage()].some(x => x[0]===v); if (k==='city') return city.unlocked; if (k==='tab') return v!=='workshop' || ready('galera').length > 0; return true; };
+function lessonLink(id){ const L = lessonOf(id); if (!L) return ''; return `<button class="btn xs lessonlink${lessonKnown(id)?'':' locked'}" data-lesson-open="${id}" title="${lessonKnown(id)?'Reread the lesson':'You haven’t been taught this yet'}">Lesson: ${L.title}</button>`; }
+function lessonBar(screen){ const ids = (SCREEN_LESSONS[screen]||[]).filter(id => lessonKnown(id) || (FARM_BIZ.some(L => L.id===id) ? false : city.unlocked)); return ids.length ? `<div class="lessonbar">${ids.map(lessonLink).join('')}</div>` : ''; }
+function goTo(t){
+  if (!t || !goOk(t)) { toast('That part of your books opens later in the game.'); return; }
+  const [k, v] = t.split(':');
+  if (typeof mentorOpen!=='undefined' && mentorOpen) closeMentor(); if (typeof elderOpen!=='undefined' && elderOpen) closeElder();
+  if ($('review').classList.contains('show') && (reportOpen || notebookOpen)){ $('review').classList.remove('show'); reportOpen = false; notebookOpen = false; }
+  opsOpen = true;
+  if (k==='fin'){ opsTab = 'finance'; finEnsure(); fin.sub = v; }
+  else if (k==='city'){ opsTab = 'growth'; city.opsSub = v; }
+  else opsTab = v;
+  lastOps = ''; renderOps(true); $('ops').scrollTop = 0; $('talk').classList.add('left');
+}
+let notebookOpen = false;
+function openNotebook(focus){
+  if (!$('review').classList.contains('show')) reviewPrev = speedIdx || 1; setSpeed(0); notebookOpen = true; reportOpen = false;
+  const all = [...FARM_BIZ.map(L => ({ ...L, from: CAST[L.who].name })), ...V_LESSONS.map(L => ({ ...L, from:'Doña Victoria' }))];
+  let h = `<button class="btn sm closeX" data-close="1">Close</button><h2>Your business notebook</h2><div class="muted">Every lesson in business you have been taught, with the place in your books where it lives. Screens in Finance link back here.</div>`;
+  for (const L of all){ const known = lessonKnown(L.id), go = (LESSON_GO[L.id]||[]);
+    h += `<div class="card nb${L.id===focus?' hl':''}" id="nb-${L.id}"><div class="row"><span class="t" style="opacity:1"><b>${L.title}</b></span><span class="muted">${L.from}</span></div>`;
+    h += known ? L.body.map(p => `<p style="margin:5px 0">${p}</p>`).join('') + `<div class="acts" style="justify-content:flex-start;flex-wrap:wrap">${go.filter(goOk).map(t => `<button class="btn xs" data-goto="${t}">Show me: ${GO_NAME[t]||t}</button>`).join('') || '<span class="muted">The screens for this open later in the game.</span>'}</div>`
+      : `<div class="muted">${FARM_BIZ.some(x => x.id===L.id) ? `${L.from} will teach you this when the moment comes.` : `Doña Victoria teaches this at respect ${L.need}${city.unlocked ? '' : ', once the city opens'}.`}</div>`;
+    h += `</div>`; }
+  const el = $('review'); el.innerHTML = h; el.classList.add('show');
+  if (focus){ const c = document.getElementById('nb-'+focus); if (c) setTimeout(() => c.scrollIntoView({ block:'start' }), 0); }
+}
+// clicks anywhere: "Show me" links, lesson links, glossary terms, the notebook
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-goto]'); if (g){ e.preventDefault(); goTo(g.dataset.goto); return; }
+  const l = e.target.closest('[data-lesson-open]'); if (l){ e.preventDefault(); const id = l.dataset.lessonOpen; if (lessonKnown(id)) openNotebook(id); else toast(FARM_BIZ.some(x => x.id===id) ? 'Nobody has taught you this one yet.' : `Doña Victoria hasn’t taught you “${lessonOf(id).title}” yet.`); return; }
+  const n = e.target.closest('[data-notebook]'); if (n){ e.preventDefault(); openNotebook(); return; }
+  const t = e.target.closest('[data-gloss]'); if (t && e.target.closest('#ops')){ e.preventDefault(); goTo('fin:gloss'); setTimeout(() => { const c = document.getElementById('gl-'+t.dataset.gloss.replace(/[^a-z0-9]/gi,'')); if (c){ c.scrollIntoView({ block:'center' }); c.classList.add('hl'); } }, 30); }
+}, true);
+// deliver a farm lesson once, from the right person at the right moment
+function teachFarm(id){ if (learnedFarm(id) || !fin) return; const L = FARM_BIZ.find(x => x.id===id); (fin.learned || (fin.learned = [])).push(id);
+  say(L.who, `<b>${L.title}.</b> ${L.body.join(' ')}`, [{ label:'Show me in my books', fn:()=>goTo((LESSON_GO[id]||[]).find(goOk)) }, { label:'Keep it in my notebook', fn:()=>{} }], null, false, { ttl:30 }); }
+function farmLessonsTick(){
+  if (!fin) return;
+  if (!learnedFarm('fcycle') && (lots.some(l => l.stage==='cured' || l.stage==='curing') || dayInt > 75)) teachFarm('fcycle');
+  if (!learnedFarm('floan') && (debt > 0 || (fin.term && fin.term.bal > 0))) teachFarm('floan');
+  if (!learnedFarm('fcost') && biz.products.length && talk.flags['beltran-intro']) teachFarm('fcost');
+  if (!learnedFarm('fwhole') && biz.beltran && biz.beltran.status==='buying') teachFarm('fwhole');
+}
+
+// ================= know your numbers: questions from the player's own books =================
+const pctS = v => `${Math.round(v*100)}%`;
+function distract(right, f, mults){ const seen = new Set([f(right)]), out = [right];
+  for (const k of mults){ const v = typeof k==='function' ? k(right) : right*k; const t = f(v); if (!seen.has(t)){ seen.add(t); out.push(v); } if (out.length===4) break; }
+  if (out.length < 4) return null; const sh = shuffle(out.slice()); return { opts: sh.map(f), ans: sh.indexOf(right) }; }
+function quizQuestions(){
+  const st = finStage(), last = lastMonths(1)[0], ms3 = lastMonths(3), Q = [];
+  if (!last) return Q;
+  const finWhere = s2 => FIN_SUBS[st].some(x => x[0]===s2) ? 'fin:'+s2 : 'fin:cash';
+  const inLast = finSum(cashInOf(last)), outs = Object.entries(last.cashOut||{}).sort((a,b) => b[1]-a[1]);
+  if (st==='A' && inLast > 0){ const d = distract(inLast, fmt, [0.6, 1.5, 0.35, 2.2]); if (d) Q.push({ q:`How much money came in last month (${last.label})?`, ...d, where:'fin:cash', why:`Your cash book shows money in for ${last.label}: ${fmt(inLast)}.` }); }
+  if (st!=='A' && last.pl.rev > 0){ const d = distract(last.pl.rev, fmt, [0.6, 1.5, 0.35, 2.2]); if (d) Q.push({ q:`What was your total revenue in ${last.label}?`, ...d, where:finWhere('pl'), why:`The income statement for ${last.label} shows ${fmt(last.pl.rev)} of revenue.` }); }
+  if (st!=='A' && last.pl.rev > 0){ const gm = last.pl.gross/last.pl.rev; const d = distract(gm, pctS, [v => v+0.18, v => v-0.17, v => v+0.33, v => v-0.3, v => 1-v]); if (d) Q.push({ q:`What was your gross margin in ${last.label}?`, ...d, where:finWhere('pl'), why:`Gross profit ${fmt(last.pl.gross)} divided by revenue ${fmt(last.pl.rev)} is ${pctS(gm)}. It is the share of each dollar left after making what you sold.` }); }
+  if (st!=='A' && Math.abs(last.pl.net) > 50){ const d = distract(last.pl.net, fmt, [-1, 1.8, 0.4, -0.5]); if (d) Q.push({ q:`Did the business make or lose money in ${last.label}, and how much (net profit)?`, ...d, where:finWhere('pl'), why:`Net profit for ${last.label}: ${fmt(last.pl.net)}. ${last.pl.net < 0 ? 'A loss.' : 'A profit.'} Net profit is after every cost, interest included.` }); }
+  const costs = ms3.length ? ms3.reduce((a,m) => a + finSum(m.cashOut||{}), 0)/ms3.length : 0;
+  const outLast = finSum(last.cashOut||{});
+  if (outLast > 100){ const d = distract(outLast, fmt, [0.55, 1.6, 0.3, 2.4]); if (d) Q.push({ q:`How much money went out of the business in ${last.label}, all costs together?`, ...d, where:'fin:hist', why:`Money out in ${last.label}: ${fmt(outLast)}. ${cash > 0 ? `With ${fmt(cash)} in the bank, that is ${(cash/outLast).toFixed(1)} months of spending if nothing came in. Doña Victoria wants at least three.` : 'And there is no cash in the bank to cover even one month like it.'}` }); }
+  if (outs.length >= 4){ const names = outs.slice(0, 4).map(o => catName(o[0])), sh = shuffle(names.slice()); Q.push({ q:`What was your biggest cost in ${last.label}?`, opts:sh, ans:sh.indexOf(names[0]), where:'fin:hist', why:`${names[0]}: ${fmt(outs[0][1])}. The biggest cost is where a small saving matters most.` }); }
+  const best = biz.products.slice().sort((a,b) => (b.sold||0) - (a.sold||0))[0];
+  if (st!=='A' && best && (best.sold||0) > 0){ const c = Math.max(0, prodCost(best) - 0.4) + rollCost().std; const d = distract(c, fmt2, [0.5, 1.7, 2.5, 0.3]); if (d) Q.push({ q:`What does one ${esc(best.name)} cost you to make (leaf plus rolling)?`, ...d, where:finWhere('products'), why:`Finance → Products: leaf at market value plus the rolling cost per cigar comes to ${fmt2(c)}. You sell it for about ${fmt2(best.price)} at the farm.` }); }
+  const shops = (city.shops||[]).filter(S => S.built && (S.months||[]).length);
+  if (shops.length >= 2){ const r = shops.map(S => [shopL(S).name, monthNet((S.months||[]).slice(-1)[0])]).sort((a,b) => b[1]-a[1]).slice(0,4); const names = r.map(x => x[0]), sh = shuffle(names.slice()); Q.push({ q:'Which of your shops made the most money last month (4-wall profit)?', opts:sh, ans:sh.indexOf(names[0]), where:'fin:stores', why:`${names[0]}: ${fmt(r[0][1])}. ${r[r.length-1][1] < 0 ? `${r[r.length-1][0]} lost ${fmt(-r[r.length-1][1])}.` : ''}` }); }
+  const K = finKPIs();
+  if ((st==='C' || st==='D') && K.dso > 5){ const d = distract(K.dso, v => `${Math.round(v)} days`, [0.4, 2, v => v+45, 3]); if (d) Q.push({ q:'On average, how many days do your accounts and distributors take to pay you?', ...d, where:'fin:dash', why:`Days sales outstanding is ${Math.round(K.dso)} days. Until they pay, your money is a loan to them.` }); }
+  if ((st==='C' || st==='D') && K.lev != null && K.netDebt > 0){ const d = distract(K.lev, v => `${v.toFixed(1)}×`, [0.4, 2.2, v => v+3, 3.5]); if (d) Q.push({ q:'How many years of EBITDA would it take to pay off your net debt?', ...d, where:'fin:dash', why:`Net debt ÷ EBITDA = ${K.lev.toFixed(1)}×. Banks get nervous above 3.` }); }
+  return Q;
+}
+let quiz = null;
+function startQuiz(host){
+  const Q = quizQuestions(); if (Q.length < 2){ say(host, '“Your books are too thin to quiz you on yet. Come back when a few months have closed.”', null, null, true); return; }
+  quiz = { host, qs: shuffle(Q).slice(0, 3), i:0, right:0 }; askQuiz();
+}
+function askQuiz(){
+  const q = quiz.qs[quiz.i], n = quiz.qs.length;
+  say(quiz.host, `<b>Question ${quiz.i+1} of ${n}.</b> ${q.q}<div class="dnote">Not sure? Look it up in your books: the card stays open.</div>`,
+    [...q.opts.map((o,j) => ({ label:o, fn:()=>answerQuiz(j) })), { label:`Look it up: ${GO_NAME[q.where]||'your books'}`, keep:true, fn:()=>goTo(q.where) }], null, true, { tag:'quiz', pause:true });
+}
+function answerQuiz(j){
+  const q = quiz.qs[quiz.i], ok = j===q.ans; if (ok) quiz.right++;
+  const last = quiz.i+1 >= quiz.qs.length;
+  say(quiz.host, `${ok ? '<b>Right.</b>' : `<b>No:</b> the answer is ${q.opts[q.ans]}.`} ${q.why}`, [{ label: last ? 'See how I did' : 'Next question', fn:()=>{ if (last) finishQuiz(); else { quiz.i++; askQuiz(); } } }, ...(ok ? [] : [{ label:`Show me: ${GO_NAME[q.where]||'my books'}`, keep:true, fn:()=>goTo(q.where) }])], null, true, { tag:'quiz', pause:true });
+}
+function finishQuiz(){
+  const Z = quiz, n = Z.qs.length, r = Z.right; quiz = null;
+  (fin.quizzes || (fin.quizzes = [])).push({ d:dayInt, host:Z.host, right:r, n }); if (fin.quizzes.length > 60) fin.quizzes.shift();
+  let reward = '';
+  if (Z.host==='victoria'){ const g = r===n ? 3 : r >= n-1 ? 1 : -1; city.respect = Math.max(0, Math.min(100, city.respect + g)); reward = ` Respect ${g>0?'+':''}${g}.`; }
+  if (Z.host==='ortega' && r >= n-1){ fin.bankTrust = (fin.bankTrust||0) + 1; }
+  const line = r===n ? (Z.host==='victoria' ? '“Every one. That is how you run a business: you know before you guess.”' : '“The bank likes a farmer who knows his own numbers. I will remember it.”')
+    : r >= n-1 ? (Z.host==='victoria' ? '“Close. Close is how people lose money slowly. Look again tonight.”' : '“Not bad. Look at your cash book once a week, not once a season.”')
+    : (Z.host==='victoria' ? '“You run a business you can’t describe. Open your books before you open another shop.”' : '“A farmer who doesn’t know his numbers is a farmer the bank worries about.”');
+  say(Z.host, `${r} of ${n}. ${line}${reward}`, [{ label:'Open my notebook', fn:()=>openNotebook() }, { label:'All right' }], null, true, { tag:'quiz' });
+  updateGradeBtn();
+}
+// who asks: the bank on the farm each quarter; Doña Victoria each month in the city (and with the books)
+function quizTick(){
+  if (!fin || fin.months.length < 2) return;
+  if (!city.unlocked && dayInt > 120 && quizQuestions().length >= 2 && cool('ortega-quiz', 91))
+    say('ortega', 'The bank reviews its farmers every quarter. I don’t need your papers, I need to know that <i>you</i> know them. Three questions about your own books. You may look anything up.',
+      [{ label:'Ask me', fn:()=>startQuiz('ortega') }, { label:'Not now', fn:()=>{ (fin.quizzes || (fin.quizzes = [])).push({ d:dayInt, host:'ortega', right:0, n:3, skip:true }); } }], null, false, { ttl:14, onExpire:()=>{ (fin.quizzes || (fin.quizzes = [])).push({ d:dayInt, host:'ortega', right:0, n:3, skip:true }); } });
+}
+
 function finStage(){
   if ((city.worldOpen) || (typeof presenceAbroad==='function' && presenceAbroad().length)) return 'D';
   if (city.unlocked) return 'C';
@@ -1535,7 +1766,7 @@ function fstmt(cols, rows, note){
   let h = `<table class="fs"><thead><tr><th></th>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
   for (const [label, vals, kind] of rows){
     if (kind==='h'){ h += `<tr class="fh"><td colspan="${cols.length+1}">${label}</td></tr>`; continue; }
-    h += `<tr class="${kind||''}"><td>${label}</td>${(vals||[]).map(v => `<td>${v==null ? '—' : kind==='pct' ? (isFinite(v) ? `${(v*100).toFixed(1)}%` : '—') : kind==='x' ? (isFinite(v) ? v.toFixed(1)+'×' : '—') : kind==='d' ? `${Math.round(v)}` : acc$(v)}</td>`).join('')}</tr>`; }
+    h += `<tr class="${kind||''}"><td>${glossWrap(label)}</td>${(vals||[]).map(v => `<td>${v==null ? '—' : kind==='pct' ? (isFinite(v) ? `${(v*100).toFixed(1)}%` : '—') : kind==='x' ? (isFinite(v) ? v.toFixed(1)+'×' : '—') : kind==='d' ? `${Math.round(v)}` : acc$(v)}</td>`).join('')}</tr>`; }
   return h + `</tbody></table>${note ? `<div class="muted fsnote">${note}</div>` : ''}`;
 }
 const ratio = (a,b) => b ? a/b : null;
@@ -1545,16 +1776,17 @@ function rollCost(){ const ms = lastMonths(3), cost = ms.reduce((s,m) => s + (m.
   const days = Math.min(90, 1 + ms.length*30 + (dayInt - fin.cur.d0)), capacity = cap*days*0.82, util = capacity ? Math.min(1, made/capacity) : 0, idle = Math.max(0, cost - made*std);
   return { cost, made, std, per: made > 200 ? cost/made : std, util, idle, capacity }; }
 // ---------- the Finance tab ----------
+const FIN_SUBS = { A:[['cash','Cash book'],['hist','History'],['gloss','Glossary']], B:[['cash','Cash'],['hist','History'],['pl','Profit & loss'],['products','Products'],['forecast','Forecast'],['gloss','Glossary']],
+    C:[['dash','Dashboard'],['hist','History'],['pl','P&L'],['bs','Balance sheet'],['cf','Cash flow'],['budget','Budget'],['stores','Stores'],['products','Products'],['forecast','Forecast'],['bank','Bank'],['gloss','Glossary']],
+    D:[['dash','Dashboard'],['hist','History'],['pl','P&L'],['bs','Balance sheet'],['cf','Cash flow'],['budget','Budget'],['markets','Markets'],['fx','Currencies'],['stores','Stores'],['products','Products'],['forecast','Forecast'],['bank','Bank'],['board','Board'],['capital','Investors'],['gloss','Glossary']] };
 function financeTab(){
   finEnsure(); const st = finStage();
-  const subs = { A:[['cash','Cash book'],['hist','History']], B:[['cash','Cash'],['hist','History'],['pl','Profit & loss'],['products','Products'],['forecast','Forecast']],
-    C:[['dash','Dashboard'],['hist','History'],['pl','P&L'],['bs','Balance sheet'],['cf','Cash flow'],['budget','Budget'],['stores','Stores'],['products','Products'],['forecast','Forecast'],['bank','Bank']],
-    D:[['dash','Dashboard'],['hist','History'],['pl','P&L'],['bs','Balance sheet'],['cf','Cash flow'],['budget','Budget'],['markets','Markets'],['fx','Currencies'],['stores','Stores'],['products','Products'],['forecast','Forecast'],['bank','Bank'],['board','Board'],['capital','Investors']] }[st];
+  const subs = FIN_SUBS[st]; fin.viewed = fin.viewed || {}; fin.viewed[monthKeyOf(dayInt)] = 1;   // the report card notices who reads their books
   let sub = fin.sub; if (!subs.some(s => s[0]===sub)) sub = subs[0][0];
-  let h = `<div class="finhead"><div><b>${st==='D'?'Group finance':st==='A'?'Money':'Finance'}</b> <span class="tg">${FIN_STAGES[st]}</span></div><span class="muted">${monthLabel(dayInt)} · day ${dayDate(dayInt).getUTCDate()}</span></div>`;
+  let h = `<div class="finhead"><div><b>${st==='D'?'Group finance':st==='A'?'Money':'Finance'}</b> <span class="tg">${FIN_STAGES[st]}</span></div><span class="muted">${monthLabel(dayInt)} · day ${dayDate(dayInt).getUTCDate()} · <a href="#" data-notebook="1">Notebook</a></span></div>`;
   if (subs.length > 1) h += `<div class="tabs fintabs">${subs.map(([k,n]) => `<button class="btn xs${sub===k?' on':''}" data-act="f_sub" data-x="${k}">${n}</button>`).join('')}</div>`;
-  const f = { hist:finHistory, cash:finCashBook, pl:finPLView, products:finProducts, forecast:finForecastView, dash:finDash, bs:finBSView, cf:finCFView, budget:finBudgetView, stores:finStores, bank:finBank, markets:finMarkets, fx:finFX, board:finBoard, capital:finCapital }[sub];
-  return h + f(st);
+  const f = { gloss:finGlossary, hist:finHistory, cash:finCashBook, pl:finPLView, products:finProducts, forecast:finForecastView, dash:finDash, bs:finBSView, cf:finCFView, budget:finBudgetView, stores:finStores, bank:finBank, markets:finMarkets, fx:finFX, board:finBoard, capital:finCapital }[sub];
+  return h + lessonBar('fin:'+sub) + f(st);
 }
 // Two kinds of pay: piece-rate labor is paid per job done (each picking, each tile topped or cleared of hornworms, the
 // day pickers you hire with the Harvest tool); wages are paid by the day to the people you keep on.
@@ -1673,7 +1905,7 @@ function finDash(st){
   let h = `<div class="kpis">${kpi('Revenue, 3 months', fmtK(K.rev3), g==null ? '' : `${g>=0?'▲':'▼'} ${Math.round(Math.abs(g)*100)}% last month${y!=null?` · ${y>=0?'+':''}${Math.round(y*100)}% year on year`:''}`)}${kpi('Gross margin', K.gm==null?'—':`${Math.round(K.gm*100)}%`, 'after making the cigars', K.gm!=null && K.gm<0.3?'bad':'')}${kpi('EBITDA margin', K.em==null?'—':`${Math.round(K.em*100)}%`, `${fmtK(K.annE)} a year`, K.em!=null && K.em<0?'bad':'')}${kpi('Cash', fmtK(b.cash), K.runway!=null ? `burning ${fmtK(K.burn)}/mo · ${K.runway<24?Math.round(K.runway)+' months left':'2+ years'}` : 'cash-generative', K.runway!=null && K.runway<6?'bad':'')}</div>`;
   if (ms.length >= 2) h += `<h4>Revenue, EBITDA and cash</h4>` + fchart({ labels:ms.map(m => m.label.split(' ')[0]), bars:[{ name:'Revenue', color:FC.rev, vals:ms.map(m => m.pl.rev) }, { name:'EBITDA', color:FC.profit, colorNeg:FC.loss, vals:ms.map(m => m.pl.ebitda) }], lines:[{ name:'Cash', color:'#1f2a3a', vals:ms.map(m => m.bs1.cash), dash:true }] });
   else h += `<div class="muted">The dashboard fills in as months close (on the 1st).</div>`;
-  const kr = (name, v, fmtv, good, why) => `<tr><td>${name}<div class="muted">${why}</div></td><td class="${good==null?'':good?'okc':'negc'}">${v==null?'—':fmtv(v)}</td></tr>`;
+  const kr = (name, v, fmtv, good, why) => `<tr><td>${glossWrap(name)}<div class="muted">${why}</div></td><td class="${good==null?'':good?'okc':'negc'}">${v==null?'—':fmtv(v)}</td></tr>`;
   h += `<h4>Key ratios</h4><table class="fs fsk"><tbody>`;
   h += kr('Operating costs / revenue', K.opexR, v => `${Math.round(v*100)}%`, K.opexR==null?null:K.opexR < 0.45, 'Rent, staff, marketing and overheads, per dollar sold.');
   h += kr('Days sales outstanding', K.dso, v => `${Math.round(v)} days`, K.dso <= 45, 'How long accounts and distributors take to pay you.');
@@ -1732,6 +1964,12 @@ function finStores(st){
   for (const S of S0){ const m = (S.months||[]).slice(-1)[0] || S.m, L = shopL(S); if (!m) continue; const rev = monthRev(m), net = monthNet(m), occ = (m.cost.rent||0) + (m.cost.util||0);
     h += `<tr><td>${esc(L.name)}<div class="muted">${R_(S).label}</div></td><td>${fmt(rev)}</td><td class="${net<0?'neg':''}">${acc$(net)}</td><td>${fmt(rev*12/L.m2)}</td><td class="${rev && occ/rev > 0.2 ? 'negc':''}">${pct(occ, rev)}</td><td>${pct(m.cost.wages||0, rev)}</td><td>${pct(m.buy||0, m.vis||0)}</td><td>${m.buy ? fmt2((m.rev.cigars||0)/m.buy) : '—'}</td></tr>`; }
   h += `</tbody></table><div class="muted fsnote">4-wall profit is the store’s own result: its sales less the cigars sold, rent, staff, utilities, tax and its own marketing, before company overheads. Retailers watch occupancy (rent and utilities) as a share of sales: under 12–15% is healthy, over 20% is a store paying for its landlord.</div>`;
+  const mk = S0.map(S => { const M = (S.months||[]).slice(-12).filter(m => m.open), w = M.filter(m => (m.cost.mkt||0) > 0), wo = M.filter(m => !(m.cost.mkt||0));
+    const per = a => a.length ? a.reduce((x,m) => x + (m.buy||0), 0)/a.reduce((x,m) => x + (m.open||1), 0) : null, spend = w.reduce((x,m) => x + m.cost.mkt, 0), buy = w.reduce((x,m) => x + (m.buy||0), 0);
+    return { L:shopL(S), w:w.length, wo:wo.length, pw:per(w), pwo:per(wo), cpc: buy ? spend/buy : null, spend }; }).filter(x => x.spend > 0);
+  if (mk.length){ h += `<h4>Is the marketing paying?</h4><table class="fs fsp"><thead><tr><th>Store</th><th>Spent, 12 months</th><th>Per paying customer</th><th>Customers a day, with ads</th><th>Without</th></tr></thead><tbody>` +
+    mk.map(x => `<tr><td>${esc(x.L.name)}</td><td>${fmt(x.spend)}</td><td>${x.cpc!=null?fmt2(x.cpc):'—'}</td><td>${x.pw!=null?x.pw.toFixed(1):'—'}</td><td>${x.pwo!=null?x.pwo.toFixed(1):'no months without'}</td></tr>`).join('') +
+    `</tbody></table><div class="muted fsnote">Compare the months with marketing to the months without. If the extra customers a day, times what each one leaves you, don’t cover the spend, stop the ads (Doña Victoria’s “Tell the story”). Seasons and new competitors move these numbers too.</div>`; }
   h += `<h4>Payback on each store</h4>`;
   for (const S of S0){ const L = shopL(S), inv = (S.fitSpent||0) + (S.lease ? S.deposit||0 : (S.owned ? L.buy*0.3 : 0)), got = (S.months||[]).reduce((s,m) => s + monthNet(m), 0), p = inv ? Math.max(0, Math.min(1, got/inv)) : 0;
     h += `<div class="row"><span>${esc(L.name)} · invested ${fmt(inv)}</span><b class="${got<0?'bad':''}">${got >= inv ? 'paid back' : `${fmt(Math.max(0,got))} back (${Math.round(p*100)}%)`}</b></div><div class="bar"><div style="width:${p*100}%"></div></div>`; }
@@ -1855,10 +2093,16 @@ function showYearReview(){
   h += `<div class="row" style="border-top:1.5px solid #d9c38f;margin-top:4px;padding-top:4px"><span>Total spent</span><span>${fmt(spentTotal)}</span></div><div class="row"><span>Leaf sales</span><span>${fmt(year.leafSales)}</span></div>${year.cigarSales?`<div class="row"><span>Cigar sales</span><span>${fmt(year.cigarSales)}</span></div>`:''}`;
   h += `<div class="row"><span><b>Net for the year</b></span><span class="${net>=0?'ok':'bad'}">${fmt(net)}</span></div><div class="row"><span>Cash now</span><span>${fmt(cash)}</span></div><div class="row"><span>Owed to the bank</span><span class="${debt?'bad':''}">${fmt(debt)}</span></div></div></div>`;
   h += `<div class="said" style="margin-top:12px"><b>Don Aurelio:</b> ${word}</div>`;
+  if (fin && fin.months.length >= 6 && finStage() !== 'A'){ const ms = lastMonths(12), P = k => ms.reduce((a,m) => a + m.pl[k], 0), C = courseGrade();
+    const shops = (city.shops||[]).filter(S => S.built && (S.months||[]).length).map(S => [shopL(S).name, (S.months||[]).slice(-12).reduce((a,m) => a + monthNet(m), 0)]).sort((a,b) => b[1]-a[1]);
+    h += `<h3 style="margin-top:12px">The business year</h3><div class="kpis">${kpi('Revenue', fmt(P('rev')), `${ms.length} months`)}${kpi('EBITDA', fmt(P('ebitda')), P('rev') ? `${Math.round(P('ebitda')/P('rev')*100)}% margin` : '')}${kpi('Net profit', fmt(P('net')), '')}${kpi('Cash now', fmt(cash), '')}</div>`;
+    if (shops.length) h += `<div class="row"><span>Best shop</span><span>${esc(shops[0][0])} · ${fmt(shops[0][1])}</span></div>` + (shops.length > 1 ? `<div class="row"><span>Weakest shop</span><span>${esc(shops[shops.length-1][0])} · ${fmt(shops[shops.length-1][1])}</span></div>` : '');
+    if (C) h += `<div class="row"><span>Report card</span><span><b>${C.letter}</b> · ${C.score} <a href="#" data-rc-open="1">open it</a></span></div>`;
+    h += `<div class="muted" style="margin-top:4px">${JOURNAL_Q[(fyOf(dayInt)-2+JOURNAL_Q.length) % JOURNAL_Q.length]} Write it in the report card’s journal.</div>`; }
   const el = $('review'); el.innerHTML = h; el.classList.add('show');
   year = newYear(); year.trust0 = elder.trust;
 }
-$('review').addEventListener('click', e => { if (e.target.closest('[data-close]')){ $('review').classList.remove('show'); reportOpen = false; setSpeed(reviewPrev); } });
+$('review').addEventListener('click', e => { if (e.target.closest('[data-close]')){ $('review').classList.remove('show'); reportOpen = false; notebookOpen = false; setSpeed(reviewPrev); } });
 
 // ================= people: field hands & barn tenders =================
 const PICK_PER_HAND = 4;
@@ -3328,7 +3572,7 @@ function targetsHTML(){
   return h;
 }
 function workshopTab(){
-  let h = '';
+  let h = lessonBar('tab:workshop');
   if (!ready('galera').length) h += `<div class="card"><b>No rolling workshop yet</b><div class="muted">Build a rolling workshop (a galera) with the Build tool. It seats up to 6 rollers.</div></div>`;
   else { const PL = pipeline(), R = rollRate(), wage = PLwage();
     h += `<div class="kpis">${kpi('Rolling', `${Math.round(PL.made)}/day`, `${staff.rollers.length} roller${staff.rollers.length===1?'':'s'} · can do ${PL.cap}`)}${kpi('On order', PL.pend.toLocaleString('en-US'), `${biz.orders.length} order${biz.orders.length===1?'':'s'} in the queue`)}${kpi('Resting', PL.rest.toLocaleString('en-US'), `${REST_DAYS} days before sale`)}${kpi('For sale', (PL.ready+PL.aged+PL.sec).toLocaleString('en-US'), `sells ${PL.sold.toFixed(1)}/day`)}</div>` + verdicts(PL.out.slice(0,3));
@@ -3341,7 +3585,7 @@ function workshopTab(){
   return h;
 }
 function salesTab(){
-  let h = `<div class="card"><b>${biz.brand?esc(biz.brand.name):'Your brand'}</b><div class="muted">${biz.brand?'Your name, mark and colors, on every band and box.':'You haven’t created a brand yet. A good-looking band and box sell cigars, especially to tourists.'}</div><div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn sm" data-act="brand">${biz.brand?'Open the brand studio':'Create your brand'}</button></div></div>`;
+  let h = lessonBar('tab:sales') + `<div class="card"><b>${biz.brand?esc(biz.brand.name):'Your brand'}</b><div class="muted">${biz.brand?'Your name, mark and colors, on every band and box.':'You haven’t created a brand yet. A good-looking band and box sell cigars, especially to tourists.'}</div><div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn sm" data-act="brand">${biz.brand?'Open the brand studio':'Create your brand'}</button></div></div>`;
   if (ready('stand').length){ const D7 = lastDays(7), sold = D7.reduce((s2,r)=>s2+r.sold,0), rev = D7.reduce((s2,r)=>s2+r.rev,0), open = standOpen(dayInt);
     h += `<div class="card"><b>The roadside stand</b><div class="muted">${WEEKDAYS[weekday(dayInt)]}: ${open?'open today':'closed today'}. Prices, customers and daily sales are inside.</div><div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn" data-act="enter" data-x="stand">Go to the stand</button></div></div>`;
     h += `<div class="kpis">${kpi('Last 7 days', `${sold} sold`, fmt(rev))}${kpi('Visitors', D7.reduce((s2,r)=>s2+r.vis,0), `${pct(D7.reduce((s2,r)=>s2+r.buy,0), D7.reduce((s2,r)=>s2+r.vis,0))} bought`)}${kpi('Keeper', staff.keeper?'Doña Inés':'You', staff.keeper?'open daily':'weekends only')}</div>`;
@@ -3729,7 +3973,7 @@ function say(who, text, choices, key, front, opt){
   const m = { id:++talk.seq, who, text, choices: choices && choices.length ? choices : [{ label:'All right' }], tag:opt.tag, role:opt.role, onExpire:opt.onExpire };
   const act = hasAction(choices), quiet = opt.quiet || (city.unlocked && FARM_CAST.has(who) && !act && !front);
   // the game stops for someone you have never met, and for the famous
-  const metKey = 'met:'+who; m.pause = !quiet && ((VIP_CAST.has(who) && act) || !talk.flags[metKey]); talk.flags[metKey] = 1;
+  const metKey = 'met:'+who; m.pause = !quiet && (opt.pause || (VIP_CAST.has(who) && act) || !talk.flags[metKey]); talk.flags[metKey] = 1;
   // plain news clears itself after two days. A deal stays open for two weeks (a month for a once-only offer) unless
   // it says otherwise; until then it can be reopened from Messages. Answers to what you just did don't expire.
   const ttl = opt.ttl ?? (front ? null : act ? (key ? 30 : 14) : 2); if (ttl != null) m.until = dayInt + ttl;
@@ -3765,12 +4009,14 @@ function renderTalk(still){
   const c = CAST[m.who];
   el.classList.toggle('hasart', !!ART[m.who]);
   el.innerHTML = `<div class="tportrait">${castFace(m.who,'tface')}</div><div class="tbody">${ART[m.who] ? '' : `<div class="tname">${c.name}</div>`}<div class="trole">${m.role||c.role}</div><div class="ttext">${m.text}</div>${hasAction(m.choices) && m.until!=null ? `<div class="tuntil">Open until ${dateAt(m.until)}</div>` : ''}<div class="tchoices">${m.choices.map((ch,i)=>`<button class="btn sm${i===0?' on':''}" data-t="${i}">${ch.label}</button>`).join('')}</div>${talk.queue.length>1?`<div class="tmore">${talk.queue.length-1} more waiting${talk.queue.slice(1).some(x => !hasAction(x.choices)) ? ' · <a href="#" data-tclear="1">dismiss the news</a>' : ''}</div>`:''}</div>`;
+  el.classList.toggle('left', !!opsOpen && !document.body.classList.contains('inscene'));
   if (still && el.classList.contains('show')) return;
   el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
 $('talk').addEventListener('click', e => {
   if (e.target.closest('[data-tclear]')){ e.preventDefault(); talk.queue = talk.queue.filter((m,i) => i===0 || hasAction(m.choices)); renderTalk(true); return; }
   const b = e.target.closest('[data-t]'); if (!b) return;
+  { const m0 = talk.queue[0], c0 = m0 && m0.choices[+b.dataset.t]; if (c0 && c0.keep){ c0.fn(); markDirty(); return; } }
   const m = talk.queue.shift(); const ch = m && m.choices[+b.dataset.t];
   if (m) closeOffer(m, ch ? `You chose: ${ch.label}` : 'Answered');
   if (ch && ch.fn) ch.fn();
@@ -4115,7 +4361,7 @@ function chart(o){
   g += `<line x1="${L}" y1="${y(0)}" x2="${W}" y2="${y(0)}" stroke="#b99a5c" stroke-width="1"/></svg>`;
   return g;
 }
-const kpi = (label, val, sub, cls) => `<div class="kpi${cls?' '+cls:''}"><div class="kl">${label}</div><div class="kv">${val}</div>${sub?`<div class="ks">${sub}</div>`:''}</div>`;
+const kpi = (label, val, sub, cls) => `<div class="kpi${cls?' '+cls:''}"><div class="kl">${glossWrap(label)}</div><div class="kv">${val}</div>${sub?`<div class="ks">${sub}</div>`:''}</div>`;
 const VERDICT_ICON = { ok:'✔', warn:'⚠', bad:'✖' };
 const verdicts = list => list.map(([c,t]) => `<div class="verdict ${c}"><span class="vi">${VERDICT_ICON[c]}</span><span>${t}</span></div>`).join('');
 const priceCtl = (act, id, v) => `<span class="pctl"><button class="btn xs" data-act="${act}" data-id="${id}" data-x="-1">−1</button><button class="btn xs" data-act="${act}" data-id="${id}" data-x="-0.25">−¼</button><b>${fmt2(v)}</b><button class="btn xs" data-act="${act}" data-id="${id}" data-x="0.25">+¼</button><button class="btn xs" data-act="${act}" data-id="${id}" data-x="1">+1</button></span>`;
@@ -5018,7 +5264,7 @@ function closeMonth(){
   const lines = done.map(([S, m]) => `${shopL(S).name}: sold ${fmt(m.rev.cigars+m.rev.acc+m.rev.bar)}, ${monthNet(m)>=0?`made ${fmt(monthNet(m))}`:`lost ${fmt(-monthNet(m))}`}`);
   const tot = done.reduce((s,[S,m]) => s + monthNet(m), 0), young = done.some(([S]) => (S.months||[]).filter(x => x.open).length <= 4);
   const first = done.find(([S, m]) => monthNet(m) < 0) || done[0];
-  if (city.unlocked) say('victoria', `The books for ${mo}. ${lines.join('. ')}. That is after paying for the cigars themselves. ${tot<0 && young ? 'The first months are the valley. Know how deep it is.' : tot<0 ? 'Bring me the books. We need to talk.' : 'Good. Now do it again.'}`, [{ label:'Show me the books', fn:()=>openShop(first[0].lid, 'books') }, { label:'Later' }], 'month-'+dayInt, false, { tag:'v-books', ttl:1 });
+  if (city.unlocked) say('victoria', `The books for ${mo}. ${lines.join('. ')}. That is after paying for the cigars themselves. ${tot<0 && young ? 'The first months are the valley. Know how deep it is.' : tot<0 ? 'Bring me the books. We need to talk.' : 'Good. Now do it again.'}`, [...(quizQuestions().length >= 2 ? [{ label:'Quiz me on them', fn:()=>startQuiz('victoria') }] : []), { label:'Show me the books', fn:()=>openShop(first[0].lid, 'books') }, { label:'Later' }], 'month-'+dayInt, false, { tag:'v-books', ttl:1 });
   else toast(`${mo} at the shop in San Rafael: ${lines[0].split(': ')[1]}.`);
 }
 function evict(S){ markFail('evict'); const L = shopL(S); if (fin){ finDispose(S.lid, 0); if (S.lease) fin.cur.other -= (S.deposit||0); } attention(`Evicted. The landlord took back ${L.name} and kept your deposit. Everything you built inside stays with the building.`); city.shops = city.shops.filter(x => x!==S); city.stats.servedStreak = 0; if (scene && scene.lid===S.lid) closeScene(); if (city.unlocked) say('victoria', 'It happens to better people than you, and to worse. Pay what you owe, sleep, and then tell me what you learned. A shop is a bet. Bet smaller next time, or with more cushion.'); }
@@ -5459,6 +5705,8 @@ function reviewBooks(){
   const own = owedToYou(); if (own > cash*0.5 && own > 3000) out.push(`${fmt(own)} is owed to you and not yet paid. Cash in other people’s pockets doesn’t pay rent.`);
   if (city.line.bal > 0) out.push(`You owe ${fmt(city.line.bal)} on the credit line, at 1.2% a month. Pay it down when the cash comes in.`);
   if (cash < fixed*3) out.push(`You have ${fmt(cash)}. Three months of fixed costs is ${fmt(fixed*3)}. Thin.`);
+  { const K = finKPIs(); if (K.dio != null && K.dio > 240) out.push(`Your leaf and cigars sit ${Math.round(K.dio)} days before they sell. Aging needs time, but that is ${fmt(K.bs.inv)} of cash asleep in the warehouse.`);
+    else if (K.ccc != null && K.ccc > 0) out.push(`From the day you pay for leaf to the day the money comes back takes ${Math.round(K.ccc)} days. Every dollar of growth needs that much cash first.`); }
   if (out.length===2) out.push('Nothing to scold you about. That makes me nervous. Check the humidor.');
   return { html:'“' + out.join(' ') + '”', profit: net>=0 };
 }
@@ -5531,7 +5779,7 @@ function renderMentor(){
   V_LESSONS.forEach((x,i) => { const ok = city.respect >= x.need; h += `<button class="btn lesson${i===city.vsel?' on':''}${ok?'':' locked'}" data-vl="${i}"><span>${x.title}</span><small>${ok?(vDone(x.id)?'Done':vKnow(x.id)?'Heard':'New'):'Respect '+x.need}</small></button>`; });
   h += `</div><div class="etext">`;
   if (city.game) h += renderVGame();
-  else if (open){ h += `<h3>${L.title}</h3>` + L.body.map(p => `<p>${p}</p>`).join('');
+  else if (open){ h += `<h3>${L.title}</h3>` + L.body.map(p => `<p>${p}</p>`).join('') + ((LESSON_GO[L.id]||[]).length ? `<div class="acts" style="justify-content:flex-start;flex-wrap:wrap;margin:4px 0 8px">${LESSON_GO[L.id].filter(goOk).map(t => `<button class="btn xs" data-goto="${t}">Show me: ${GO_NAME[t]||t}</button>`).join('')}</div>` : '');
     if (L.id==='brand') h += positionPicker();
     h += vMissionBox(L.id); }
   else h += `<h3>${L.title}</h3><p class="muted">“Not yet. Come back when you have done something worth talking about.” She doesn’t want rum. She wants results: finish her challenges, bring her your books.</p><p class="muted">Needs respect ${L.need}. You have ${city.respect}.</p>`;
@@ -5825,7 +6073,7 @@ function listingPanel(L){
   return h;
 }
 function brandSide(){
-  let h = `<h4>How the city knows you</h4><div class="kpis">${kpi('Known as', `<span style="font-size:14px">${esc(knownAs())}</span>`, '')}${kpi('City awareness', `${Math.round(city.aware)}/100`, city.aware<25?'barely known':city.aware<50?'talked about':city.aware<75?'a known name':'everyone knows you')}${kpi('Reputation', `${Math.round(biz.rep)}/100`, 'from every customer')}</div>`;
+  let h = lessonBar('city:brand') + `<h4>How the city knows you</h4><div class="kpis">${kpi('Known as', `<span style="font-size:14px">${esc(knownAs())}</span>`, '')}${kpi('City awareness', `${Math.round(city.aware)}/100`, city.aware<25?'barely known':city.aware<50?'talked about':city.aware<75?'a known name':'everyone knows you')}${kpi('Reputation', `${Math.round(biz.rep)}/100`, 'from every customer')}</div>`;
   h += `<h4>What your brand stands for</h4>`;
   if (!vKnow('brand')) h += `<div class="muted">Doña Victoria will ask you this when she thinks you are ready (“Who are you?”, respect 32). Until then the city decides for you.</div>`;
   else { const P = POSITIONS[city.pos]; h += P ? `<div class="card"><b>${P.name}</b><div class="muted">“${P.promise}”</div></div>` : '<div class="muted">Not chosen yet.</div>'; h += `<div class="vents" style="flex-wrap:wrap">${Object.entries(POSITIONS).map(([k,X]) => `<button class="btn xs${city.pos===k?' on':''}" data-act="c_pos" data-x="${k}">${X.name}</button>`).join('')}</div>`; }
@@ -6570,7 +6818,7 @@ function dailyTick(){
   else if (ripeNow){ farmNote(`The volado (bottom leaves) is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Each priming keeps its quality for about four weeks. Seco and ligero follow over the next few weeks.`); }
   if (laterRipe && !staff.hands){ const which = ripeBy[2]?'ligero':'seco'; farmNote(`The ${which} is ready on ${laterRipe} tile${laterRipe>1?'s':''}. Time for the next pass.`); }
   if (wx==='Rain' && wetSeason()) for (const row of map) for (const t of row) if (t.work==='seeded') t.g += 0.15; // rain-fed bonus
-  talkTick(); fieldTick(); businessTick(); peopleTick(); aurelioTick(); cityTick(); finDaily();
+  talkTick(); fieldTick(); businessTick(); peopleTick(); farmLessonsTick(); quizTick(); aurelioTick(); cityTick(); finDaily();
   const dnow = new Date(Date.UTC(2025,9,1) + dayInt*864e5);
   if (dnow.getUTCMonth()===7 && dnow.getUTCDate()===1 && know('storms') && cash>=1500) elder.stats.stormReady = 1;
   if (debt>0 && dayInt%30===0){ const i = Math.round(debt*0.01); if (cash>=i) cash -= i; else debt += i; spend('Interest', i); }
