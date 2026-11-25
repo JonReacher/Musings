@@ -155,6 +155,11 @@
   #msglog .mlist{overflow:auto;flex:1;padding-right:4px}
   #msglog .mday{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.55;margin:10px 0 3px}
   #msglog .mitem{display:flex;gap:9px;align-items:flex-start;background:#fffaf0;border:1.5px solid #d9c38f;border-radius:10px;padding:7px 9px;margin:4px 0}
+  #msglog .mitem.live{border-color:#3f7a4a;box-shadow:0 0 0 1px #3f7a4a inset}
+  #msglog .mdeal{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:11.5px;font-weight:800;opacity:.7}
+  #msglog .mdeal.open{opacity:1;color:#2f6b3a}
+  #msglog .mdeal .btn{margin-left:auto}
+  .tuntil{font-size:11px;font-weight:800;opacity:.6;margin-top:5px}
   #msglog .mitem.imp{border-color:#c98612;background:#fff3cf}
   #msglog .mface{width:44px;flex:none}
   #msglog .mface svg,#msglog .mface img{width:44px;height:44px;display:block;object-fit:cover;object-position:50% 15%;border-radius:8px}
@@ -788,7 +793,7 @@ function refreshUI(){
 $('speed').querySelectorAll('.btn').forEach(b => b.onclick = () => setSpeed(+b.dataset.s));
 function setSpeed(i){ speedIdx = i; $('speed').querySelectorAll('.btn').forEach(b => b.classList.toggle('on', +b.dataset.s===i)); }
 function flashCash(){ const el=$('cash'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),600); }
-const talk = { queue:[], flags:{}, cd:{}, log:[], unread:0 };
+const talk = { queue:[], flags:{}, cd:{}, log:[], unread:0, live:{}, seq:0, resume:null };   // live: offers still open, by id (not saved)
 let msgOpen = false, msgFilter = 'all', msgResume = null;
 function updateMsgBadge(){ const el = $('msgBtn'); if (!el) return; el.innerHTML = `Messages${talk.unread ? ` <span class="mbadge">${talk.unread>99?'99+':talk.unread}</span>` : ''}`; }
 // everything said and every notice is kept for the Messages log; quiet ones skip the pop-up and count as unread
@@ -824,8 +829,8 @@ function openMsgLog(open){
 }
 function renderMsgLog(){
   const el = $('msglog'); el.classList.toggle('show', msgOpen); if (!msgOpen) return;
-  const F = { all:'All', people:'People', notices:'Notices' };
-  const list = talk.log.filter(e => msgFilter==='all' || (msgFilter==='people' ? !!e.who : !e.who)).slice().reverse();
+  const F = { all:'All', offers:'Open offers', people:'People', notices:'Notices' };
+  const list = talk.log.filter(e => msgFilter==='all' || (msgFilter==='offers' ? !!(e.mid && talk.live[e.mid]) : msgFilter==='people' ? !!e.who : !e.who)).slice().reverse();
   let h = `<div class="mhead"><h3>Messages</h3>${Object.entries(F).map(([k,v]) => `<button class="btn xs${msgFilter===k?' on':''}" data-mf="${k}">${v}</button>`).join('')}<button class="btn xs" data-mclose="1" title="Close (M)">✕</button></div>`;
   h += `<div class="muted" style="margin-bottom:2px">The game is paused while you read.${city.unlocked ? ' Farm news now arrives here quietly, without a pop-up.' : ''}</div><div class="mlist">`;
   if (!list.length) h += `<div class="muted" style="margin-top:10px">Nothing yet.</div>`;
@@ -833,7 +838,10 @@ function renderMsgLog(){
   for (const e of list){
     if (e.d!==last){ last = e.d; h += `<div class="mday">${e.d===dayInt ? 'Today · ' : e.d===dayInt-1 ? 'Yesterday · ' : ''}${dateAt(e.d)}, Year ${1+Math.floor(e.d/365)}</div>`; }
     const c = e.who && CAST[e.who];
-    h += c ? `<div class="mitem"><span class="mface">${castFace(e.who)}</span><div><div class="mwho">${c.name}<small>${e.role||c.role}</small></div><div>${e.text}</div></div></div>`
+    const live = e.mid && talk.live[e.mid] && !(e.until!=null && e.until < dayInt);
+    const st = !e.deal ? '' : live ? `<div class="mdeal open"><span>${e.missed ? 'You missed this offer. ' : ''}Open until ${e.until!=null ? dateAt(e.until) : 'you answer'}</span><button class="btn xs on" data-mopen="${e.mid}">Open the offer</button></div>`
+      : e.done ? `<div class="mdeal">${esc(e.done)}</div>` : e.until!=null && e.until < dayInt ? '<div class="mdeal">Expired</div>' : '<div class="mdeal">From an earlier session: this offer can no longer be opened</div>';
+    h += c ? `<div class="mitem${live?' live':''}"><span class="mface">${castFace(e.who)}</span><div><div class="mwho">${c.name}<small>${e.role||c.role}</small></div><div>${e.text}</div>${st}</div></div>`
            : `<div class="mitem${e.kind==='imp'?' imp':''}"><div>${e.text}</div></div>`;
   }
   el.innerHTML = h + '</div>';
@@ -841,6 +849,7 @@ function renderMsgLog(){
 $('msgBtn').onclick = () => openMsgLog();
 $('msglog').addEventListener('click', e => {
   const f = e.target.closest('[data-mf]'); if (f){ msgFilter = f.dataset.mf; renderMsgLog(); return; }
+  const o = e.target.closest('[data-mopen]'); if (o){ reopenOffer(+o.dataset.mopen); return; }
   if (e.target.closest('[data-mclose]')) openMsgLog(false);
 });
 
@@ -2626,7 +2635,7 @@ const SEGMENTS = {
 };
 const biz = { blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:null, seg:{}, beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{} };
 function freshSegStats(){ const o = {}; for (const k in SEGMENTS) o[k] = { visits:0, buyers:0, sticks:0, revenue:0, tooStrong:0, tooMild:0, tooPricey:0, harsh:0, liked:{} }; return o; }
-function resetBiz(){ talk.queue = []; talk.flags = {}; talk.cd = {}; talk.log = []; talk.unread = 0; if (typeof renderTalk==='function' && $('talk')) $('talk').classList.remove('show'); Object.assign(biz, { brand:null, today:null, blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:newWeek(), seg:freshSegStats(), beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{}, noDiscount:false }); staff.rollers = []; staff.keeper = false; staff.lector = false; }
+function resetBiz(){ talk.queue = []; talk.flags = {}; talk.cd = {}; talk.log = []; talk.unread = 0; talk.live = {}; talk.resume = null; if (typeof renderTalk==='function' && $('talk')) $('talk').classList.remove('show'); Object.assign(biz, { brand:null, today:null, blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:newWeek(), seg:freshSegStats(), beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{}, noDiscount:false }); staff.rollers = []; staff.keeper = false; staff.lector = false; }
 function newWeek(){ return { day:dayInt, visitors:0, buyers:0, sticks:0, revenue:0, wholesale:0, made:0 }; }
 const prodOf = id => biz.products.find(p => p.id===id), blendOf = id => biz.blends.find(b => b.id===id);
 // ---------- the calendar: real days of the week ----------
@@ -3597,28 +3606,45 @@ const hasAction = ch => !!(ch && ch.some(c => c.fn));
 function say(who, text, choices, key, front, opt){
   opt = opt || {};
   if (key){ if (talk.flags[key]) return; talk.flags[key] = dayInt+1; }
-  const m = { who, text, choices: choices && choices.length ? choices : [{ label:'All right' }], tag:opt.tag, role:opt.role };
+  const m = { id:++talk.seq, who, text, choices: choices && choices.length ? choices : [{ label:'All right' }], tag:opt.tag, role:opt.role, onExpire:opt.onExpire };
   const act = hasAction(choices), quiet = opt.quiet || (city.unlocked && FARM_CAST.has(who) && !act && !front);
-  logMsg({ who, role:opt.role, text, quiet });
+  // the game stops for someone you have never met, and for the famous
+  const metKey = 'met:'+who; m.pause = !quiet && ((VIP_CAST.has(who) && act) || !talk.flags[metKey]); talk.flags[metKey] = 1;
+  // plain news clears itself after two days. A deal stays open for two weeks (a month for a once-only offer) unless
+  // it says otherwise; until then it can be reopened from Messages. Answers to what you just did don't expire.
+  const ttl = opt.ttl ?? (front ? null : act ? (key ? 30 : 14) : 2); if (ttl != null) m.until = dayInt + ttl;
+  const e = { who, role:opt.role, text, quiet, mid:m.id, deal:act, until:m.until }; m.log = e; logMsg(e);
   if (quiet) return;
-  // plain news clears itself after two days; anything with a real choice waits for you unless it says otherwise
-  const ttl = opt.ttl ?? (act || front ? null : 2); if (ttl != null) m.until = dayInt + ttl;
-  if (m.tag){ const i = talk.queue.findIndex(x => x.tag===m.tag); if (i>=0){ talk.queue[i] = m; renderTalk(i>0); return; } }
+  if (act) talk.live[m.id] = m;
+  if (m.tag){ const i = talk.queue.findIndex(x => x.tag===m.tag); if (i>=0){ closeOffer(talk.queue[i], 'Replaced by a newer offer'); talk.queue[i] = m; renderTalk(i>0); return; }
+    for (const k in talk.live) if (+k !== m.id && talk.live[k].tag===m.tag) closeOffer(talk.live[k], 'Replaced by a newer offer'); }
   if (front){ talk.queue.unshift(m); renderTalk(); return; }   // an answer to something the player just did goes first
-  if (talk.queue.length > 6) return;
+  // too many waiting: it goes to Messages as a missed offer you can still open
+  if (talk.queue.length > 6){ e.missed = true; talk.unread++; updateMsgBadge(); return; }
   talk.queue.push(m);
   renderTalk();
 }
+const VIP_CAST = new Set(['president','senator','general','captain','lucien','sterling','rita']);
+// an offer is answered, replaced or expired: it can no longer be opened from Messages
+function closeOffer(m, how){ if (!m) return; delete talk.live[m.id]; if (m.log && !m.log.done) m.log.done = how; if (msgOpen) renderMsgLog(); }
+// reopen an offer from Messages: it goes to the front, and the game stays paused until you answer
+function reopenOffer(id){ const m = talk.live[id]; if (!m || (m.until!=null && m.until < dayInt)) return;
+  talk.queue = talk.queue.filter(x => x!==m); talk.queue.unshift(m); m.reopened = true;
+  if (talk.resume==null) talk.resume = msgResume; msgResume = null; msgOpen = false; $('msgBtn').classList.remove('on'); renderMsgLog(); renderTalk(); }
 const cool = (key, d) => { if (talk.cd[key] && dayInt - talk.cd[key] < d) return false; talk.cd[key] = dayInt; return true; };
 // once a day: messages past their date leave the screen (they stay in Messages)
-function talkTick(){ const head = talk.queue[0], n = talk.queue.length; talk.queue = talk.queue.filter(m => m.until==null || m.until >= dayInt); if (talk.queue.length!==n) renderTalk(talk.queue[0]===head); }
+function talkTick(){
+  const head = talk.queue[0], n = talk.queue.length, gone = m => m.until!=null && m.until < dayInt;
+  for (const m of [...talk.queue, ...Object.values(talk.live)]) if (gone(m) && m.log && !m.log.done){ closeOffer(m, 'Expired'); if (m.onExpire) m.onExpire(); }
+  talk.queue = talk.queue.filter(m => !gone(m)); if (talk.queue.length!==n) renderTalk(talk.queue[0]===head); }
 function renderTalk(still){
   const el = $('talk'), m = talk.queue[0];
   if (!m){ el.classList.remove('show'); el._m = null; return; }
   if (m===el._m && el.classList.contains('show')) still = true; el._m = m;
+  if (m.pause && !m.paused){ m.paused = true; if (speedIdx!==0){ talk.resume = speedIdx; setSpeed(0); } }
   const c = CAST[m.who];
   el.classList.toggle('hasart', !!ART[m.who]);
-  el.innerHTML = `<div class="tportrait">${castFace(m.who,'tface')}</div><div class="tbody">${ART[m.who] ? '' : `<div class="tname">${c.name}</div>`}<div class="trole">${m.role||c.role}</div><div class="ttext">${m.text}</div><div class="tchoices">${m.choices.map((ch,i)=>`<button class="btn sm${i===0?' on':''}" data-t="${i}">${ch.label}</button>`).join('')}</div>${talk.queue.length>1?`<div class="tmore">${talk.queue.length-1} more waiting${talk.queue.slice(1).some(x => !hasAction(x.choices)) ? ' · <a href="#" data-tclear="1">dismiss the news</a>' : ''}</div>`:''}</div>`;
+  el.innerHTML = `<div class="tportrait">${castFace(m.who,'tface')}</div><div class="tbody">${ART[m.who] ? '' : `<div class="tname">${c.name}</div>`}<div class="trole">${m.role||c.role}</div><div class="ttext">${m.text}</div>${hasAction(m.choices) && m.until!=null ? `<div class="tuntil">Open until ${dateAt(m.until)}</div>` : ''}<div class="tchoices">${m.choices.map((ch,i)=>`<button class="btn sm${i===0?' on':''}" data-t="${i}">${ch.label}</button>`).join('')}</div>${talk.queue.length>1?`<div class="tmore">${talk.queue.length-1} more waiting${talk.queue.slice(1).some(x => !hasAction(x.choices)) ? ' · <a href="#" data-tclear="1">dismiss the news</a>' : ''}</div>`:''}</div>`;
   if (still && el.classList.contains('show')) return;
   el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
@@ -3626,7 +3652,11 @@ $('talk').addEventListener('click', e => {
   if (e.target.closest('[data-tclear]')){ e.preventDefault(); talk.queue = talk.queue.filter((m,i) => i===0 || hasAction(m.choices)); renderTalk(true); return; }
   const b = e.target.closest('[data-t]'); if (!b) return;
   const m = talk.queue.shift(); const ch = m && m.choices[+b.dataset.t];
+  if (m) closeOffer(m, ch ? `You chose: ${ch.label}` : 'Answered');
   if (ch && ch.fn) ch.fn();
+  // back to the speed you were playing at, once nothing waiting needs you to stop
+  if (speedIdx!==0) talk.resume = null;   // you pressed play yourself
+  if (talk.resume!=null && speedIdx===0 && !(talk.queue[0] && talk.queue[0].pause && !talk.queue[0].paused) && !talk.queue.some(x => x.reopened)){ setSpeed(talk.resume); talk.resume = null; }
   markDirty(); refreshUI(); renderOps(true); renderTalk();
 });
 function peopleTick(){
@@ -5025,7 +5055,7 @@ function vipTick(){
 
   if (!city.unlocked) return;
   // ---- new faces: one at a time, never twice in a fortnight ----
-  if (talk.queue.some(m => ['president','senator','general','captain','lucien','sterling','rita'].includes(m.who)) || !cool('vip-any', 14)) return;
+  if ([...talk.queue, ...Object.values(talk.live)].some(m => VIP_CAST.has(m.who) && m.who!=='lucien') || !cool('vip-any', 14)) return;
   const tries = [
     // Lucien drops by the flagship, unannounced
     () => { const S = flagship(); if (!S || !S.built || !br || Math.random() > 0.25 || !cool('lucien-visit', 210)) return false;
@@ -5036,26 +5066,26 @@ function vipTick(){
     () => { if (V.cruise || !br || br.score < 86 || !(city.aware >= 40 || city.shops.some(S => S.built && shopL(S).d==='malecon')) || !cool('captain', 150)) return false;
       const p = vipCigar(600); if (!p) return false; const per = Math.round(shelfOf(p)*0.45*4)/4, qty = 800;
       say('captain', `Harlan Whitcombe, master of the Majestic Star. We dock here every second Tuesday, and three of my passengers came back aboard with your band on their cigars and your name on their lips. I run the cigar lounges for the whole line: four ships, every ocean. I’d like your ${esc(p.name)} on all of them.` + dealBox([['Every month', `${qty} × ${fmt2(per)} = ${fmt(qty*per)}`], ['Paid', '30 days after each shipment', 'down'], ['Your cost to make them', `${fmt(qty*prodCost(p))} a month`], ['Every port', 'a little more awareness in every market abroad', 'up']], 'Miss two months and he finds another supplier.'),
-        [{ label:'Sign with the Majestic Star', fn:()=>{ V.cruise = { pid:p.id, qty, price:per, missed:0, start:dayInt }; toast(`Signed with Majestic Star Lines: ${qty} ${p.name} a month, shipped on the 1st.`); } }, { label:'Not now' }], null, false, { tag:'captain', ttl:6 }); return true; },
+        [{ label:'Sign with the Majestic Star', fn:()=>{ V.cruise = { pid:p.id, qty, price:per, missed:0, start:dayInt }; toast(`Signed with Majestic Star Lines: ${qty} ${p.name} a month, shipped on the 1st.`); } }, { label:'Not now' }], null, false, { tag:'captain', ttl:30 }); return true; },
     // Rita Del Mar wants your cigar in her picture
     () => { if (V.rita || N < 45 || !br || br.score < 88 || !cool('rita', 300)) return false; const p = vipCigar(350); if (!p) return false;
       say('rita', `They’re shooting my new picture, <i>Moonlight over the Malecón</i>, here in your city. I play a woman who owns a cigar house and breaks three hearts. I want my character to smoke your ${esc(p.name)}, the real thing, in every scene, and on my arm at the premiere.` + dealBox([['On set', '300 cigars for the cast and crew'], ['The premiere party', fmt(6000)], ['In about five months', 'city awareness +10, +6 in every market abroad, +25% people coming into your shops for three months', 'up']], 'A picture lasts. People will see your band on that screen for years.'),
         [{ label:`Put it in the picture · ${fmt(6000)}`, fn:()=>{ const got = takeStock(p, 1, 300); cityPay(6000, 'City: marketing', 'mkt'); V.rita = { pid:p.id, release:dayInt+150, until:dayInt+240 }; addBuzz(4); toast(`${got} cigars went to the set of “Moonlight over the Malecón.” The premiere is in about five months.`); } },
          { label:'A box for Rita, with my compliments', fn:()=>{ takeStock(p, 1, 25); city.aware = Math.min(100, city.aware + 2); V.rita = { pid:p.id, release:-1, until:-1, box:true }; toast('Rita sent a photograph back, signed, with a lipstick kiss. Your manager framed it.'); } },
-         { label:'Not this time' }], null, false, { tag:'rita', ttl:6 }); return true; },
+         { label:'Not this time' }], null, false, { tag:'rita', ttl:30 }); return true; },
     // Mr. President and his club
     () => { if (V.pres || !br || br.score < 90 || N < 50 || !cool('president', 240)) return false; const p = vipCigar(300, 90); if (!p) return false;
       const per = shelfOf(p), qty = 300;
       say('president', `I smoked one of your ${esc(p.name)} last week and I told everybody at dinner: this is the best cigar ever made. I have a club in Palm Beach, the finest club there is, and I want it in the humidor. ${qty} every three months, at your price. Nobody at my club asks for a discount. It will be very good for your brand.` + dealBox([['Every three months', `${qty} × ${fmt2(per)} = ${fmt(qty*per)}`], ['Prestige', 'notoriety +12, city awareness +4, Miami awareness +10', 'up'], ['Attention', 'some of it from people who will not like you', 'down']], 'Fail to fill an order and he leaves, loudly.'),
         [{ label:'Supply the club', fn:()=>{ V.pres = { pid:p.id, qty, price:per, next:dayInt+5 }; addBuzz(12); V.heat += 20; city.aware = Math.min(100, city.aware + 4); const W = city.world.miami || (city.world.miami = { aware:0 }); W.aware = Math.min(100, worldAware('miami') + 10); toast('Your cigars are going to the club in Palm Beach. The first order ships this week.'); } },
-         { label:'Politely decline' }], null, false, { tag:'president', ttl:6 }); return true; },
+         { label:'Politely decline' }], null, false, { tag:'president', ttl:21 }); return true; },
     // the General: a private label, and something else
     () => { if (V.gen || !city.worldOpen || N < 40 || !cool('general', 365)) return false; const p = vipCigar(1000); if (!p) return false;
       const n = Math.min(2000, stockOf(p,true,1)), per = Math.round(shelfOf(p)*1.8*4)/4, bm = Math.round(shelfOf(p)*1.1*4)/4;
       say('general', `My people have smoked your ${esc(p.name)} at my table for a year. Now the Republic of Zanguéla will have its own cigar: yours, with my portrait on the band. ${n} for the palace and the embassies. And my ministers would like to move a great deal more, every month, through my port, without the inconvenience of duty stamps. It would be very good for both of us. I insist that it would be.` + dealBox([['The private label', `${n} × ${fmt2(per)} = ${fmt(n*per)}, paid now`, 'up'], ['The side business', `1,200 a month × ${fmt2(bm)} in cash, no questions`, 'up'], ['If customs ever opens a crate', 'a heavy fine, a scandal, and Doña Victoria will hear about it', 'down']], 'Every month the side business runs, there is a chance it ends in the newspapers.'),
         [{ label:'Roll his private label', fn:()=>{ const got = vipSell(p, n, per); V.gen = { pid:p.id, black:false }; addBuzz(6); V.heat += 5; toast(`The palace took ${got} cigars with the General’s face on the band: ${fmt(got*per)}.`); } },
          { label:'The label, and the side business', fn:()=>{ const got = vipSell(p, n, per); V.gen = { pid:p.id, black:true, qty:1200, price:bm, start:dayInt }; addBuzz(8); V.heat += 10; toast(`The palace took ${got} cigars: ${fmt(got*per)}. The first ship for the port comes on the 1st.`); } },
-         { label:'Decline, with every respect', fn:()=>{ V.gen = { pid:p.id, black:false, no:true }; } }], null, false, { tag:'general', ttl:6 }); return true; },
+         { label:'Decline, with every respect', fn:()=>{ V.gen = { pid:p.id, black:false, no:true }; } }], null, false, { tag:'general', ttl:21 }); return true; },
     // the senator: he needs a villain, and you are famous enough
     () => { if (senatorOn() || (V.sen && V.sen.until > dayInt-200) || N < 50 || !(V.heat >= 20 || (city.markets.miami && city.markets.miami.status==='live')) || !cool('senator', 300)) return false;
       const run = (msg) => { V.sen = { until:dayInt+120, done:false }; city.aware = Math.max(0, city.aware-3); if (msg) toast(msg, true); };
@@ -5063,7 +5093,7 @@ function vipTick(){
         [{ label:`Hire a lobbyist · ${fmt(20000)}`, fn:()=>{ cityPay(20000, 'Company: fines and legal', 'other'); V.heat = 0; V.sen = { until:dayInt, done:true }; toast('Your lobbyist had lunch with the committee chairman. The hearings are “postponed indefinitely.”'); } },
          { label:'Fight it in the press', fn:()=>{ addBuzz(10); if (Math.random() < 0.55){ V.sen = { until:dayInt, done:true }; city.aware = Math.min(100, city.aware+3); say('senator', '“I have made my point. The committee has other priorities.” He did not mention you again.', null, null, true); } else run('The senator doubled down. The hearings go ahead, and every channel shows your band.'); } },
          { label:'Send him a box, discreetly', fn:()=>{ takeStock(vipCigar(25) || biz.products[0], 1, 25); if (Math.random() < 0.65){ V.sen = { until:dayInt, done:true }; V.heat = 0; say('senator', '“Thank you for the… materials. I’ve reviewed them closely. The committee has other priorities.”', null, null, true); } else { run(); addBuzz(15); city.respect = Math.max(0, city.respect-6); city.aware = Math.max(0, city.aware-6); toast('A reporter photographed the box arriving at the senator’s office. “Big Cigar buys a senator.” The hearings go ahead.', true); } } },
-         { label:'Let him talk', fn:()=>run() }], null, false, { tag:'senator', ttl:6 }); return true; },
+         { label:'Let him talk', fn:()=>run() }], null, false, { tag:'senator', ttl:14, onExpire:()=>run('You never answered Senator Cortez. The hearings go ahead.') }); return true; },
     // Sterling Vance: he only calls once you are worth buying
     () => { if (!fin || V.sold || !(N >= 70 || city.global) || dayInt < V.vance.walk || !cool('vance', 240)) return false; vanceOffer(false); return true; },
   ];
@@ -5077,10 +5107,10 @@ function vanceOffer(youCalled){
   say('sterling', `${youCalled ? 'You called me. That tells me something about the price.' : 'Sterling Vance, Consolidated Tobacco. We make four billion cigars a year, every one identical. Yours are not identical, and people have started talking about them. I would rather own that than compete with it.'} For your share of the company I will pay ${fmt(price)}. Cash. You keep the farm house; we keep everything else.` + dealBox([['The company is worth', `${fmt(val.equity)} (${val.method})`], ['Your share', `${Math.round(val.mine*100)}%`], ['His offer', `${fmt(price)} · ${Math.round((prem-1)*100)}% over the books`, 'up'], ['If you sell', 'the game shows how your story ended; you can keep playing afterwards', 'down']], 'Doña Victoria sold Casa Arriaga in a single afternoon. Ask her how she feels about it.'),
     [{ label:`Sell for ${fmt(price)}`, fn:()=>vanceConfirm(price) },
      { label:`Counter: ${fmt(counter)}`, fn:()=>{ if (Math.random() < 0.45) vanceConfirm(counter); else { V.vance.walk = dayInt + 365; say('sterling', '“No. Good luck with the farm.” He closed the briefcase. He will not call again for a year.', null, null, true); } } },
-     { label:'Not for sale' }], null, true, { tag:'sterling' });
+     { label:'Not for sale' }], null, true, { tag:'sterling', ttl:21 });
 }
 function vanceConfirm(price){
-  say('sterling', `${fmt(price)}, then. My lawyers have the papers. Sign here, and here, and it’s ours.`, [{ label:'Sign', fn:()=>sellToVance(price) }, { label:'I can’t do it', fn:()=>{ V_().vance.walk = dayInt + 180; } }], null, true, { tag:'sterling' });
+  say('sterling', `${fmt(price)}, then. My lawyers have the papers. Sign here, and here, and it’s ours.`, [{ label:'Sign', fn:()=>sellToVance(price) }, { label:'I can’t do it', fn:()=>{ V_().vance.walk = dayInt + 180; } }], null, true, { tag:'sterling', ttl:7 });
 }
 function sellToVance(price){
   const V = V_(); V.sold = { day:dayInt, price }; reviewPrev = speedIdx || 1; setSpeed(0);
@@ -5092,6 +5122,22 @@ function sellToVance(price){
   const el = $('review'); el.innerHTML = h; el.classList.add('show');
 }
 function callVance(){ if (!cool('vance-call', 90)){ toast('Sterling Vance’s office says he is traveling. Try again in a few months.'); return; } vanceOffer(true); }
+// ---------- brand recognition, at home and in each market abroad ----------
+// global recognition weighs each market by its size (the distributor's monthly volume); the home city counts as 1.5
+function recognition(){
+  const rows = [{ name:'San Rafael', sub:'the valley and the town', v:Math.round(biz.rep), note:'reputation', w:0 },
+                { name:CITY, sub:'the capital', v:Math.round(city.aware), note:'awareness', w:1.5 }];
+  for (const M of MARKETS){ const X = city.markets[M.k], shop = city.shops.some(S => regionS(S)===M.k && S.built);
+    rows.push({ name:M.name, sub:M.region, v:Math.round(worldAware(M.k)), note: shop && X && X.status==='live' ? 'your shop and a distributor' : shop ? 'your own shop' : X && X.status==='live' ? `${M.imp} sells you` : X && X.status==='setup' ? 'registering' : 'nobody sells you here yet', w:M.monthly/1000 }); }
+  const W = rows.reduce((a,r) => a + r.w, 0), global = Math.round(rows.reduce((a,r) => a + r.v*r.w, 0) / W);
+  return { rows, global };
+}
+function recognitionSide(){
+  const R = recognition();
+  let h = `<h4>Brand recognition</h4><div class="card"><div class="row"><span class="t" style="opacity:1">Global recognition</span><span>${R.global}/100</span></div><div class="bar"><div style="width:${R.global}%"></div></div><div class="muted">How well people know your name, averaged over ${CITY} and the six markets abroad, weighted by how many cigars each one smokes. ${city.global ? 'You are a global name.' : `A global name needs ${GLOBAL.markets} markets abroad, a rating of ${GLOBAL.rating}+ and ${fmt(GLOBAL.revenue)} of sales in twelve months.`}</div></div>`;
+  for (const r of R.rows) h += `<div class="row" style="align-items:center"><span>${r.name} <span class="muted">· ${r.note}</span></span><span style="display:flex;align-items:center;gap:6px"><div class="bar" style="width:90px;margin:0"><div style="width:${r.v}%"></div></div><b>${r.v}</b></span></div>`;
+  return h;
+}
 // the Growth tab: who is watching you
 function vipSide(){
   const V = V_(), N = notoriety(), rows = [];
@@ -5853,12 +5899,12 @@ function cityTab(){
   const sub = city.opsSub || 'overview';
   h += `<div class="tabs" style="margin-bottom:6px">${[['overview','Shops'],['brand','Brand'],['growth','Growth']].map(([k,n]) => `<button class="btn xs${sub===k?' on':''}" data-act="c_sub" data-x="${k}">${n}</button>`).join('')}</div>`;
   if (sub==='brand') return h + brandSide();
-  if (sub==='growth') return h + growthSide() + vipSide();
+  if (sub==='growth') return h + recognitionSide() + vipSide() + growthSide();
   h += `<div class="card"><b>${CITY}</b><div class="muted">${esc(knownAs())}</div><div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn sm" data-act="c_city">Go to the city</button><button class="btn sm" data-act="c_mentor">Doña Victoria</button>${city.worldOpen?'<button class="btn sm" data-act="c_world">The world</button>':''}</div></div>`;
   h += city.shops.length ? `<h4>Your shops</h4>${shopRows()}` : `<div class="muted">No shops yet. Walk the city on the map: storefronts for rent or sale have yellow signs.</div>`;
   const F = flagship(); if (F && F.built) h += verdicts(shopVerdicts(F).slice(0,2));
   const acc = city.accounts.filter(a => a.status==='buying').length;
-  h += `<div class="row"><span>City accounts</span><span>${acc}</span></div><div class="row"><span>Markets abroad</span><span>${presenceAbroad().length}</span></div><div class="row"><span>Owed to you</span><span>${fmt(owedToYou())}</span></div><div class="row"><span>Credit line</span><span>${fmt(city.line.bal)} of ${fmt(lineLimit())}</span></div><div class="row"><span>Doña Victoria</span><span>${respectTitle()} · ${city.respect}/100</span></div>`;
+  h += `<div class="row"><span>City accounts</span><span>${acc}</span></div><div class="row"><span>Global recognition</span><span>${recognition().global}/100</span></div><div class="row"><span>Markets abroad</span><span>${presenceAbroad().length}</span></div><div class="row"><span>Owed to you</span><span>${fmt(owedToYou())}</span></div><div class="row"><span>Credit line</span><span>${fmt(city.line.bal)} of ${fmt(lineLimit())}</span></div><div class="row"><span>Doña Victoria</span><span>${respectTitle()} · ${city.respect}/100</span></div>`;
   if (city.line.bal) h += `<div class="acts" style="justify-content:flex-start"><button class="btn xs" data-act="c_line" data-x="repay" ${cash>0?'':'disabled'}>Repay the credit line</button></div>`;
   return h;
 }
@@ -6453,7 +6499,7 @@ function restore(st){
   cash = st.cash; debt = st.debt||0; days = st.days; dayInt = st.dayInt; wx = st.wx; wxQ = st.wxQ||[]; nextB = old ? nextB : st.nextB; nextLot = st.nextLot;
   Object.assign(staff, { rollers:[], keeper:false }, st.staff); year = Object.assign(newYear(), st.year);
   migrateStaff(st.staff);
-  if (st.talk){ talk.flags = st.talk.flags||{}; talk.cd = st.talk.cd||{}; talk.log = st.talk.log||[]; talk.unread = 0; updateMsgBadge(); }
+  if (st.talk){ talk.flags = st.talk.flags||{}; talk.cd = st.talk.cd||{}; talk.log = st.talk.log||[]; talk.unread = 0; talk.live = {}; talk.resume = null; for (const e of talk.log) if (e.who) talk.flags['met:'+e.who] = 1; updateMsgBadge(); }
   if (st.biz){ Object.assign(biz, st.biz, { bench:null }); if (!biz.seg || !biz.seg.local) biz.seg = freshSegStats(); if (!biz.cur) biz.cur = newWeek(); biz.daily = biz.daily || []; biz.reg = biz.reg || {}; biz.products.forEach(normProduct); } Object.assign(lastAlert, st.lastAlert);
   const e = st.elder;
   Object.assign(elder, { trust:e.trust, read:new Set(e.read), cd:e.cd||{}, roof:e.roof, seed:false, said:e.said, done:new Set(e.done||[]), perks:new Set(e.perks||[]), stats:Object.assign({ planted:0, topOnTime:0, soldGood:0, stormReady:0, primA:[] }, e.stats), game:null, sel:0 });
