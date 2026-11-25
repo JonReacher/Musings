@@ -148,6 +148,22 @@
   .menubox textarea{height:70px;font-size:11px}
   .formrow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
   .formrow label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.7}
+  #msglog{position:fixed;left:50%;top:84px;transform:translateX(-50%);width:min(560px,94vw);max-height:calc(100vh - 120px);display:none;flex-direction:column;padding:12px 14px;z-index:14;font-size:13px;line-height:1.45}
+  #msglog.show{display:flex}
+  #msglog .mhead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  #msglog .mhead h3{font-family:"Bree Serif",serif;font-weight:400;font-size:20px;margin:0;color:var(--wood2);flex:1}
+  #msglog .mlist{overflow:auto;flex:1;padding-right:4px}
+  #msglog .mday{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.55;margin:10px 0 3px}
+  #msglog .mitem{display:flex;gap:9px;align-items:flex-start;background:#fffaf0;border:1.5px solid #d9c38f;border-radius:10px;padding:7px 9px;margin:4px 0}
+  #msglog .mitem.imp{border-color:#c98612;background:#fff3cf}
+  #msglog .mitem.q{opacity:.85}
+  #msglog .mface{width:40px;height:40px;flex:none}
+  #msglog .mface svg,#msglog .mface img{width:40px;height:40px;display:block}
+  #msglog .mwho{font-weight:800}
+  #msglog .mwho small{font-weight:700;opacity:.6;margin-left:4px}
+  #msglog .mitem .dbox,#msglog .mitem .dnote{font-size:11.5px}
+  .mbadge{display:inline-block;min-width:16px;padding:0 4px;border-radius:9px;background:#c94f3a;color:#fff;font-size:10.5px;line-height:16px;text-align:center;margin-left:2px}
+  .tmore a{color:inherit}
   #talk{position:fixed;right:14px;bottom:122px;width:min(470px,92vw);display:none;gap:14px;padding:14px 16px;z-index:12;align-items:flex-start}
   body.inscene #talk{right:auto;left:14px;bottom:14px}
   #talk.show{display:flex;animation:talkin .35s cubic-bezier(.2,.9,.3,1.2)}
@@ -313,7 +329,7 @@
     </div>
   </div>
   <div class="panel wx"><span id="wxicon"></span><div><span class="lbl" id="season">Dry season</span><div class="date" id="wx">Sunny</div></div><div id="fc"></div></div>
-  <div class="panel btns"><button class="btn" id="opsBtn">Operations</button><button class="btn" id="saveBtn">Save</button><button class="btn" id="brandBtn">Brand</button><button class="btn" id="cityBtn" style="display:none">City</button><button class="btn" id="menuBtn">Games</button><small id="saveStat" class="muted"></small></div>
+  <div class="panel btns"><button class="btn" id="opsBtn">Operations</button><button class="btn" id="msgBtn" title="Everything people said and every notice (M)">Messages</button><button class="btn" id="saveBtn">Save</button><button class="btn" id="brandBtn">Brand</button><button class="btn" id="cityBtn" style="display:none">City</button><button class="btn" id="menuBtn">Games</button><small id="saveStat" class="muted"></small></div>
 </div>
 
 <div id="toasts"></div>
@@ -330,6 +346,7 @@
 <div id="review" class="panel"></div>
 <div id="bench" class="panel"></div>
 <div id="talk" class="panel"></div>
+<div id="msglog" class="panel"></div>
 <div id="scene"></div>
 <div id="brand" class="panel"></div>
 <div id="menu"><div class="panel menubox" id="menubox"></div></div>
@@ -454,7 +471,7 @@ addB('church', 1, 1, { town:true });
 for (const [c,r] of [[3,0],[0,3],[2,3],[3,2],[3,5],[2,7]]) addB('cottage', c, r, { town:true });
 addB('factory', 0, 5, { town:true });
 for (const [r,c] of [[8,6],[8,7],[9,6],[9,7]]) map[r][c].t='grass';
-addB('barn', 6, 8, { worn:true, forSale:2600 });          // an abandoned curing barn by the road
+addB('barn', 6, 8, { worn:true, forSale:1350 });          // an abandoned curing barn by the road
 for (const [r,c] of [[20,14],[20,15],[21,14],[21,15]]) map[r][c].t='grass';
 addB('ware', 14, 20, { worn:true, forSale:2200 });        // an old tobacco warehouse past the field
 populateNewLand();
@@ -735,14 +752,49 @@ function refreshUI(){
 $('speed').querySelectorAll('.btn').forEach(b => b.onclick = () => setSpeed(+b.dataset.s));
 function setSpeed(i){ speedIdx = i; $('speed').querySelectorAll('.btn').forEach(b => b.classList.toggle('on', +b.dataset.s===i)); }
 function flashCash(){ const el=$('cash'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),600); }
-function toast(msg, important){
+const talk = { queue:[], flags:{}, cd:{}, log:[], unread:0 };
+let msgOpen = false, msgFilter = 'all', msgResume = null;
+function updateMsgBadge(){ const el = $('msgBtn'); if (!el) return; el.innerHTML = `Messages${talk.unread ? ` <span class="mbadge">${talk.unread>99?'99+':talk.unread}</span>` : ''}`; }
+function toast(msg, important, quiet){
+  if (typeof logMsg==='function' && !/^Game saved|^Couldn’t save/.test(msg)) logMsg({ text:esc(msg), kind: important ? 'imp' : 'note', quiet });
+  if (quiet) return;
   const el = document.createElement('div'); el.className = 'panel toast' + (important ? ' imp' : ''); el.textContent = msg;
   const box = $('toasts'); box.appendChild(el); while (box.children.length>4) box.firstChild.remove();
   setTimeout(()=>{ el.style.transition='opacity .5s'; el.style.opacity='0'; setTimeout(()=>el.remove(),500); }, 5500);
 }
 function attention(msg){ toast(msg, true); }
+// farm news: a pop-up while you farm; once you run the city, it goes quietly to Messages
+function farmNote(msg, force){ if (force || (city && city.unlocked)) toast(msg, true, true); else attention(msg); }
 let opsOpen = false, opsFocus = 0;
 $('opsBtn').onclick = () => { opsOpen = !opsOpen; opsFocus = 0; renderOps(true); };
+// ---------- Messages: everything people said and every notice, newest first ----------
+function openMsgLog(open){
+  msgOpen = open ?? !msgOpen;
+  if (msgOpen){ talk.unread = 0; updateMsgBadge(); if (speedIdx!==0){ msgResume = speedIdx; setSpeed(0); } else msgResume = null; }
+  else if (msgResume!=null && speedIdx===0){ setSpeed(msgResume); msgResume = null; }
+  $('msgBtn').classList.toggle('on', msgOpen); renderMsgLog();
+}
+function renderMsgLog(){
+  const el = $('msglog'); el.classList.toggle('show', msgOpen); if (!msgOpen) return;
+  const F = { all:'All', people:'People', notices:'Notices' };
+  const list = talk.log.filter(e => msgFilter==='all' || (msgFilter==='people' ? !!e.who : !e.who)).slice().reverse();
+  let h = `<div class="mhead"><h3>Messages</h3>${Object.entries(F).map(([k,v]) => `<button class="btn xs${msgFilter===k?' on':''}" data-mf="${k}">${v}</button>`).join('')}<button class="btn xs" data-mclose="1" title="Close (M)">✕</button></div>`;
+  h += `<div class="muted" style="margin-bottom:2px">The game is paused while you read. ${city.unlocked ? 'Farm news arrives here quietly now, without a pop-up.' : ''}</div><div class="mlist">`;
+  if (!list.length) h += `<div class="muted" style="margin-top:10px">Nothing yet.</div>`;
+  let last = null;
+  for (const e of list){
+    if (e.d!==last){ last = e.d; h += `<div class="mday">${e.d===dayInt ? 'Today' : e.d===dayInt-1 ? 'Yesterday' : ''} ${dateAt(e.d)}, Year ${1+Math.floor(e.d/365)}</div>`; }
+    const c = e.who && CAST[e.who];
+    h += c ? `<div class="mitem${e.quiet?' q':''}"><span class="mface">${castFace(e.who)}</span><div><div class="mwho">${c.name}<small>${e.role||c.role}</small></div><div>${e.text}</div></div></div>`
+           : `<div class="mitem${e.kind==='imp'?' imp':''}"><div>${e.text}</div></div>`;
+  }
+  el.innerHTML = h + '</div>';
+}
+$('msgBtn').onclick = () => openMsgLog();
+$('msglog').addEventListener('click', e => {
+  const f = e.target.closest('[data-mf]'); if (f){ msgFilter = f.dataset.mf; renderMsgLog(); return; }
+  if (e.target.closest('[data-mclose]')) openMsgLog(false);
+});
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function dateStr(){ const d = new Date(Date.UTC(2025,9,1) + Math.floor(days)*864e5); return `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]}, ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, Year ${1+Math.floor(days/365)}`; }
@@ -818,9 +870,11 @@ window.addEventListener('keydown', e => {
   if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
   if ($('menu').classList.contains('show')) return;
   const i = '123456789'.indexOf(e.key); if (i>=0) setTool(TOOLS[i].id);
+  if (e.key==='Escape' && msgOpen){ openMsgLog(false); return; }
   if (e.key==='Escape'){ drag = null; sel = null; hideTip(); if (elderOpen) closeElder(); if (mentorOpen) closeMentor(); if (scene) closeScene(); }
   if (e.key===' '){ e.preventDefault(); setSpeed(speedIdx===0?1:0); }
   if (e.key==='o') $('opsBtn').click();
+  if (e.key==='m') openMsgLog();
   const step = 40;
   if (e.key==='ArrowLeft'||e.key==='a') cam.x += step; if (e.key==='ArrowRight'||e.key==='d') cam.x -= step;
   if (e.key==='ArrowUp'||e.key==='w') cam.y += step;   if (e.key==='ArrowDown'||e.key==='s') cam.y -= step;
@@ -1618,9 +1672,9 @@ function crewTick(){
   const ripe = map.flat().filter(t => t.owned && nextPrim(t) && t.g>=nextPrim(t).start).sort((a,c)=>urgency(c)-urgency(a));
   if (!ripe.length){ staff.barnWarned = false; return; }
   const fb = freeBarn();
-  if (fb<=0){ if (!staff.barnWarned){ staff.barnWarned = true; attention('Your field hands have stopped picking. The barns are full.'); } return; }
+  if (fb<=0){ if (!staff.barnWarned){ staff.barnWarned = true; farmNote('Your field hands have stopped picking. The barns are full.'); } return; }
   const n = Math.min(staff.hands*PICK_PER_HAND, ripe.length, fb, Math.floor(cash/pieceRate()));
-  if (n<=0){ if (!staff.barnWarned){ staff.barnWarned = true; attention('Your field hands won’t pick without pay. You’re out of cash.'); } return; }
+  if (n<=0){ if (!staff.barnWarned){ staff.barnWarned = true; farmNote('Your field hands won’t pick without pay. You’re out of cash.'); } return; }
   staff.barnWarned = false;
   const picked = ripe.slice(0,n);
   cash -= n*pieceRate(); staff.picked += n; spend('Labor', n*pieceRate());
@@ -2016,7 +2070,7 @@ const SEGMENTS = {
 };
 const biz = { blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:null, seg:{}, beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{} };
 function freshSegStats(){ const o = {}; for (const k in SEGMENTS) o[k] = { visits:0, buyers:0, sticks:0, revenue:0, tooStrong:0, tooMild:0, tooPricey:0, harsh:0, liked:{} }; return o; }
-function resetBiz(){ talk.queue = []; talk.flags = {}; talk.cd = {}; if (typeof renderTalk==='function' && $('talk')) $('talk').classList.remove('show'); Object.assign(biz, { brand:null, today:null, blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:newWeek(), seg:freshSegStats(), beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{} }); staff.rollers = []; staff.keeper = false; staff.lector = false; }
+function resetBiz(){ talk.queue = []; talk.flags = {}; talk.cd = {}; talk.log = []; talk.unread = 0; if (typeof renderTalk==='function' && $('talk')) $('talk').classList.remove('show'); Object.assign(biz, { brand:null, today:null, blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:newWeek(), seg:freshSegStats(), beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{} }); staff.rollers = []; staff.keeper = false; staff.lector = false; }
 function newWeek(){ return { day:dayInt, visitors:0, buyers:0, sticks:0, revenue:0, wholesale:0, made:0 }; }
 const prodOf = id => biz.products.find(p => p.id===id), blendOf = id => biz.blends.find(b => b.id===id);
 // ---------- the calendar: real days of the week ----------
@@ -2235,7 +2289,7 @@ function workshopTick(){
     p.costSum = (p.costSum||0) + leafCost + RS.wage; p.costN = (p.costN||0) + n;
     if (r.tier==='apprentice') r.cons = Math.min(0.86, r.cons + 0.0008);
     cash -= RS.wage; spend('Rollers', RS.wage);
-    if (o.done >= o.qty && !o.auto) toast(`Order finished: ${o.qty} ${p.name}. They rest in the cedar room for three weeks before they’re at their best.`);
+    if (o.done >= o.qty && !o.auto) toast(`Order finished: ${o.qty} ${p.name}. They rest in the cedar room for three weeks before they’re at their best.`, false, city.unlocked);
   }
   biz.orders = biz.orders.filter(o => o.done < o.qty);
 }
@@ -2518,6 +2572,7 @@ function bizAct(kind, id, extra){
   if (kind==='hire'){ const T0 = ROLLER_TIERS[extra]; const free = ROLLER_NAMES.filter(n => !staff.rollers.some(r => r.name===n)); staff.rollers.push({ id:biz.nextId++, tier:extra, name:(free.length?free:ROLLER_NAMES)[Math.floor(Math.random()*(free.length||ROLLER_NAMES.length))], cons:T0.cons }); return true; }
   if (kind==='fire'){ staff.rollers = staff.rollers.filter(r => r.id!==id); return true; }
   if (kind==='keeper'){ staff.keeper = extra==='1'; return true; }
+  if (kind==='fullprice'){ staff.fullPrice = extra==='1'; return true; }
   if (kind==='price'){ const p = prodOf(id); p.price = Math.max(0.5, Math.round((p.price + (+extra))*4)/4); return true; }
   if (kind==='price2'){ const p = prodOf(id); p.price2 = Math.max(0.25, Math.round((p.price2 + (+extra))*4)/4); return true; }
   if (kind==='sec'){ const p = prodOf(id); p.sec = extra==='1'; return true; }
@@ -2784,24 +2839,40 @@ const ROLLER_LOOKS = [
 const rollerLook = r => ROLLER_LOOKS[(r.look ?? r.id) % ROLLER_LOOKS.length];
 
 // ================= conversations =================
-const talk = { queue:[], flags:{}, cd:{} };
-function say(who, text, choices, key, front){
+// people who only report on the farm: once you run the city, their news goes to Messages instead of interrupting you
+const FARM_CAST = new Set(['mateo','carmen','tito','ines']);
+const hasAction = ch => !!(ch && ch.some(c => c.fn));
+function logMsg(e){ e.d = dayInt; talk.log.push(e); if (talk.log.length > 250) talk.log.splice(0, talk.log.length-250); if (e.quiet){ talk.unread++; } updateMsgBadge(); if (msgOpen) renderMsgLog(); }
+// opt: { tag: a newer message with the same tag replaces the older one, ttl: days before it clears itself, role: who they are now, quiet: log only }
+function say(who, text, choices, key, front, opt){
+  opt = opt || {};
   if (key){ if (talk.flags[key]) return; talk.flags[key] = dayInt+1; }
-  const m = { who, text, choices: choices && choices.length ? choices : [{ label:'All right' }] };
+  const m = { who, text, choices: choices && choices.length ? choices : [{ label:'All right' }], tag:opt.tag, role:opt.role };
+  const act = hasAction(choices);
+  const quiet = opt.quiet || (city.unlocked && FARM_CAST.has(who) && !act);
+  logMsg({ who, role:opt.role, text, quiet });
+  if (quiet) return;
+  // plain news clears itself after two days; anything with a real choice waits for you unless it says otherwise
+  const ttl = opt.ttl ?? (act || front ? null : 2); if (ttl != null) m.until = dayInt + ttl;
+  if (m.tag){ const i = talk.queue.findIndex(x => x.tag===m.tag); if (i>=0){ talk.queue[i] = m; renderTalk(); return; } }
   if (front){ talk.queue.unshift(m); renderTalk(); return; }   // an answer to something the player just did goes first
   if (talk.queue.length > 6) return;
   talk.queue.push(m);
   renderTalk();
 }
+// called once a day: messages past their date leave the screen (they stay in Messages)
+function talkTick(){ const head = talk.queue[0], n = talk.queue.length; talk.queue = talk.queue.filter(m => m.until==null || m.until >= dayInt); if (talk.queue.length!==n) { if (talk.queue[0]!==head || !talk.queue.length) renderTalk(); else renderTalk(true); } }
 const cool = (key, d) => { if (talk.cd[key] && dayInt - talk.cd[key] < d) return false; talk.cd[key] = dayInt; return true; };
-function renderTalk(){
+function renderTalk(still){
   const el = $('talk'), m = talk.queue[0];
   if (!m){ el.classList.remove('show'); return; }
   const c = CAST[m.who];
-  el.innerHTML = `<div class="tportrait">${castFace(m.who,'tface')}</div><div class="tbody"><div class="tname">${c.name}</div><div class="trole">${c.role}</div><div class="ttext">${m.text}</div><div class="tchoices">${m.choices.map((ch,i)=>`<button class="btn sm${i===0?' on':''}" data-t="${i}">${ch.label}</button>`).join('')}</div>${talk.queue.length>1?`<div class="tmore">${talk.queue.length-1} more waiting</div>`:''}</div>`;
+  el.innerHTML = `<div class="tportrait">${castFace(m.who,'tface')}</div><div class="tbody"><div class="tname">${c.name}</div><div class="trole">${m.role||c.role}</div><div class="ttext">${m.text}</div><div class="tchoices">${m.choices.map((ch,i)=>`<button class="btn sm${i===0?' on':''}" data-t="${i}">${ch.label}</button>`).join('')}</div>${talk.queue.length>1?`<div class="tmore">${talk.queue.length-1} more waiting · <a href="#" data-tclear="1">dismiss the news</a></div>`:''}</div>`;
+  if (still && el.classList.contains('show')) return;
   el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
 $('talk').addEventListener('click', e => {
+  if (e.target.closest('[data-tclear]')){ e.preventDefault(); talk.queue = talk.queue.filter((m,i) => i===0 || hasAction(m.choices)); renderTalk(true); return; }
   const b = e.target.closest('[data-t]'); if (!b) return;
   const m = talk.queue.shift(); const ch = m && m.choices[+b.dataset.t];
   if (ch && ch.fn) ch.fn();
@@ -2819,42 +2890,67 @@ function peopleTick(){
   // Señora Beltrán hears about your cigars
   if (biz.products.some(p => stockOf(p,true)>=10) && biz.beltran.status==='none') say('beltran', 'They tell me in town you’re rolling cigars up on the hill. I keep the tobacco shop on the plaza. Bring me ten of your best and I’ll tell you the truth about them. Most people don’t like the truth.', [{ label:'I’ll bring you some', fn:()=>{ opsOpen = true; opsTab = 'sales'; } }, { label:'Not yet' }], 'beltran-intro');
   // the bank
-  if (cash < 400 && debt===0 && dayInt>30 && cool('ortega', 150)) say('ortega', `Forgive me for coming out to the farm. The bank notices when an account runs thin. I can lend you $2,000 today at 1% a month. Farming is a business of waiting, and waiting costs money.`, [{ label:'Borrow $2,000', fn:()=>{ debt += 2000; cash += 2000; finCash('in', 'Bank loan', 2000); spend('Loan received', 0); toast('The bank lent you $2,000 at 1% a month.'); } }, { label:'No, thank you' }]);
+  if (cash < 400 && debt===0 && dayInt>30 && cool('ortega', 150)) say('ortega', `Forgive me for coming out to the farm. The bank notices when an account runs thin. I can lend you $2,000 today at 1% a month. Farming is a business of waiting, and waiting costs money.`, [{ label:'Borrow $2,000', fn:()=>{ debt += 2000; cash += 2000; finCash('in', 'Bank loan', 2000); spend('Loan received', 0); toast('The bank lent you $2,000 at 1% a month.'); } }, { label:'No, thank you' }], null, false, { tag:'ortega', ttl:7 });
   // a roller looking for work
   if (ready('galera').length && !staff.rollers.length) say('yamile', 'Buenas. I heard you built a workshop. I’ve rolled since I was twelve, in my aunt’s kitchen, and at the factory in town until they let half of us go. I’m fast and I’m careful. I’d work for less than they paid me.', [{ label:'Hire Yamilé ($20/day)', fn:()=>{ staff.rollers.push({ id:biz.nextId++, tier:'skilled', name:'Yamilé', cons:0.84, wage:20, rate:85, look:1 }); toast('Yamilé joins your workshop.'); } }, { label:'Not now' }], 'yamile');
   // the lector
   if (staff.rollers.length>=3 && !staff.lector) say('benitez', 'In every great galera there is a lector. Someone reads to the rollers while they work: the news in the morning, a novel in the afternoon. Dumas, Cervantes, Hugo. Their hands go steadier. I would read for you, for $15 a day.', [{ label:'Hire the lector ($15/day)', fn:()=>{ staff.lector = true; toast('Profesor Benítez reads to your rollers now. Their work is steadier.'); } }, { label:'No, thank you' }], 'lector');
-  // tourists want a box
+  // tourists want a box. Once you run the city they have a new life: a mail-order club for aficionados
   const season = [11,0,1,2,3].includes(curMonth()), stand = ready('stand')[0];
+  if (city.unlocked) clubTick();
+  else {
   const best = biz.products.filter(p => stockOf(p,true,1)>=25).sort((a,b)=>b.price-a.price)[0];
   if (stand && season && best && Math.random()<0.04 && cool('tourists', 25)){
-    const offer = Math.round(25*best.price*(0.72 + Math.random()*0.45)), cheap = offer < 25*best.price;
+    let offer = Math.round(25*best.price*(0.72 + Math.random()*0.45)), cheap = offer < 25*best.price;
+    if (staff.fullPrice && cheap) offer = 0;   // your stand doesn't haggle: only the ones happy to pay full price ask
+    if (offer){
     say('tourists', `We stopped for coffee and ended up staying all afternoon! Could you put together a box of 25 ${esc(best.name)} for us to take home? ${cheap ? `Since it’s a whole box, would you do it for ${fmt(offer)}?` : `We’d happily pay ${fmt(offer)}, with a little note in the lid.`}` + dealBox(shelfCompare(best, 1, 25, offer)),
-      [{ label:`Sell the box (${fmt(offer)})`, fn:()=>{ const got = takeStock(best, 1, 25); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(best, 1, got, offer*got/25, 'deal'); biz.rep = Math.min(100, biz.rep+1.5); toast(`Sold a box of ${got} for ${fmt(offer*got/25)}. They promised to tell their friends.`); } }, { label:'Sorry, not today' }]);
+      [{ label:`Sell the box (${fmt(offer)})`, fn:()=>{ const got = takeStock(best, 1, 25); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(best, 1, got, offer*got/25, 'deal'); biz.rep = Math.min(100, biz.rep+1.5); toast(`Sold a box of ${got} for ${fmt(offer*got/25)}. They promised to tell their friends.`); } },
+       { label:'Sorry, not today' },
+       ...(cheap ? [{ label:'We don’t discount boxes', fn:()=>{ staff.fullPrice = true; toast('Your stand sells at the shelf price, box or no box. Visitors won’t ask for deals any more. Change it on the stand’s page.'); } }] : [])], null, false, { tag:'tourists', ttl:3 });
+    }
+  }
   }
   // a collector wants a club price
   const fine = biz.products.filter(p => stockOf(p,true,1)>=20 && (p.rateN||0)>=5 && p.rateSum/p.rateN>=3.2).sort((a,b)=>b.rateSum/b.rateN - a.rateSum/a.rateN)[0];
-  if (stand && fine && biz.rep>=30 && Math.random()<0.025 && cool('collector', 45)){
+  if (stand && fine && biz.rep>=30 && !staff.fullPrice && !city.unlocked && Math.random()<0.025 && cool('collector', 45)){
     const n = 20, offer = Math.round(n*fine.price*(0.85 - Math.random()*0.12)*2)/2, counter = Math.round(n*fine.price*0.93*2)/2;
     const sell = amt => { const got = takeStock(fine, 1, n); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(fine, 1, got, amt*got/n, 'deal'); biz.rep = Math.min(100, biz.rep+2); toast(`Mr. Álvarez took ${got} ${fine.name} for ${fmt2(amt*got/n)}. Aficionados will hear about you.`); };
     say('collector', `I smoked one of your ${esc(fine.name)} at El Gordo’s bar. Very good. I run a cigar club in Miami, twenty members who love to discover a new farm. I’d take ${n} today for ${fmt2(offer)}. A club price, you understand. If they like them, they’ll come looking for you.` + dealBox(shelfCompare(fine, 1, n, offer)),
       [{ label:`Sell ${n} for ${fmt2(offer)}`, fn:() => sell(offer) },
        { label:`Counter: ${fmt2(counter)}`, fn:() => { if (Math.random() < 0.5) { say('collector', `“You drive a hard bargain. ${fmt2(counter)} it is.”`); sell(counter); } else say('collector', '“Then I’ll pass, my friend. Good luck with the farm.”'); } },
-       { label:'No, thank you' }]);
+       { label:'No, thank you' }], null, false, { tag:'collector', ttl:5 });
   }
   // the fiesta
   const dd = new Date(Date.UTC(2025,9,1) + dayInt*864e5);
   if (dd.getUTCMonth()===9 && dd.getUTCDate()===10 && dayInt>300 && cool('fiesta', 300)){
     const fp = biz.products.filter(p => stockOf(p,true,1)>=50).sort((a,b) => stockOf(b,true,1) - stockOf(a,true,1))[0];
     const box = fp ? dealBox([[`50 ${esc(fp.name)} at your shelf price`, `50 × ${fmt2(fp.price)} = ${fmt(50*fp.price)}`], ['What they cost you to make', fmt(50*prodCost(fp))], ['Or money for the band', '$100'], ['Reputation', '+5 for the cigars · +2 for the money']], 'The cigars are worth more on your shelf, but they cost you little to make, and the whole town smokes them at the fiesta.') : dealBox([['Rested first-quality cigars on hand', 'fewer than 50'], ['Money for the band', '$100 · reputation +2']]);
-    say('padre', 'The fiesta of San Rafael is at the end of the month. Every year the farms give something for the raffle. A box of cigars from a local farm would make the whole town proud. Or a little money for the band, if you prefer.' + box, [{ label:'Give 50 cigars', fn:()=>{ const p = biz.products.filter(p=>stockOf(p,true,1)>=50)[0]; if (!p){ toast('You don’t have 50 rested cigars. The padre smiles anyway.'); return; } takeStock(p, 1, 50); biz.rep = Math.min(100, biz.rep+5); toast('Your cigars were the talk of the fiesta. Reputation +5.'); } }, { label:'Give $100', fn:()=>{ cash -= 100; spend('Gifts', 100); biz.rep = Math.min(100, biz.rep+2); } }, { label:'Not this year' }]);
+    say('padre', 'The fiesta of San Rafael is at the end of the month. Every year the farms give something for the raffle. A box of cigars from a local farm would make the whole town proud. Or a little money for the band, if you prefer.' + box, [{ label:'Give 50 cigars', fn:()=>{ const p = biz.products.filter(p=>stockOf(p,true,1)>=50)[0]; if (!p){ toast('You don’t have 50 rested cigars. The padre smiles anyway.'); return; } takeStock(p, 1, 50); biz.rep = Math.min(100, biz.rep+5); toast('Your cigars were the talk of the fiesta. Reputation +5.'); } }, { label:'Give $100', fn:()=>{ cash -= 100; spend('Gifts', 100); biz.rep = Math.min(100, biz.rep+2); } }, { label:'Not this year' }], null, false, { tag:'fiesta', ttl:20 });
   }
   // the big grower wants your leaf
   const lot = lots.filter(l => ['fermented','baled'].includes(l.stage) && l.kg>=50 && l.q>=1).sort((a,b)=>b.q-a.q)[0];
   if (dayInt>365 && lot && Math.random()<0.03 && cool('celestino', 120)){
     const offer = Math.round(price(lot)*lot.kg*1.15), fac = price(lot)*lot.kg;
-    say('celestino', `I tasted some of your leaf at Beltrán’s. Not bad, for a newcomer. I’ll buy ${lotName(lot)}, all ${Math.round(lot.kg)} kg, for ${fmt(offer)}. That’s more than the factory will give you, and you know it.` + dealBox([['The factory would pay', `${Math.round(lot.kg)} kg × ${fmt2(price(lot))} = ${fmt(fac)}`], ['Don Celestino offers', `${fmt(offer)} · ${fmt2(offer/lot.kg)} a kg`], ['Above the factory', `+${fmt(offer-fac)} (+15%)`, 'up'], ['Or roll it yourself', `enough leaf for about ${Math.round(lot.kg/0.012).toLocaleString('en-US')} robustos`]], 'Leaf sold is money today. Leaf rolled into cigars is worth far more, but only if you can sell them.'), [{ label:`Sell it (${fmt(offer)})`, fn:()=>{ if (!lots.includes(lot)) return; cash += offer; finRev('rev.leaf', offer); year.leafSales += offer; year.soldKg += lot.kg; lots.splice(lots.indexOf(lot),1); toast(`Sold to Don Celestino for ${fmt(offer)}.`); } }, { label:'I’m keeping it' }]);
+    say('celestino', `I tasted some of your leaf at Beltrán’s. Not bad, for a newcomer. I’ll buy ${lotName(lot)}, all ${Math.round(lot.kg)} kg, for ${fmt(offer)}. That’s more than the factory will give you, and you know it.` + dealBox([['The factory would pay', `${Math.round(lot.kg)} kg × ${fmt2(price(lot))} = ${fmt(fac)}`], ['Don Celestino offers', `${fmt(offer)} · ${fmt2(offer/lot.kg)} a kg`], ['Above the factory', `+${fmt(offer-fac)} (+15%)`, 'up'], ['Or roll it yourself', `enough leaf for about ${Math.round(lot.kg/0.012).toLocaleString('en-US')} robustos`]], 'Leaf sold is money today. Leaf rolled into cigars is worth far more, but only if you can sell them.'), [{ label:`Sell it (${fmt(offer)})`, fn:()=>{ if (!lots.includes(lot)) return; cash += offer; finRev('rev.leaf', offer); year.leafSales += offer; year.soldKg += lot.kg; lots.splice(lots.indexOf(lot),1); toast(`Sold to Don Celestino for ${fmt(offer)}.`); } }, { label:'I’m keeping it' }], null, false, { tag:'celestino', ttl:10 });
   }
+}
+// Ann and Pete went home and started a club: a box of cigars in the mail every month for a few hundred aficionados
+function clubTick(){
+  const C = city.club || (city.club = { members: 280 + Math.floor(Math.random()*120), featured:{}, no:0 });
+  if (Math.random() > 0.035 || !cool('club', C.no>=2 ? 150 : 75)) return;
+  const fresh = biz.products.filter(p => !C.featured[p.id] && stockOf(p,true,1) >= 120).sort((a,b) => b.id - a.id)[0];
+  const role = 'They run The Humidor Post, a cigar club by mail';
+  const n = Math.min(stockOf(fresh ? fresh : { batches:[] }, true, 1), Math.round(C.members/10)*10);
+  if (fresh && n >= 120){
+    const shelf = fresh.price, per = Math.round(shelf*(0.55 + Math.random()*0.1)*4)/4, amt = Math.round(n*per);
+    say('tourists', `Remember us? We came for coffee at your stand and left with a box. Back home we started The Humidor Post: every month ${C.members} members get a new cigar in the mail, with a card about the farm that made it. We’d love to send them your ${esc(fresh.name)}. We’d need ${n} sticks, one per member, at ${fmt2(per)} each. Or, if you’d rather keep your price, we can run a members’ offer for your shops instead.` +
+      dealBox([[`${n} at the club price`, `${n} × ${fmt2(per)} = ${fmt(amt)}`], ['Your farm price', `${fmt2(shelf)} a stick`], ['What they cost you to make', fmt(n*prodCost(fresh))], ['Members’ offer instead', '50 sample cigars, no sale today, more people in your shops']], 'A club box puts your band in the hands of people who buy cigars for the pleasure of discovering them. Some will come looking for more.'),
+      [{ label:`Feature it · ${fmt(amt)}`, fn:()=>{ const got = takeStock(fresh, 1, n); if (!got){ toast('You no longer have them rested and ready.'); return; } const v = Math.round(got*per); cash += v; if (!city.m) city.m = newMonth(); cityEarn(v, 'accounts'); finUnits(fresh.id, got, v, 'accounts'); city.m.cogs += got*prodCost(fresh); fresh.citySold = (fresh.citySold||0) + got; C.featured[fresh.id] = dayInt; C.no = 0; city.aware = Math.min(100, city.aware + 3); biz.rep = Math.min(100, biz.rep + 1); toast(`The Humidor Post took ${got} ${fresh.name} for ${fmt(v)}. ${C.members} aficionados will smoke your cigar this month.`); } },
+       { label:'Run a members’ offer', fn:()=>{ const got = takeStock(fresh, 1, 50); C.featured[fresh.id] = dayInt; C.no = 0; city.aware = Math.min(100, city.aware + (got>=50 ? 5 : 2)); toast(`${got} samples went out with the club’s newsletter. Members are asking for ${fresh.name} in your shops.`); } },
+       { label:'Not this time', fn:()=>{ C.no++; C.featured[fresh.id] = dayInt; } }], null, false, { role, tag:'club', ttl:5 });
+  }
+  C.members = Math.round(C.members * (1 + Math.random()*0.04));
 }
 function aurelioTick(){
   if (!talk.flags.hello && gameId) say('aurelio', 'So you’re the one who bought the land up the hill. Fifty years I’ve farmed this valley. Come and sit with me when you can. A cup of coffee costs nothing, and you have a lot to learn.', [{ label:'Visit him now', fn:()=>openElder() }, { label:'Later' }], 'hello');
@@ -3213,6 +3309,7 @@ function standSide(s){
     const W = weekRows();
     h += `<h4>This week</h4><div class="week">${W.map(x => { const o = x.r ? !!x.r.open : standOpen(x.d); return `<div class="wd${x.today?' today':''}${o?'':' shut'}${x.future?' fut':''}"><div class="wn">${wdShort(x.d)}</div><div class="wdt">${dateAt(x.d).split(' ')[1]}</div><div class="wv">${x.future ? (o?'open':'closed') : x.r ? (x.r.open ? `${x.r.sold} sold` : 'closed') : '—'}</div>${x.r && x.r.open && !x.future ? `<div class="wr">${fmt(x.r.rev)}</div>` : ''}</div>`; }).join('')}</div>`;
     h += `<div class="lot" style="display:flex"><span class="miniface">${castFace('ines')}</span><div class="grow"><b>${staff.keeper ? 'Doña Inés keeps the stand' : 'You keep the stand yourself'}</b><br><span class="muted">${staff.keeper ? `Open every day, 8 to 6. ${fmt(KEEPER_WAGE)} a day.` : 'Open Saturdays and Sundays only, 9 to 5. Weekdays you’re in the fields.'}</span></div><div class="acts"><button class="btn sm" data-act="keeper" data-x="${staff.keeper?0:1}">${staff.keeper?'Let her go':`Hire her · ${fmt(KEEPER_WAGE)}/day`}</button></div></div>`;
+    h += `<div class="lot" style="display:flex"><div class="grow"><b>Box deals</b><br><span class="muted">${staff.fullPrice ? 'Shelf price only. Visitors who want a discount on a box don’t bother asking.' : 'Visitors sometimes ask for a box at a discount. You decide each time.'}</span></div><div class="acts"><button class="btn sm" data-act="fullprice" data-x="${staff.fullPrice?0:1}">${staff.fullPrice?'Hear offers':'Shelf price only'}</button></div></div>`;
     const t = lastDays(1)[0] || { sold:0, rev:0, vis:0, buy:0, open:0 }, D7 = lastDays(7), D30 = lastDays(30), open7 = D7.filter(r => r.open).length, open30 = D30.filter(r => r.open).length;
     const S = (R, f) => R.reduce((s2,r) => s2 + f(r), 0);
     h += `<h4>Sales at the stand</h4><div class="kpis">`;
@@ -3739,7 +3836,7 @@ const V_FAVORS = [
 const city = {};
 function resetCity(){
   for (const k of Object.keys(city)) delete city[k];
-  Object.assign(city, { unlocked:false, hinted:false, respect:5, read:[], done:[], perks:[], cd:{}, said:'', sel:0, game:null, vsel:0,
+  Object.assign(city, { club:null, unlocked:false, hinted:false, respect:5, read:[], done:[], perks:[], cd:{}, said:'', sel:0, game:null, vsel:0,
     dd:{}, neg:null, shops:[], pos:null, world:{}, worldOpen:false, opsSub:'overview', wsel:'miami', aware:0, line:{ bal:0 }, months:[], m:null, daily:[], log:null, comments:[],
     accounts:ACCOUNTS.map(a => ({ k:a.k, status:'none', pid:0, wk:a.wk, missed:0, said:'' })), ar:[], markets:{}, ratings:{}, subs:[], fair:null, brokers:[], brokerDay:-99,
     stats:{ cohMonth:0, servedStreak:0, profitMonths:0 }, global:false, globalDay:null, events:{}, lastAdvice:'' });
@@ -4029,7 +4126,7 @@ function closeMonth(){
   const lines = done.map(([S, m]) => `${shopL(S).name}: sold ${fmt(m.rev.cigars+m.rev.acc+m.rev.bar)}, ${monthNet(m)>=0?`made ${fmt(monthNet(m))}`:`lost ${fmt(-monthNet(m))}`}`);
   const tot = done.reduce((s,[S,m]) => s + monthNet(m), 0), young = done.some(([S]) => (S.months||[]).filter(x => x.open).length <= 4);
   const first = done.find(([S, m]) => monthNet(m) < 0) || done[0];
-  if (city.unlocked) say('victoria', `The books for ${mo}. ${lines.join('. ')}. That is after paying for the cigars themselves. ${tot<0 && young ? 'The first months are the valley. Know how deep it is.' : tot<0 ? 'Bring me the books. We need to talk.' : 'Good. Now do it again.'}`, [{ label:'Show me the books', fn:()=>openShop(first[0].lid, 'books') }, { label:'Later' }], 'month-'+dayInt);
+  if (city.unlocked) say('victoria', `The books for ${mo}. ${lines.join('. ')}. That is after paying for the cigars themselves. ${tot<0 && young ? 'The first months are the valley. Know how deep it is.' : tot<0 ? 'Bring me the books. We need to talk.' : 'Good. Now do it again.'}`, [{ label:'Show me the books', fn:()=>openShop(first[0].lid, 'books') }, { label:'Later' }], 'month-'+dayInt, false, { tag:'v-books', ttl:1 });
   else toast(`${mo} at the shop in San Rafael: ${lines[0].split(': ')[1]}.`);
 }
 function evict(S){ const L = shopL(S); if (fin){ finDispose(S.lid, 0); if (S.lease) fin.cur.other -= (S.deposit||0); } attention(`Evicted. The landlord took back ${L.name} and kept your deposit. Everything you built inside stays with the building.`); city.shops = city.shops.filter(x => x!==S); city.stats.servedStreak = 0; if (scene && scene.lid===S.lid) closeScene(); if (city.unlocked) say('victoria', 'It happens to better people than you, and to worse. Pay what you owe, sleep, and then tell me what you learned. A shop is a bet. Bet smaller next time, or with more cushion.'); }
@@ -4161,7 +4258,7 @@ function cityTick(){
   if (dayInt - city.brokerDay >= 30) refreshBrokers();
   for (const S of city.shops) if (S.built && regionS(S)==='city' && !S.compHit && dayInt - S.opened > 150 && Math.random()<0.004){ S.compHit = dayInt + 120; attention(`${['A big Spanish brand','Casa Montero','A hotel group'][Math.floor(Math.random()*3)]} opened a new cigar shop near yours on ${shopL(S).name}. Fewer people will come in for a few months, unless they have a reason to choose you.`); }
   checkGlobal(); checkVMissions();
-  if (city.shops.some(S => S.built && regionS(S)==='city') && city.respect<15 && !vKnow('breakeven') && cool('v-nudge', 60)) say('victoria', 'Come and see me. Bring the books. We can learn more in one hour with numbers than in a month of hoping.', [{ label:'Visit her', fn:()=>openMentor() }, { label:'Later' }]);
+  if (city.shops.some(S => S.built && regionS(S)==='city') && city.respect<15 && !vKnow('breakeven') && cool('v-nudge', 60)) say('victoria', 'Come and see me. Bring the books. We can learn more in one hour with numbers than in a month of hoping.', [{ label:'Visit her', fn:()=>openMentor() }, { label:'Later' }], null, false, { tag:'v-books', ttl:1 });
 }
 function trailing12(){ const shops = city.shops.reduce((s,S) => s + (S.months||[]).slice(-12).reduce((a,m)=>a+monthRev(m),0), 0), cityRev = city.months.slice(-12).reduce((s,m)=>s+monthRev(m),0) + shops, farm = biz.weeks.slice(-52).reduce((s,w)=>s+(w.revenue||0)+(w.wholesale||0),0); return cityRev + farm; }
 function checkGlobal(){
@@ -5141,7 +5238,7 @@ function act(kind, id, extra){
   else if (kind==='tender'){ staff.tender = extra==='none' ? null : extra; if (staff.tender) toast(staff.tender==='pro' ? 'Doña Carmen will tend your barns whenever leaf is curing. She watches the sky.' : 'Tito will tend your barns. He’s cheap, and he’s family… of someone.'); }
   else if (kind==='elder'){ openElder(); return; }
   else if (kind==='ferm'){
-    const h = ready('ferm').find(f => f.piles.some(p=>!p)); if (!h) return;
+    freePiles(); const h = ready('ferm').find(f => f.piles.some(p=>!p)); if (!h) return;
     const i = h.piles.findIndex(p=>!p); h.piles[i] = l.id;
     Object.assign(l, { stage:'fermenting', loc:h.id, temp:84, heat:0, turns:0, scorch:0, hotWarned:false });
     toast(`${lotName(l)} is in the pilón. Watch the temperature and turn it before it gets too hot.`);
@@ -5205,7 +5302,7 @@ function renderOps(force){
     h += `<div class="row"><span>Humidity</span><span>${Math.round(b.hum)}% · ${inUse?st:`<span class="muted">${barnUsed(b)?'holding cured leaf':'empty'}</span>`}</span></div>${gauge(b.hum,40,100,65,80,88,'hum')}`;
     h += `<div class="row"><span>Vents</span><span class="vents">${['open','half','closed'].map(v=>`<button class="btn sm${b.vent===v?' on':''}" data-act="vent" data-id="${b.id}" data-x="${v}" ${staff.tender?'disabled':''}>${v[0].toUpperCase()+v.slice(1)}</button>`).join('')}</span></div>`;
     for (const l of lots.filter(l=>l.loc===b.id)){
-      const fermFree = ready('ferm').some(f=>f.piles.some(p=>!p));
+      freePiles(); const fermFree = ready('ferm').some(f=>f.piles.some(p=>!p));
       h += `<div class="lot"><span class="sw" style="background:${leafColor(l)}"></span><div class="grow"><b>${lotName(l)}</b><br><span class="muted">${kgf(l.kg)} · ${l.stage==='curing'?`curing, day ${Math.floor(l.cd)} of ${PRIM[l.pr].cure}`:`cured <span class="grade">${grade(l.q)}</span>`}<br><i>${PRIM[l.pr].traits}</i></span>${l.stage==='curing'?`<div class="bar"><div style="width:${l.cd/PRIM[l.pr].cure*100}%"></div></div>`:''}</div>`;
       if (l.stage==='cured') h += `<div class="acts"><button class="btn sm" data-act="ferm" data-id="${l.id}" ${!know('pilon')?'disabled title="Learn the pilón from Don Aurelio first"':fermFree?'':'disabled title="Needs a fermentation house with a free pilón"'}>Ferment</button><button class="btn sm" data-act="sell" data-id="${l.id}">Sell ${fmt(price(l)*l.kg)}</button></div>`;
       h += `</div>`;
@@ -5312,7 +5409,10 @@ let lastInfo = '';
 function updateInfo(){ const h = infoHTML(hover); if (h!==lastInfo){ $('info').innerHTML = h; lastInfo = h; } }
 
 // ================= simulation: daily =================
+// a pilón slot is free unless a lot is actually fermenting (or fermented and waiting) in it
+function freePiles(){ for (const f of buildings) if (f.piles) f.piles = f.piles.map(id => id && lots.some(l => l.id===id && l.loc===f.id && (l.stage==='fermenting' || l.stage==='fermented')) ? id : 0); }
 function dailyTick(){
+  freePiles();
   weatherTick();
   const out = WX[wx].hum - (wetSeason()?0:5);
   for (const b of buildings){
@@ -5329,19 +5429,19 @@ function dailyTick(){
     b.hum = Math.max(35, Math.min(99, b.hum));
     if (curing.length){
       const off = b.hum>80 ? 'damp' : b.hum<62 ? 'dry' : '';
-      if (off){ b.offDays = (b.offDays||0)+1; if (b.offDays===3) attention(`The ${bName(b).toLowerCase()} is too ${off} (${Math.round(b.hum)}%). ${off==='damp'?'Close the vents in rain and open them on dry days.':'Close the vents to hold moisture in.'}`); }
+      if (off){ b.offDays = (b.offDays||0)+1; if (b.offDays===3) farmNote(`The ${bName(b).toLowerCase()} is too ${off} (${Math.round(b.hum)}%). ${staff.tender ? `${TENDERS[staff.tender].name} is working the vents; the weather is doing the rest.` : off==='damp'?'Close the vents in rain and open them on dry days.':'Close the vents to hold moisture in.'}`, !!staff.tender); }
       else b.offDays = 0;
     }
     for (const l of curing){
       l.cd++;
       const ideal = b.hum>=65 && b.hum<=80, near = b.hum>=60 && b.hum<=85;
       l.score += ideal?1 : near?0.55 : 0.15;
-      if (b.hum>88){ l.mold += PRIM[l.pr].mold; if (l.mold>=3 && !l.moldWarned){ l.moldWarned = true; attention(`Mold is showing on ${lotName(l)} in the ${bName(b).toLowerCase()}. Open the vents.`); } }
+      if (b.hum>88){ l.mold += PRIM[l.pr].mold; if (l.mold>=3 && !l.moldWarned){ l.moldWarned = true; farmNote(`Mold is showing on ${lotName(l)} in the ${bName(b).toLowerCase()}. Open the vents.`); } }
       if (l.cd >= PRIM[l.pr].cure){
         l.stage = 'cured';
         const cf = 0.65 + 0.35*(l.score/PRIM[l.pr].cure);
         l.q = Math.max(0.35, l.q*cf*(1-Math.min(0.45,l.mold*0.04)));
-        year.grades.push(grade(l.q)); if (['A+','A'].includes(grade(l.q)) && !elder.stats.primA.includes(l.pr)) elder.stats.primA.push(l.pr); attention(`${lotName(l)} has finished curing: grade ${grade(l.q)}.`);
+        year.grades.push(grade(l.q)); if (['A+','A'].includes(grade(l.q)) && !elder.stats.primA.includes(l.pr)) elder.stats.primA.push(l.pr); farmNote(`${lotName(l)} has finished curing: grade ${grade(l.q)}.`);
       }
     }
   }
@@ -5350,11 +5450,11 @@ function dailyTick(){
     l.temp += 2.0 + 1.6*wrnd();
     l.heat += Math.max(0, l.temp-82);
     if (l.temp>115) l.scorch++;
-    if (l.temp>=108 && !l.hotWarned){ l.hotWarned = true; attention(`Pilón temperature for ${lotName(l)} is ${Math.round(l.temp)}°F. Turn the pile soon.`); }
+    if (l.temp>=108 && !l.hotWarned){ l.hotWarned = true; farmNote(`Pilón temperature for ${lotName(l)} is ${Math.round(l.temp)}°F. Turn the pile soon.`); }
     if (l.heat>=PRIM[l.pr].heat && l.turns>=PRIM[l.pr].turns){
       l.stage = 'fermented';
       l.q = Math.max(0.35, l.q*Math.max(0.6, 1.12 + (perk('pilonHands')?0.03:0) - 0.035*l.scorch));
-      attention(`${lotName(l)} has finished fermenting: grade ${grade(l.q)}.`);
+      farmNote(`${lotName(l)} has finished fermenting: grade ${grade(l.q)}.`);
     }
   }
   for (const l of lots) if (l.stage==='baled') l.age++;
@@ -5363,11 +5463,11 @@ function dailyTick(){
   const ripeNow = ripeBy[0], laterRipe = ripeBy[1]+ripeBy[2];
   for (const row of map) for (const t of row) if (t.pick>0) t.pick--;
   crewTick();
-  if (ripeNow && staff.hands>0) toast(`The volado is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Your field hands are starting the first pass.`);
-  else if (ripeNow){ attention(`The volado (bottom leaves) is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Each priming keeps its quality for about four weeks. Seco and ligero follow over the next few weeks.`); }
-  if (laterRipe && !staff.hands){ const which = ripeBy[2]?'ligero':'seco'; attention(`The ${which} is ready on ${laterRipe} tile${laterRipe>1?'s':''}. Time for the next pass.`); }
+  if (ripeNow && staff.hands>0) toast(`The volado is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Your field hands are starting the first pass.`, false, city.unlocked);
+  else if (ripeNow){ farmNote(`The volado (bottom leaves) is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Each priming keeps its quality for about four weeks. Seco and ligero follow over the next few weeks.`); }
+  if (laterRipe && !staff.hands){ const which = ripeBy[2]?'ligero':'seco'; farmNote(`The ${which} is ready on ${laterRipe} tile${laterRipe>1?'s':''}. Time for the next pass.`); }
   if (wx==='Rain' && wetSeason()) for (const row of map) for (const t of row) if (t.work==='seeded') t.g += 0.15; // rain-fed bonus
-  fieldTick(); businessTick(); peopleTick(); aurelioTick(); cityTick(); finDaily();
+  talkTick(); fieldTick(); businessTick(); peopleTick(); aurelioTick(); cityTick(); finDaily();
   const dnow = new Date(Date.UTC(2025,9,1) + dayInt*864e5);
   if (dnow.getUTCMonth()===7 && dnow.getUTCDate()===1 && know('storms') && cash>=1500) elder.stats.stormReady = 1;
   if (debt>0 && dayInt%30===0){ const i = Math.round(debt*0.01); if (cash>=i) cash -= i; else debt += i; spend('Interest', i); }
@@ -5382,14 +5482,14 @@ const r3 = x => Math.round((x||0)*1000)/1000;
 function serialize(){
   const tiles = map.slice(0, NR_FARM).flat().map(t => [t.t, t.owned?1:0, t.work||0, r3(t.g), t.v||0, r3(t.hp??1), t.pr||0, t.seen??-1, t.top||0, r3(t.worm), r3(t.bmold), t.prot||0, t.shankHit?1:0, t.pick||0, r3(t.tested), t.b||0, t.price, r3(t.soil.ph), r3(t.soil.nit), r3(t.soil.drain), r3(t.soil.shank), t.soil.consec, Math.min(9999, Math.round(t.soil.fallow))]);
   return { v:2, cols:NC, meta:gameMeta, cash, debt, days, dayInt, wx, wxQ, nextB, nextLot, variety, tiles, buildings, lots, staff:{...staff}, year, lastAlert:{...lastAlert},
-    talk:{ flags:talk.flags, cd:talk.cd },
+    talk:{ flags:talk.flags, cd:talk.cd, log:talk.log.slice(-150) },
     biz:{ lotInfo:biz.lotInfo||{}, brand:biz.brand||null, today:biz.today||null, blends:biz.blends, products:biz.products, orders:biz.orders, nextId:biz.nextId, rep:biz.rep, comments:biz.comments, weeks:biz.weeks, cur:biz.cur, seg:biz.seg, beltran:biz.beltran, daily:biz.daily, log:biz.log, lastLog:biz.lastLog, reg:biz.reg },
     city:JSON.parse(JSON.stringify(city)), fin:fin ? JSON.parse(JSON.stringify(fin)) : null,
     elder:{ trust:elder.trust, read:[...elder.read], cd:elder.cd, roof:elder.roof, seed:elder.seed, said:elder.said, done:[...elder.done], perks:[...elder.perks], stats:elder.stats }, cam:{...cam} };
 }
 function resetGame(){
   generateWorld(); lots.length = 0; nextLot = 1; cash = START_CASH; debt = 0; days = 0; dayInt = 0; wx = 'Sunny'; wxQ = [];
-  Object.assign(staff, { hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false }); resetBiz();
+  Object.assign(staff, { hands:0, tender:null, picked:0, wages:0, barnWarned:false, rollers:[], keeper:false, fullPrice:false }); resetBiz();
   stopGame();
   Object.assign(elder, { trust:0, read:new Set(), cd:{}, roof:false, seed:false, said:'', sel:0, done:new Set(), perks:new Set(), stats:{ planted:0, topOnTime:0, soldGood:0, stormReady:0, primA:[] }, game:null });
   Object.assign(lastAlert, { worm:-99, mold:-99, shank:-99, top:-99 });
@@ -5415,7 +5515,7 @@ function restore(st){
   lots.length = 0; st.lots.forEach(l => lots.push(l));
   cash = st.cash; debt = st.debt||0; days = st.days; dayInt = st.dayInt; wx = st.wx; wxQ = st.wxQ||[]; nextB = old ? nextB : st.nextB; nextLot = st.nextLot;
   Object.assign(staff, { rollers:[], keeper:false }, st.staff); year = Object.assign(newYear(), st.year);
-  if (st.talk){ talk.flags = st.talk.flags||{}; talk.cd = st.talk.cd||{}; }
+  if (st.talk){ talk.flags = st.talk.flags||{}; talk.cd = st.talk.cd||{}; talk.log = st.talk.log||[]; talk.unread = 0; updateMsgBadge(); }
   if (st.biz){ Object.assign(biz, st.biz, { bench:null }); if (!biz.seg || !biz.seg.local) biz.seg = freshSegStats(); if (!biz.cur) biz.cur = newWeek(); biz.daily = biz.daily || []; biz.reg = biz.reg || {}; biz.products.forEach(normProduct); } Object.assign(lastAlert, st.lastAlert);
   const e = st.elder;
   Object.assign(elder, { trust:e.trust, read:new Set(e.read), cd:e.cd||{}, roof:e.roof, seed:false, said:e.said, done:new Set(e.done||[]), perks:new Set(e.perks||[]), stats:Object.assign({ planted:0, topOnTime:0, soldGood:0, stormReady:0, primA:[] }, e.stats), game:null, sel:0 });
@@ -5425,6 +5525,7 @@ function restore(st){
   if (st.city) Object.assign(city, st.city, { game:null, neg:null });
   migrateCity(); if (city.unlocked) attachCity();
   if (st.fin){ fin = st.fin; fin.cur = fin.cur || newFinMonth(); } else finReset();
+  freePiles();   // repair saves with a ghost in a pilón slot
   refreshCityHUD();
 }
 // Saves live in the viewer's own private space on their Claude account when the page can reach it, otherwise in this browser.
