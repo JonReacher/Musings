@@ -4562,7 +4562,7 @@ const V_FAVORS = [
 const city = {};
 function resetCity(){
   for (const k of Object.keys(city)) delete city[k];
-  Object.assign(city, { club:null, unlocked:false, hinted:false, respect:5, read:[], done:[], perks:[], cd:{}, said:'', sel:0, game:null, vsel:0,
+  Object.assign(city, { club:null, vip:null, unlocked:false, hinted:false, respect:5, read:[], done:[], perks:[], cd:{}, said:'', sel:0, game:null, vsel:0,
     dd:{}, neg:null, shops:[], pos:null, world:{}, worldOpen:false, opsSub:'overview', wsel:'miami', aware:0, line:{ bal:0 }, months:[], m:null, daily:[], log:null, comments:[],
     accounts:ACCOUNTS.map(a => ({ k:a.k, status:'none', pid:0, wk:a.wk, missed:0, said:'' })), ar:[], markets:{}, ratings:{}, subs:[], fair:null, brokers:[], brokerV2:true, brokerDay:-99,
     stats:{ cohMonth:0, servedStreak:0, profitMonths:0 }, global:false, globalDay:null, events:{}, lastAdvice:'' });
@@ -4755,7 +4755,7 @@ function shopTick(S){
   const capture = 0.0045 * (D.capK||1) * FIT.facade.opts[F.facade].k * FIT.sign.opts[F.sign].k * (L.corner?1.15:1) * D.compK * (0.5 + Math.min(A0,70)/50) * (S.compHit && dayInt<S.compHit ? 0.85 : 1);
   const walkins = Math.round(traffic * capture * (0.8 + 0.4*Math.random()) * (late?1.12:1));
   const rating = bestRating(), rk = rating ? Math.max(0.5, 1 + (rating.score-88)/10) : 0.6;
-  const dest = Math.round(Math.pow(A0/100, 1.3) * (reg==='town'?8:22) * rk * (L.d==='lomas'?1.4:1) * (F.lounge?1.3:1) * (late?1.2:1) * (0.7+0.6*Math.random()));
+  const dest = Math.round(Math.pow(A0/100, 1.3) * (reg==='town'?8:22) * rk * (L.d==='lomas'?1.4:1) * (F.lounge?1.3:1) * (late?1.2:1) * (filmOn() ? 1.25 : 1) * (0.7+0.6*Math.random()));
   const concierge = S.concierge ? Math.round((dry?5:2) * (0.6+0.8*Math.random())) : 0;
   const memberVisits = Math.round(S.members * 0.22 * (0.6+0.8*Math.random()));
   const event = S.event && S.event.d===dayInt ? S.event : null;
@@ -4926,13 +4926,14 @@ function exportsMonthly(){
   for (const X of Object.values(city.markets)){ const M = MARKETS.find(x=>x.k===X.k), p = prodOf(X.pid);
     if (X.status==='setup' && dayInt >= X.ready){ X.status = 'live'; attention(`Your cigars are registered in ${M.name}. ${M.imp} expects the first shipment on the 1st.`); continue; }
     if (X.status!=='live' || !p) continue;
-    const got = takeStock(p, 1, Math.min(X.qty, stockOf(p, true, 1)));
+    const want = X.k==='miami' && senatorOn() ? Math.round(X.qty*0.6) : X.qty;   // the senator’s hearings scare American buyers
+    const got = takeStock(p, 1, Math.min(want, stockOf(p, true, 1)));
     if (got){ const amt = got*X.fob; city.ar.push({ due:dayInt+60, amt, who:`${M.imp} (${M.name})` }); cityEarn(amt, 'export', null, M.k); finUnits(p.id, got, amt, 'export', M.k); finSegCost(M.k, got*0.3); city.m.cogs += got*prodCost(p); cityPay(got*0.3, 'City: export shipping', 'other'); X.shipped += got; X.missed = 0; p.citySold = (p.citySold||0) + got; { const Wa = city.world[X.k] || (city.world[X.k] = { aware:0 }); Wa.aware = Math.min(100, (Wa.aware||0) + got*0.0015*(1-(Wa.aware||0)/100)); }
       if (got>=X.qty && Math.random()<0.4) X.qty = Math.round(Math.min(M.monthly*3, X.qty*1.06)); }
-    if (got < X.qty){ X.missed++; attention(`${M.name}: you shipped ${got} of the ${X.qty} cigars ${M.imp} ordered.${X.missed>=2?' He has cancelled the contract.':' Miss another and he walks.'}`); if (X.missed>=2){ X.status = 'lost'; city.aware = Math.max(0, city.aware-4); } } }
+    if (got < want){ X.missed++; attention(`${M.name}: you shipped ${got} of the ${X.qty} cigars ${M.imp} ordered.${X.missed>=2?' He has cancelled the contract.':' Miss another and he walks.'}`); if (X.missed>=2){ X.status = 'lost'; city.aware = Math.max(0, city.aware-4); } } }
 }
 // ---------- the magazine, the fair, leaf from other growers ----------
-const MAG = 'Humo & Ceniza';
+const MAG = 'Smoke & Ash';
 function rateScore(p){ const B = blendOf(p.blendId), S = flagship(), bs = (S && S.inv[p.id]) || p.batches.filter(b=>gOf(b)===1), q = bs.reduce((s,b)=>s+b.qty,0)||1;
   const age = bs.reduce((s,b)=>s+Math.min(180,ageOf(b))*b.qty,0)/q, cons = bs.reduce((s,b)=>s+(b.cons||0.8)*b.qty,0)/q;
   return Math.round(Math.max(72, Math.min(97, 62 + (B?B.profile.score:60)*0.25 + Math.min(4, age/45) + (cons-0.85)*40 + (vPerk('press')?2:0) + (Math.random()-0.5)*3))); }
@@ -4941,7 +4942,8 @@ function ratingsTick(){
   for (const s of city.subs.filter(s => s.due<=dayInt)){ const p = prodOf(s.pid); if (!p) continue; city.ratings[s.pid] = { score:s.score, day:dayInt };
     const w = s.score>=93 ? 'Outstanding' : s.score>=90 ? 'Excellent' : s.score>=86 ? 'Very good' : s.score>=82 ? 'Good' : 'Fair';
     city.aware = Math.min(100, city.aware + Math.max(0, s.score-84)*0.6);
-    attention(`${MAG} rated the ${p.name} ${s.score} points: “${w}.”${s.score>=90?' Aficionados and distributors read that number.':''}`); }
+    const pull = Math.round((Math.max(0.5, 1 + (s.score-88)/10) - 1)*100), quip = s.score>=93 ? 'I lit the second one before I had finished the first. That has happened four times in twenty years.' : s.score>=90 ? 'Serious tobacco, honestly made. I would buy it with my own money, which I almost never do.' : s.score>=86 ? 'Good. Not yet memorable. Good is where most cigars go to be forgotten.' : s.score>=82 ? 'It burns, it draws, it tastes of tobacco. I have written kinder things about worse cigars, but not many.' : 'I finished it out of professional duty.';
+    say('lucien', `The ${esc(p.name)}: <b>${s.score} points</b>, “${w}.” ${quip}` + dealBox([['The score', `${s.score} · ${w}`], ['What it does to your shops', s.score===bestRating().score ? `${pull>=0?'+':''}${pull}% people who come in looking for you` : 'your best score still sets the pull', pull>=0?'up':'down'], ['City awareness', `+${Math.round(Math.max(0, s.score-84)*0.6)}`]], 'Aficionados, distributors and buyers read this number before they read anything else.'), null, null, false, { tag:'review-'+s.pid, ttl:4 }); }
   city.subs = city.subs.filter(s => s.due>dayInt);
 }
 const FAIR_NAME = 'Feria Internacional del Tabaco';
@@ -4965,6 +4967,130 @@ function buyBroker(i){ const o = city.brokers[i]; if (!o) return; const cost = o
   cash -= cost; spend('Leaf bought', cost); const w = ready('ware').find(x => wareCap(x)-wareUsed(x) >= o.kg);
   lots.push({ id:nextLot++, v:o.v, pr:o.pr, picks:0, kg:o.kg, q:o.q, stage:'baled', loc:w?w.id:0, cd:0, score:0, mold:0, temp:0, heat:0, turns:0, scorch:0, age:o.age, hotWarned:false, bought:true });
   city.brokers.splice(i,1); toast(`Bought ${o.kg} kg of ${VARS[o.v].name.replace('-type','')} ${PRIM[o.pr].name.toLowerCase()} from ${o.who}. It’s ready at the blending table${w?'':', stored in the city'}.`); }
+// ---------- famous people: the clients, enemies and suitors a famous brand attracts ----------
+const VIP0 = () => ({ buzz:0, heat:0, pres:null, sen:null, gen:null, cruise:null, rita:null, vance:{ met:false, walk:0 }, sold:null });
+const V_ = () => city.vip || (city.vip = VIP0());
+const senatorOn = () => !!(city.vip && city.vip.sen && city.vip.sen.until > dayInt);
+const filmOn = () => !!(city.vip && city.vip.rita && city.vip.rita.release <= dayInt && city.vip.rita.until > dayInt);
+// how much people talk about you: awareness, the press, a global name, and the headlines these people make
+function notoriety(){ const br = bestRating(); return Math.max(0, Math.min(100, Math.round(city.aware*0.45 + (br ? Math.max(0, br.score-85)*3 : 0) + (city.global ? 15 : 0) + V_().buzz))); }
+const shelfOf = p => flagship() ? shopPrice(flagship(), p) : p.price*2;
+// the best-rated cigar with enough rested stock, or else the one you have most of
+function vipCigar(n, minScore){ const ok = biz.products.filter(p => stockOf(p, true, 1) >= n && (!minScore || (city.ratings[p.id] && city.ratings[p.id].score >= minScore)));
+  return ok.sort((a,b) => ((city.ratings[b.id]||{}).score||0) - ((city.ratings[a.id]||{}).score||0) || stockOf(b,true,1) - stockOf(a,true,1))[0]; }
+function vipSell(p, n, per, who, due){ const got = takeStock(p, 1, n); if (!got) return 0; const amt = Math.round(got*per);
+  if (!city.m) city.m = newMonth(); if (due) city.ar.push({ due:dayInt+due, amt, who }); else cash += amt;
+  cityEarn(amt, 'accounts'); finUnits(p.id, got, amt, 'accounts'); city.m.cogs += got*prodCost(p); p.citySold = (p.citySold||0) + got; return got; }
+const worldBump = d => { for (const M of MARKETS){ const W = city.world[M.k] || (city.world[M.k] = { aware:0 }); W.aware = Math.min(100, worldAware(M.k) + d); } };
+const addBuzz = d => { const V = V_(); V.buzz = Math.max(0, Math.min(40, V.buzz + d)); };
+
+function vipTick(){
+  const V = V_(), first = dayDate(dayInt).getUTCDate()===1, N = notoriety(), br = bestRating();
+  if (first){ V.buzz *= 0.97; V.heat = Math.max(0, V.heat - 1); }
+  // ---- standing deals, shipped on the 1st ----
+  if (first && V.cruise){ const C = V.cruise, p = prodOf(C.pid); const got = p ? vipSell(p, Math.min(C.qty, stockOf(p,true,1)), C.price, 'Majestic Star Lines', 30) : 0;
+    if (got){ worldBump(0.6); city.aware = Math.min(100, city.aware + 0.3); }
+    if (got < C.qty){ C.missed = (C.missed||0) + 1; if (C.missed >= 2){ V.cruise = null; say('captain', '“Two sailings with the humidor half empty. I’m sorry, friend. The passengers noticed before I did.” Majestic Star Lines has ended the contract.', null, null, false, { tag:'captain', ttl:4 }); } else toast(`The Majestic Star sailed with ${got} of the ${C.qty} cigars the captain ordered. Miss another month and he walks.`, true); }
+    else C.missed = 0; }
+  if (V.pres && V.pres.next <= dayInt){ const P = V.pres, p = prodOf(P.pid); const got = p ? vipSell(p, Math.min(P.qty, stockOf(p,true,1)), P.price, 'the club in Palm Beach', 30) : 0; P.next = dayInt + 91;
+    if (got >= P.qty){ addBuzz(2); toast(`${got} cigars went to the club in Palm Beach. People there ask where they come from.`, false, true); }
+    else { V.pres = null; say('president', '“You couldn’t fill one order for my club. One order. We’ve found another cigar.”', null, null, false, { tag:'president', ttl:4 }); city.aware = Math.max(0, city.aware-3); } }
+  if (first && V.gen && V.gen.black){ const G = V.gen, p = prodOf(G.pid);
+    if (Math.random() < 0.07){ G.black = false; const fine = 25000 + Math.round(Math.random()*35000);
+      cityPay(fine, 'Company: fines and legal', 'other'); city.aware = Math.max(0, city.aware-8); city.respect = Math.max(0, city.respect-8); addBuzz(18); V.heat += 30;
+      say('general', `Customs in two countries opened the crates. Your bands, my face, no duty stamps. The newspapers are calling it “the General’s cigar.” My ministers deny everything; so should you. The business is closed.` + dealBox([['Fine and lawyers', fmt(fine), 'down'], ['City awareness', '−8', 'down'], ['Doña Victoria’s respect', '−8', 'down'], ['Notoriety', '+18: everyone knows your name now', 'up']]), null, null, false, { tag:'general', ttl:6 });
+      say('victoria', 'I read the newspaper this morning. Twice. Fines are paid in money. Reputation is paid in years.', null, null, false, { tag:'v-general', ttl:3 }); }
+    else { const got = p ? vipSell(p, Math.min(G.qty, stockOf(p,true,1)), G.price, 'a trading house in Zanguéla') : 0; V.heat += 3;
+      if (got) toast(`The General’s ship took ${got} cigars, paid in cash: ${fmt(got*G.price)}.`, false, true); } }
+  if (V.sen && V.sen.until > dayInt && first){ cityPay(1500, 'Company: fines and legal', 'other'); }
+  if (V.sen && V.sen.until <= dayInt && !V.sen.done){ V.sen.done = true; toast('Senator Cortez’s hearings are over. The cameras went looking for someone else.', true); }
+  if (V.rita && V.rita.release === dayInt){ city.aware = Math.min(100, city.aware + 10); worldBump(6); addBuzz(15);
+    say('rita', `Darling, the premiere! Every camera on the boulevard caught your band in my hand, and the critics wrote more about the cigar than about my leading man. He’s furious. I’m delighted.` + dealBox([['City awareness', '+10', 'up'], ['Awareness abroad', '+6 in every market', 'up'], ['Your shops', '+25% people coming in to find you, for three months', 'up']]), null, null, false, { tag:'rita', ttl:5 }); }
+
+  if (!city.unlocked) return;
+  // ---- new faces: one at a time, never twice in a fortnight ----
+  if (talk.queue.some(m => ['president','senator','general','captain','lucien','sterling','rita'].includes(m.who)) || !cool('vip-any', 14)) return;
+  const tries = [
+    // Lucien drops by the flagship, unannounced
+    () => { const S = flagship(); if (!S || !S.built || !br || Math.random() > 0.25 || !cool('lucien-visit', 210)) return false;
+      const c = coherence(S).score, good = c >= 65, bad = c < 45; city.aware = Math.max(0, Math.min(100, city.aware + (good?3:bad?-2:0)));
+      say('lucien', good ? `I came into your shop on ${esc(shopL(S).name)} yesterday and nobody knew who I was. That is the only honest way to see a shop. Everything in the room told one story. A paragraph in the next issue.` : bad ? `I came into your shop on ${esc(shopL(S).name)} yesterday, unannounced. The room says one thing, the shelves another, the prices a third. One line in the next issue, and you won’t frame it.` : `I visited your shop on ${esc(shopL(S).name)}, unannounced. Pleasant. Pleasant is not a reason to cross a city.`,
+        null, null, false, { tag:'lucien', ttl:3 }); return true; },
+    // the captain: a fleet of ships around the world
+    () => { if (V.cruise || !br || br.score < 86 || !(city.aware >= 40 || city.shops.some(S => S.built && shopL(S).d==='malecon')) || !cool('captain', 150)) return false;
+      const p = vipCigar(600); if (!p) return false; const per = Math.round(shelfOf(p)*0.45*4)/4, qty = 800;
+      say('captain', `Harlan Whitcombe, master of the Majestic Star. We dock here every second Tuesday, and three of my passengers came back aboard with your band on their cigars and your name on their lips. I run the cigar lounges for the whole line: four ships, every ocean. I’d like your ${esc(p.name)} on all of them.` + dealBox([['Every month', `${qty} × ${fmt2(per)} = ${fmt(qty*per)}`], ['Paid', '30 days after each shipment', 'down'], ['Your cost to make them', `${fmt(qty*prodCost(p))} a month`], ['Every port', 'a little more awareness in every market abroad', 'up']], 'Miss two months and he finds another supplier.'),
+        [{ label:'Sign with the Majestic Star', fn:()=>{ V.cruise = { pid:p.id, qty, price:per, missed:0, start:dayInt }; toast(`Signed with Majestic Star Lines: ${qty} ${p.name} a month, shipped on the 1st.`); } }, { label:'Not now' }], null, false, { tag:'captain', ttl:6 }); return true; },
+    // Rita Del Mar wants your cigar in her picture
+    () => { if (V.rita || N < 45 || !br || br.score < 88 || !cool('rita', 300)) return false; const p = vipCigar(350); if (!p) return false;
+      say('rita', `They’re shooting my new picture, <i>Moonlight over the Malecón</i>, here in your city. I play a woman who owns a cigar house and breaks three hearts. I want my character to smoke your ${esc(p.name)}, the real thing, in every scene, and on my arm at the premiere.` + dealBox([['On set', '300 cigars for the cast and crew'], ['The premiere party', fmt(6000)], ['In about five months', 'city awareness +10, +6 in every market abroad, +25% people coming into your shops for three months', 'up']], 'A picture lasts. People will see your band on that screen for years.'),
+        [{ label:`Put it in the picture · ${fmt(6000)}`, fn:()=>{ const got = takeStock(p, 1, 300); cityPay(6000, 'City: marketing', 'mkt'); V.rita = { pid:p.id, release:dayInt+150, until:dayInt+240 }; addBuzz(4); toast(`${got} cigars went to the set of “Moonlight over the Malecón.” The premiere is in about five months.`); } },
+         { label:'A box for Rita, with my compliments', fn:()=>{ takeStock(p, 1, 25); city.aware = Math.min(100, city.aware + 2); V.rita = { pid:p.id, release:-1, until:-1, box:true }; toast('Rita sent a photograph back, signed, with a lipstick kiss. Your manager framed it.'); } },
+         { label:'Not this time' }], null, false, { tag:'rita', ttl:6 }); return true; },
+    // Mr. President and his club
+    () => { if (V.pres || !br || br.score < 90 || N < 50 || !cool('president', 240)) return false; const p = vipCigar(300, 90); if (!p) return false;
+      const per = shelfOf(p), qty = 300;
+      say('president', `I smoked one of your ${esc(p.name)} last week and I told everybody at dinner: this is the best cigar ever made. I have a club in Palm Beach, the finest club there is, and I want it in the humidor. ${qty} every three months, at your price. Nobody at my club asks for a discount. It will be very good for your brand.` + dealBox([['Every three months', `${qty} × ${fmt2(per)} = ${fmt(qty*per)}`], ['Prestige', 'notoriety +12, city awareness +4, Miami awareness +10', 'up'], ['Attention', 'some of it from people who will not like you', 'down']], 'Fail to fill an order and he leaves, loudly.'),
+        [{ label:'Supply the club', fn:()=>{ V.pres = { pid:p.id, qty, price:per, next:dayInt+5 }; addBuzz(12); V.heat += 20; city.aware = Math.min(100, city.aware + 4); const W = city.world.miami || (city.world.miami = { aware:0 }); W.aware = Math.min(100, worldAware('miami') + 10); toast('Your cigars are going to the club in Palm Beach. The first order ships this week.'); } },
+         { label:'Politely decline' }], null, false, { tag:'president', ttl:6 }); return true; },
+    // the General: a private label, and something else
+    () => { if (V.gen || !city.worldOpen || N < 40 || !cool('general', 365)) return false; const p = vipCigar(1000); if (!p) return false;
+      const n = Math.min(2000, stockOf(p,true,1)), per = Math.round(shelfOf(p)*1.8*4)/4, bm = Math.round(shelfOf(p)*1.1*4)/4;
+      say('general', `My people have smoked your ${esc(p.name)} at my table for a year. Now the Republic of Zanguéla will have its own cigar: yours, with my portrait on the band. ${n} for the palace and the embassies. And my ministers would like to move a great deal more, every month, through my port, without the inconvenience of duty stamps. It would be very good for both of us. I insist that it would be.` + dealBox([['The private label', `${n} × ${fmt2(per)} = ${fmt(n*per)}, paid now`, 'up'], ['The side business', `1,200 a month × ${fmt2(bm)} in cash, no questions`, 'up'], ['If customs ever opens a crate', 'a heavy fine, a scandal, and Doña Victoria will hear about it', 'down']], 'Every month the side business runs, there is a chance it ends in the newspapers.'),
+        [{ label:'Roll his private label', fn:()=>{ const got = vipSell(p, n, per); V.gen = { pid:p.id, black:false }; addBuzz(6); V.heat += 5; toast(`The palace took ${got} cigars with the General’s face on the band: ${fmt(got*per)}.`); } },
+         { label:'The label, and the side business', fn:()=>{ const got = vipSell(p, n, per); V.gen = { pid:p.id, black:true, qty:1200, price:bm, start:dayInt }; addBuzz(8); V.heat += 10; toast(`The palace took ${got} cigars: ${fmt(got*per)}. The first ship for the port comes on the 1st.`); } },
+         { label:'Decline, with every respect', fn:()=>{ V.gen = { pid:p.id, black:false, no:true }; } }], null, false, { tag:'general', ttl:6 }); return true; },
+    // the senator: he needs a villain, and you are famous enough
+    () => { if (senatorOn() || (V.sen && V.sen.until > dayInt-200) || N < 50 || !(V.heat >= 20 || (city.markets.miami && city.markets.miami.status==='live')) || !cool('senator', 300)) return false;
+      const run = (msg) => { V.sen = { until:dayInt+120, done:false }; city.aware = Math.max(0, city.aware-3); if (msg) toast(msg, true); };
+      say('senator', `I have called hearings on the cigar industry and the families it poisons, and the committee will hear about one company in particular: yours. Smoke is smoke, whatever the label says. America deserves to know who is selling it to her children.` + dealBox([['For four months', 'your Miami distributor orders 40% less, lawyers cost $1,500 a month, city awareness −3', 'down']], 'The man gives a fine speech. He also has a cigar in his breast pocket.'),
+        [{ label:`Hire a lobbyist · ${fmt(20000)}`, fn:()=>{ cityPay(20000, 'Company: fines and legal', 'other'); V.heat = 0; V.sen = { until:dayInt, done:true }; toast('Your lobbyist had lunch with the committee chairman. The hearings are “postponed indefinitely.”'); } },
+         { label:'Fight it in the press', fn:()=>{ addBuzz(10); if (Math.random() < 0.55){ V.sen = { until:dayInt, done:true }; city.aware = Math.min(100, city.aware+3); say('senator', '“I have made my point. The committee has other priorities.” He did not mention you again.', null, null, true); } else run('The senator doubled down. The hearings go ahead, and every channel shows your band.'); } },
+         { label:'Send him a box, discreetly', fn:()=>{ takeStock(vipCigar(25) || biz.products[0], 1, 25); if (Math.random() < 0.65){ V.sen = { until:dayInt, done:true }; V.heat = 0; say('senator', '“Thank you for the… materials. I’ve reviewed them closely. The committee has other priorities.”', null, null, true); } else { run(); addBuzz(15); city.respect = Math.max(0, city.respect-6); city.aware = Math.max(0, city.aware-6); toast('A reporter photographed the box arriving at the senator’s office. “Big Cigar buys a senator.” The hearings go ahead.', true); } } },
+         { label:'Let him talk', fn:()=>run() }], null, false, { tag:'senator', ttl:6 }); return true; },
+    // Sterling Vance: he only calls once you are worth buying
+    () => { if (!fin || V.sold || !(N >= 70 || city.global) || dayInt < V.vance.walk || !cool('vance', 240)) return false; vanceOffer(false); return true; },
+  ];
+  for (const t of tries) if (t()) break;
+}
+// Consolidated Tobacco's offer, when he calls or when you call him
+function vanceOffer(youCalled){
+  const V = V_(), val = valuation(); if (!val || val.equity <= 0){ if (youCalled) say('sterling', '“Call me when there is something to buy.”', null, null, true); return; }
+  V.vance.met = true;
+  const prem = youCalled ? 1.1 + Math.random()*0.2 : 1.25 + Math.random()*0.25, price = Math.round(val.equity*val.mine*prem/10000)*10000, counter = Math.round(price*1.2/10000)*10000;
+  say('sterling', `${youCalled ? 'You called me. That tells me something about the price.' : 'Sterling Vance, Consolidated Tobacco. We make four billion cigars a year, every one identical. Yours are not identical, and people have started talking about them. I would rather own that than compete with it.'} For your share of the company I will pay ${fmt(price)}. Cash. You keep the farm house; we keep everything else.` + dealBox([['The company is worth', `${fmt(val.equity)} (${val.method})`], ['Your share', `${Math.round(val.mine*100)}%`], ['His offer', `${fmt(price)} · ${Math.round((prem-1)*100)}% over the books`, 'up'], ['If you sell', 'the game shows how your story ended; you can keep playing afterwards', 'down']], 'Doña Victoria sold Casa Arriaga in a single afternoon. Ask her how she feels about it.'),
+    [{ label:`Sell for ${fmt(price)}`, fn:()=>vanceConfirm(price) },
+     { label:`Counter: ${fmt(counter)}`, fn:()=>{ if (Math.random() < 0.45) vanceConfirm(counter); else { V.vance.walk = dayInt + 365; say('sterling', '“No. Good luck with the farm.” He closed the briefcase. He will not call again for a year.', null, null, true); } } },
+     { label:'Not for sale' }], null, true, { tag:'sterling' });
+}
+function vanceConfirm(price){
+  say('sterling', `${fmt(price)}, then. My lawyers have the papers. Sign here, and here, and it’s ours.`, [{ label:'Sign', fn:()=>sellToVance(price) }, { label:'I can’t do it', fn:()=>{ V_().vance.walk = dayInt + 180; } }], null, true, { tag:'sterling' });
+}
+function sellToVance(price){
+  const V = V_(); V.sold = { day:dayInt, price }; reviewPrev = speedIdx || 1; setSpeed(0);
+  const name = biz.brand ? esc(biz.brand.name) : 'Your house', yrs = Math.max(1, Math.round(dayInt/365));
+  let h = `<button class="btn sm closeX" data-close="1">Keep playing</button><h2>${name}: sold</h2><div class="muted">${dateStr()} · after ${yrs} year${yrs>1?'s':''}</div>`;
+  h += `<div class="ebody" style="grid-template-columns:1fr 1fr"><div class="etext"><h3>The deal</h3><div class="row"><span>Consolidated Tobacco paid</span><span>${fmt(price)}</span></div><div class="row"><span>Best rating</span><span>${bestRating() ? bestRating().score+' points in '+MAG : 'none'}</span></div><div class="row"><span>Known as</span><span>${esc(knownAs())}</span></div><div class="row"><span>Notoriety</span><span>${notoriety()}/100</span></div><p class="muted">From one small field to a check in a briefcase.</p></div>`;
+  h += `<div class="etext"><h3>What they said</h3><div class="said"><b>Sterling Vance:</b> “We’ll keep the name. The name is what we paid for.”</div><div class="said"><b>Doña Victoria:</b> “Now you know what I know. Spend it on something that makes you get up in the morning.”</div><div class="said"><b>Don Aurelio:</b> “The land doesn’t care who owns it. Come for coffee anyway.”</div></div></div>`;
+  h += `<p class="muted" style="margin-top:10px">That is one ending. Keep playing to see what else this game holds, or start a new one from the Games menu.</p>`;
+  const el = $('review'); el.innerHTML = h; el.classList.add('show');
+}
+function callVance(){ if (!cool('vance-call', 90)){ toast('Sterling Vance’s office says he is traveling. Try again in a few months.'); return; } vanceOffer(true); }
+// the Growth tab: who is watching you
+function vipSide(){
+  const V = V_(), N = notoriety(), rows = [];
+  if (V.cruise) rows.push(['captain', `Majestic Star Lines: ${V.cruise.qty} ${esc((prodOf(V.cruise.pid)||{}).name||'')} a month, shipped on the 1st`]);
+  if (V.pres) rows.push(['president', `The club in Palm Beach: ${V.pres.qty} cigars every three months, next on ${dateAt(V.pres.next)}`]);
+  if (V.gen && !V.gen.no) rows.push(['general', V.gen.black ? `Zanguéla: the private label, and ${V.gen.qty} a month through the port, for cash. Every month it runs, customs might open a crate.` : 'Zanguéla: the private label with the General’s face on it']);
+  if (senatorOn()) rows.push(['senator', `Hearings until ${dateAt(V.sen.until)}: Miami orders 40% less, lawyers $1,500 a month`]);
+  if (V.rita && V.rita.release > dayInt) rows.push(['rita', `“Moonlight over the Malecón” opens ${dateAt(V.rita.release)}`]);
+  else if (filmOn()) rows.push(['rita', `“Moonlight over the Malecón” is in theaters: +25% people coming into your shops until ${dateAt(V.rita.until)}`]);
+  if (V.sold) rows.push(['sterling', `Sold to Consolidated Tobacco on ${dateAt(V.sold.day)} for ${fmt(V.sold.price)}`]);
+  let h = `<h4>Who is watching you</h4><div class="card"><div class="row"><span class="t" style="opacity:1">Notoriety</span><span>${N}/100</span></div><div class="bar"><div style="width:${N}%"></div></div><div class="muted">How much people talk about you: city awareness, your best rating, a global name, and the headlines you make. Powerful people notice from about 40. Consolidated Tobacco notices at 70.</div></div>`;
+  for (const [who, t] of rows) h += `<div class="lot" style="display:flex"><span class="miniface sm">${castFace(who)}</span><div class="grow"><b>${CAST[who].name}</b><br><span class="muted">${t}</span></div></div>`;
+  if (V.vance.met && !V.sold) h += `<div class="acts" style="justify-content:flex-start;margin-top:6px"><button class="btn sm" data-act="c_vance">Call Sterling Vance</button></div><div class="muted">Ask Consolidated Tobacco what they would pay for your company today.</div>`;
+  return h;
+}
 // ---------- the daily and monthly heartbeat ----------
 function cityTick(){
   if (!CAST.victoria) initCityCast();
@@ -4981,7 +5107,7 @@ function cityTick(){
     return; }
   if (!city.m) city.m = newMonth();
   if (first) exportsMonthly();
-  accountsTick(); ratingsTick(); fairTick();
+  accountsTick(); ratingsTick(); fairTick(); vipTick();
   if (dayInt - city.brokerDay >= 30) refreshBrokers();
   for (const S of city.shops) if (S.built && regionS(S)==='city' && !S.compHit && dayInt - S.opened > 150 && Math.random()<0.004){ S.compHit = dayInt + 120; attention(`${['A big Spanish brand','Casa Montero','A hotel group'][Math.floor(Math.random()*3)]} opened a new cigar shop near yours on ${shopL(S).name}. Fewer people will come in for a few months, unless they have a reason to choose you.`); }
   checkGlobal(); checkVMissions();
@@ -5089,6 +5215,13 @@ function initCityCast(){
   CAST.paredes = { name:'Señor Paredes', role:`Commercial broker, ${CITY}`, p:{ skin:'#c48a5c', hairStyle:'slick', hairColor:'#120c08', beard:'mustache', shirt:'#e8e2d0', tie:'#2f6b4f', bg:'#efe3c6' } };
   CAST.agent = { name:'A commercial agent', role:'Shop leases abroad', p:{ skin:'#e0b48e', hairStyle:'short', hairColor:'#3a2a1a', shirt:'#2b2b2e', tie:'#3a6fc4', glasses:true, bg:'#e2e8ef' } };
   CAST.buyer = { name:'A buyer in the city', role:'Hotels, bars and clubs', p:{ skin:'#d9a57e', hairStyle:'short', hairColor:'#2a1a10', shirt:'#2f3a52', tie:'#a8321e', bg:'#e2e8ef' } };
+  CAST.president = { name:'Mr. President', role:'Wants your cigars for his private club in Palm Beach', p:{ skin:'#e8a46a', hairStyle:'slick', hairColor:'#e0b040', old:true, shirt:'#1f2a4a', tie:'#d0202a', bg:'#f6d9d4' } };
+  CAST.senator = { name:'Senator Rafe Cortez', role:'United States Senator from Texas', p:{ skin:'#c48a5c', hairStyle:'slick', hairColor:'#1a1410', beard:'full', shirt:'#1f2a4a', tie:'#7a1a1a', bg:'#dfe6f0' } };
+  CAST.general = { name:'His Excellency General Moïse Bokamba', role:'President-for-Life of the Republic of Zanguéla', p:{ skin:'#4a2c1a', hairStyle:'short', hairColor:'#111', old:true, glasses:true, shirt:'#f4f1e8', tie:'#2f7a3a', bg:'#efe2b0' } };
+  CAST.captain = { name:'Captain Harlan Whitcombe', role:'Master of the SS Majestic Star', p:{ skin:'#f0b89a', hairStyle:'short', hairColor:'#cfcfcf', beard:'full', old:true, hat:'cap', cap:'#f4f4f4', shirt:'#f4f4f4', bg:'#cfe8f3' } };
+  CAST.lucien = { name:'Lucien Marchetti', role:'Editor of Smoke & Ash', p:{ skin:'#e9c4a2', hairStyle:'slick', hairColor:'#55504a', beard:'mustache', glasses:true, shirt:'#efe6cf', tie:'#7b2d5b', bg:'#ece3d2' } };
+  CAST.sterling = { name:'Sterling Vance', role:'Chief executive, Consolidated Tobacco', p:{ skin:'#efc9a8', hairStyle:'slick', hairColor:'#c8c8c8', shirt:'#2b2f3a', tie:'#8a7a3a', bg:'#dde3ea' } };
+  CAST.rita = { name:'Rita Del Mar', role:'Star of the screen', p:{ skin:'#f2cfb0', hairStyle:'long', hairColor:'#8a3a1a', lashes:true, earring:true, necklace:true, lips:'#c0202a', shirt:'#1f7a52', bg:'#f3e2c4' } };
   MARKETS.forEach((M,i) => { CAST['imp_'+M.k] = { name:M.imp, role:`Cigar distributor, ${M.name}`, p:{ ...ROLLER_LOOKS[(i*3+1)%ROLLER_LOOKS.length], tie:['#8e1b1b','#1f2a3a','#2f6b4f'][i%3], bg:'#e6e0f0' } }; });
 }
 initCityCast();
@@ -5704,7 +5837,7 @@ function cityTab(){
   const sub = city.opsSub || 'overview';
   h += `<div class="tabs" style="margin-bottom:6px">${[['overview','Shops'],['brand','Brand'],['growth','Growth']].map(([k,n]) => `<button class="btn xs${sub===k?' on':''}" data-act="c_sub" data-x="${k}">${n}</button>`).join('')}</div>`;
   if (sub==='brand') return h + brandSide();
-  if (sub==='growth') return h + growthSide();
+  if (sub==='growth') return h + growthSide() + vipSide();
   h += `<div class="card"><b>${CITY}</b><div class="muted">${esc(knownAs())}</div><div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn sm" data-act="c_city">Go to the city</button><button class="btn sm" data-act="c_mentor">Doña Victoria</button>${city.worldOpen?'<button class="btn sm" data-act="c_world">The world</button>':''}</div></div>`;
   h += city.shops.length ? `<h4>Your shops</h4>${shopRows()}` : `<div class="muted">No shops yet. Walk the city on the map: storefronts for rent or sale have yellow signs.</div>`;
   const F = flagship(); if (F && F.built) h += verdicts(shopVerdicts(F).slice(0,2));
@@ -5751,6 +5884,7 @@ function cityAct(kind, id, extra){
     case 'c_event': { if (S.event) break; const reg = regionS(S), kk = (vPerk('press')?0.75:1) * (reg==='town'?0.35:R_(S).world?2:1), A0 = awareOf(S), E = extra==='pairing' ? { name:'A rum and cigar pairing dinner', cost:2400*kk, guests:Math.round((reg==='town'?14:28)+A0/3), aw:2 } : { name:'A rolling night', cost:900*kk, guests:Math.round((reg==='town'?10:14)+A0/5), aw:1 };
       if (cash < E.cost){ flashCash(); break; } let d = dayInt+1; while (weekday(d)!==5) d++; cityPay(E.cost, 'Shops: events', 'mkt', S); S.event = { ...E, d }; addAware(S, E.aw); toast(`${E.name}, next Friday. Invitations are out.`); break; }
     case 'c_rate': submitRating(id); break;
+    case 'c_vance': callVance(); break;
     case 'c_fair': { const d = fairDay(); if (!d || cash < 7500) break; cityPay(7500, 'Company: the fair', 'mkt'); city.fair = { day:d, done:false }; toast(`You have a booth at the ${FAIR_NAME} on ${dateAt(d)}.`); break; }
     case 'c_acc': pitchAccount(extra, id); break;
     case 'c_accstop': { const C = cAcc(extra); C.status = 'none'; C.said = '“As you wish. We’ll find someone else.”'; break; }
