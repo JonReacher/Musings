@@ -148,6 +148,21 @@
   .menubox textarea{height:70px;font-size:11px}
   .formrow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
   .formrow label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.7}
+  #msglog{position:fixed;left:50%;top:84px;transform:translateX(-50%);width:min(580px,94vw);max-height:calc(100vh - 120px);display:none;flex-direction:column;padding:12px 14px;z-index:14;font-size:13px;line-height:1.45}
+  #msglog.show{display:flex}
+  #msglog .mhead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  #msglog .mhead h3{font-family:"Bree Serif",serif;font-weight:400;font-size:20px;margin:0;color:var(--wood2);flex:1}
+  #msglog .mlist{overflow:auto;flex:1;padding-right:4px}
+  #msglog .mday{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.55;margin:10px 0 3px}
+  #msglog .mitem{display:flex;gap:9px;align-items:flex-start;background:#fffaf0;border:1.5px solid #d9c38f;border-radius:10px;padding:7px 9px;margin:4px 0}
+  #msglog .mitem.imp{border-color:#c98612;background:#fff3cf}
+  #msglog .mface{width:44px;flex:none}
+  #msglog .mface svg,#msglog .mface img{width:44px;height:44px;display:block;object-fit:cover;object-position:50% 15%;border-radius:8px}
+  #msglog .mwho{font-weight:800}
+  #msglog .mwho small{font-weight:700;opacity:.6;margin-left:4px}
+  #msglog .mitem .deal,#msglog .mitem .dnote{font-size:11.5px}
+  .mbadge{display:inline-block;min-width:16px;padding:0 4px;border-radius:9px;background:#c94f3a;color:#fff;font-size:10.5px;line-height:16px;text-align:center;margin-left:2px}
+  .tmore a{color:inherit}
   #talk{position:fixed;right:14px;bottom:122px;width:min(470px,92vw);display:none;gap:14px;padding:14px 16px;z-index:12;align-items:flex-start}
   body.inscene #talk{right:auto;left:14px;bottom:14px}
   #talk.show{display:flex;animation:talkin .35s cubic-bezier(.2,.9,.3,1.2)}
@@ -343,7 +358,7 @@
     </div>
   </div>
   <div class="panel wx"><span id="wxicon"></span><div><span class="lbl" id="season">Dry season</span><div class="date" id="wx">Sunny</div></div><div id="fc"></div></div>
-  <div class="panel btns"><button class="btn" id="opsBtn">Operations</button><button class="btn" id="saveBtn">Save</button><button class="btn" id="brandBtn">Brand</button><button class="btn" id="cityBtn" style="display:none">City</button><button class="btn" id="menuBtn">Games</button><a class="btn" id="musicBtn" href="https://www.youtube.com/watch?v=t6z4RXktp84&amp;list=RDt6z4RXktp84&amp;start_radio=1" target="_blank" rel="noopener noreferrer" title="Open the soundtrack on YouTube in a new tab" style="text-decoration:none;display:inline-flex;align-items:center">♫ Soundtrack</a><small id="saveStat" class="muted"></small></div>
+  <div class="panel btns"><button class="btn" id="opsBtn">Operations</button><button class="btn" id="msgBtn" title="Everything people said and every notice (M)">Messages</button><button class="btn" id="saveBtn">Save</button><button class="btn" id="brandBtn">Brand</button><button class="btn" id="cityBtn" style="display:none">City</button><button class="btn" id="menuBtn">Games</button><a class="btn" id="musicBtn" href="https://www.youtube.com/watch?v=t6z4RXktp84&amp;list=RDt6z4RXktp84&amp;start_radio=1" target="_blank" rel="noopener noreferrer" title="Open the soundtrack on YouTube in a new tab" style="text-decoration:none;display:inline-flex;align-items:center">♫ Soundtrack</a><small id="saveStat" class="muted"></small></div>
 </div>
 
 <div id="toasts"></div>
@@ -360,6 +375,7 @@
 <div id="review" class="panel"></div>
 <div id="bench" class="panel"></div>
 <div id="talk" class="panel"></div>
+<div id="msglog" class="panel"></div>
 <div id="scene"></div>
 <div id="brand" class="panel"></div>
 <div id="title"><div class="tbg"></div><div class="tart"><div class="tbtns"><button data-ts="new">New game</button><button class="alt" data-ts="load">Load game</button></div></div></div>
@@ -772,14 +788,51 @@ function refreshUI(){
 $('speed').querySelectorAll('.btn').forEach(b => b.onclick = () => setSpeed(+b.dataset.s));
 function setSpeed(i){ speedIdx = i; $('speed').querySelectorAll('.btn').forEach(b => b.classList.toggle('on', +b.dataset.s===i)); }
 function flashCash(){ const el=$('cash'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),600); }
-function toast(msg, important){
+const talk = { queue:[], flags:{}, cd:{}, log:[], unread:0 };
+let msgOpen = false, msgFilter = 'all', msgResume = null;
+function updateMsgBadge(){ const el = $('msgBtn'); if (!el) return; el.innerHTML = `Messages${talk.unread ? ` <span class="mbadge">${talk.unread>99?'99+':talk.unread}</span>` : ''}`; }
+// everything said and every notice is kept for the Messages log; quiet ones skip the pop-up and count as unread
+function logMsg(e){ e.d = dayInt; talk.log.push(e); if (talk.log.length > 250) talk.log.splice(0, talk.log.length-250); if (e.quiet) talk.unread++; updateMsgBadge(); if (msgOpen) renderMsgLog(); }
+function toast(msg, important, quiet){
+  if (!/^Game saved|^Couldn’t save/.test(msg)) logMsg({ text:esc(msg), kind: important ? 'imp' : 'note', quiet });
+  if (quiet) return;
   const el = document.createElement('div'); el.className = 'panel toast' + (important ? ' imp' : ''); el.textContent = msg;
   const box = $('toasts'); box.appendChild(el); while (box.children.length>4) box.firstChild.remove();
   setTimeout(()=>{ el.style.transition='opacity .5s'; el.style.opacity='0'; setTimeout(()=>el.remove(),500); }, 5500);
 }
 function attention(msg){ toast(msg, true); }
+// farm news: a pop-up while you farm; once you run the city (or when force is set), it goes quietly to Messages
+function farmNote(msg, force){ if (force || city.unlocked) toast(msg, true, true); else attention(msg); }
 let opsOpen = false, opsFocus = 0;
 $('opsBtn').onclick = () => { opsOpen = !opsOpen; opsFocus = 0; renderOps(true); };
+// ---------- Messages: everything people said and every notice, newest first ----------
+function openMsgLog(open){
+  msgOpen = open ?? !msgOpen;
+  if (msgOpen){ talk.unread = 0; updateMsgBadge(); if (speedIdx!==0){ msgResume = speedIdx; setSpeed(0); } else msgResume = null; }
+  else if (msgResume!=null && speedIdx===0){ setSpeed(msgResume); msgResume = null; }
+  $('msgBtn').classList.toggle('on', msgOpen); renderMsgLog();
+}
+function renderMsgLog(){
+  const el = $('msglog'); el.classList.toggle('show', msgOpen); if (!msgOpen) return;
+  const F = { all:'All', people:'People', notices:'Notices' };
+  const list = talk.log.filter(e => msgFilter==='all' || (msgFilter==='people' ? !!e.who : !e.who)).slice().reverse();
+  let h = `<div class="mhead"><h3>Messages</h3>${Object.entries(F).map(([k,v]) => `<button class="btn xs${msgFilter===k?' on':''}" data-mf="${k}">${v}</button>`).join('')}<button class="btn xs" data-mclose="1" title="Close (M)">✕</button></div>`;
+  h += `<div class="muted" style="margin-bottom:2px">The game is paused while you read.${city.unlocked ? ' Farm news now arrives here quietly, without a pop-up.' : ''}</div><div class="mlist">`;
+  if (!list.length) h += `<div class="muted" style="margin-top:10px">Nothing yet.</div>`;
+  let last = null;
+  for (const e of list){
+    if (e.d!==last){ last = e.d; h += `<div class="mday">${e.d===dayInt ? 'Today · ' : e.d===dayInt-1 ? 'Yesterday · ' : ''}${dateAt(e.d)}, Year ${1+Math.floor(e.d/365)}</div>`; }
+    const c = e.who && CAST[e.who];
+    h += c ? `<div class="mitem"><span class="mface">${castFace(e.who)}</span><div><div class="mwho">${c.name}<small>${e.role||c.role}</small></div><div>${e.text}</div></div></div>`
+           : `<div class="mitem${e.kind==='imp'?' imp':''}"><div>${e.text}</div></div>`;
+  }
+  el.innerHTML = h + '</div>';
+}
+$('msgBtn').onclick = () => openMsgLog();
+$('msglog').addEventListener('click', e => {
+  const f = e.target.closest('[data-mf]'); if (f){ msgFilter = f.dataset.mf; renderMsgLog(); return; }
+  if (e.target.closest('[data-mclose]')) openMsgLog(false);
+});
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const dateOf = d0 => { const d = new Date(Date.UTC(2025,9,1) + Math.floor(d0)*864e5); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`; };
@@ -856,9 +909,11 @@ window.addEventListener('keydown', e => {
   if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
   if ($('menu').classList.contains('show')) return;
   const i = '123456789'.indexOf(e.key); if (i>=0) setTool(TOOLS[i].id);
+  if (e.key==='Escape' && msgOpen){ openMsgLog(false); return; }
   if (e.key==='Escape'){ drag = null; sel = null; hideTip(); if (elderOpen) closeElder(); if (mentorOpen) closeMentor(); if (scene) closeScene(); }
   if (e.key===' '){ e.preventDefault(); setSpeed(speedIdx===0?1:0); }
   if (e.key==='o') $('opsBtn').click();
+  if (e.key==='m') openMsgLog();
   const step = 40;
   if (e.key==='ArrowLeft'||e.key==='a') cam.x += step; if (e.key==='ArrowRight'||e.key==='d') cam.x -= step;
   if (e.key==='ArrowUp'||e.key==='w') cam.y += step;   if (e.key==='ArrowDown'||e.key==='s') cam.y -= step;
@@ -1775,7 +1830,7 @@ function sprayerTick(){
   for (const t of todo){ if (n>=T0.cap) break; if (cash < c){ if (!staff.crewWarned.spray){ staff.crewWarned.spray = true; attention(`${T0.name} has no money for spray. You’re out of cash.`); } return; }
     t.bmold = 0; t.prot = 21; t.pick = 2; cash -= c; spend('Crop care', c); n++; }
   staff.crewWarned.spray = false;
-  if (n && sick.length) toast(`${T0.name} sprayed ${n} tile${n>1?'s':''} for blue mold.`);
+  if (n && sick.length) toast(`${T0.name} sprayed ${n} tile${n>1?'s':''} for blue mold.`, false, city.unlocked);
 }
 // the pilón turner: after the day's heat has built, turn any pile that has reached his mark
 function turnerTick(){
@@ -1823,9 +1878,9 @@ function crewTick(){
   const ripe = map.flat().filter(t => t.owned && nextPrim(t) && t.g>=nextPrim(t).start).sort((a,c)=>urgency(c)-urgency(a));
   if (!ripe.length){ staff.barnWarned = false; return; }
   const fb = freeBarn();
-  if (fb<=0){ if (!staff.barnWarned){ staff.barnWarned = true; attention('Your field hands have stopped picking. The barns are full.'); } return; }
+  if (fb<=0){ if (!staff.barnWarned){ staff.barnWarned = true; farmNote('Your field hands have stopped picking. The barns are full.'); } return; }
   const n = Math.min(staff.hands*HT().pick, ripe.length, fb, Math.floor(cash/pieceRate()));
-  if (n<=0){ if (!staff.barnWarned){ staff.barnWarned = true; attention('Your field hands won’t pick without pay. You’re out of cash.'); } return; }
+  if (n<=0){ if (!staff.barnWarned){ staff.barnWarned = true; farmNote('Your field hands won’t pick without pay. You’re out of cash.'); } return; }
   staff.barnWarned = false;
   const picked = ripe.slice(0,n);
   cash -= n*pieceRate(); staff.picked += n; spend('Labor', n*pieceRate());
@@ -1971,6 +2026,12 @@ function mgrAlert(key, text){
   if (farmMgr() && S.problems==='handle' && !((staff.mgrHandled||{})[key] > dayInt-7)){
     const r = mgrHandle(key); if (!(r && r.no)){ toast(`${first} handled it: ${r}`); return; } text += ` I tried to handle it: ${r.no}`; }
   staff.mgrAlerts[key] = { d:dayInt, t:text };
+  // a barn the tender is already working can't be helped: note it, don't stop the game.
+  // Once you run the city, only money for wages, someone quitting and a scorching pilón still stop the game.
+  const urgent = key==='cash' || key==='hot' || key.startsWith('vac');
+  if ((key.startsWith('hum:') && staff.tender) || (city.unlocked && !urgent)){
+    staff.mgrLog = staff.mgrLog || []; staff.mgrLog.unshift({ d:dayInt, t:`Noted: ${text}`, slip:false }); staff.mgrLog.length = Math.min(staff.mgrLog.length, 14);
+    logMsg({ who: farmMgr() ? mgrCast() : 'mateo', text, quiet:true }); return; }
   staff.mgrLog = staff.mgrLog || []; staff.mgrLog.unshift({ d:dayInt, t:`Needs you: ${text}`, slip:false }); staff.mgrLog.length = Math.min(staff.mgrLog.length, 14);
   const was = speedIdx || 1; setSpeed(0);
   const choices = farmMgr() ? [
@@ -2555,7 +2616,7 @@ const SEGMENTS = {
 };
 const biz = { blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:null, seg:{}, beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{} };
 function freshSegStats(){ const o = {}; for (const k in SEGMENTS) o[k] = { visits:0, buyers:0, sticks:0, revenue:0, tooStrong:0, tooMild:0, tooPricey:0, harsh:0, liked:{} }; return o; }
-function resetBiz(){ talk.queue = []; talk.flags = {}; talk.cd = {}; if (typeof renderTalk==='function' && $('talk')) $('talk').classList.remove('show'); Object.assign(biz, { brand:null, today:null, blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:newWeek(), seg:freshSegStats(), beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{}, noDiscount:false }); staff.rollers = []; staff.keeper = false; staff.lector = false; }
+function resetBiz(){ talk.queue = []; talk.flags = {}; talk.cd = {}; talk.log = []; talk.unread = 0; if (typeof renderTalk==='function' && $('talk')) $('talk').classList.remove('show'); Object.assign(biz, { brand:null, today:null, blends:[], products:[], orders:[], nextId:1, rep:20, comments:[], weeks:[], cur:newWeek(), seg:freshSegStats(), beltran:{ status:'none', productId:0, price:0, weekly:0, said:'' }, bench:null, daily:[], log:null, lastLog:null, reg:{}, noDiscount:false }); staff.rollers = []; staff.keeper = false; staff.lector = false; }
 function newWeek(){ return { day:dayInt, visitors:0, buyers:0, sticks:0, revenue:0, wholesale:0, made:0 }; }
 const prodOf = id => biz.products.find(p => p.id===id), blendOf = id => biz.blends.find(b => b.id===id);
 // ---------- the calendar: real days of the week ----------
@@ -2779,7 +2840,7 @@ function workshopTick(){
     p.costSum = (p.costSum||0) + leafCost + RS.wage; p.costN = (p.costN||0) + n;
     if (r.tier==='apprentice') r.cons = Math.min(0.86, r.cons + 0.0008);
     cash -= RS.wage; spend('Rollers', RS.wage);
-    if (o.done >= o.qty && !o.auto) toast(`Order finished: ${o.qty} ${p.name}. They rest in the cedar room for three weeks before they’re at their best.`);
+    if (o.done >= o.qty && !o.auto) toast(`Order finished: ${o.qty} ${p.name}. They rest in the cedar room for three weeks before they’re at their best.`, false, city.unlocked);
   }
   biz.orders = biz.orders.filter(o => o.done < o.qty);
 }
@@ -3146,7 +3207,7 @@ function salesTab(){
     h += `<div class="card"><b>The roadside stand</b><div class="muted">${WEEKDAYS[weekday(dayInt)]}: ${open?'open today':'closed today'}. Prices, customers and daily sales are inside.</div><div class="acts" style="justify-content:flex-start;margin-top:5px"><button class="btn" data-act="enter" data-x="stand">Go to the stand</button></div></div>`;
     h += `<div class="kpis">${kpi('Last 7 days', `${sold} sold`, fmt(rev))}${kpi('Visitors', D7.reduce((s2,r)=>s2+r.vis,0), `${pct(D7.reduce((s2,r)=>s2+r.buy,0), D7.reduce((s2,r)=>s2+r.vis,0))} bought`)}${kpi('Keeper', staff.keeper?'Doña Inés':'You', staff.keeper?'open daily':'weekends only')}</div>`;
   } else h += `<h4>Roadside stand</h4><div class="muted">Build a roadside cigar stand (Build tool) on your land, next to a road. Locals, tourists and, in time, aficionados will stop.</div>`;
-  if (ready('stand').length) h += `<div class="card"><b>Discount requests</b><div class="muted">${biz.noDiscount ? 'Your policy: no discounts. Customers who want a deal don’t ask; tourists who want a box pay the shelf price.' : 'Now and then tourists and collectors ask for a deal on a box. Some good for word of mouth, some just cost you money.'}</div><div class="vents" style="margin-top:4px"><button class="btn sm${biz.noDiscount?'':' on'}" data-act="nodisc" data-x="0">Hear them out</button><button class="btn sm${biz.noDiscount?' on':''}" data-act="nodisc" data-x="1">No discounts, as a policy</button></div></div>`;
+  if (ready('stand').length) h += `<div class="card"><b>Discount requests</b><div class="muted">${biz.noDiscount ? 'Your policy: no discounts. Customers who want a deal don’t ask, and tourists don’t come asking for boxes.' : 'Now and then tourists and collectors ask for a deal on a box. Some good for word of mouth, some just cost you money.'}</div><div class="vents" style="margin-top:4px"><button class="btn sm${biz.noDiscount?'':' on'}" data-act="nodisc" data-x="0">Hear them out</button><button class="btn sm${biz.noDiscount?' on':''}" data-act="nodisc" data-x="1">No discounts, as a policy</button></div></div>`;
   h += beltranCard();
   return h;
 }
@@ -3501,25 +3562,40 @@ const ROLLER_LOOKS = [
 const rollerLook = r => ROLLER_LOOKS[(r.look ?? r.id) % ROLLER_LOOKS.length];
 
 // ================= conversations =================
-const talk = { queue:[], flags:{}, cd:{} };
-function say(who, text, choices, key, front){
+// people who only report on the farm: once you run the city, their news goes to Messages instead of interrupting you
+const FARM_CAST = new Set(['mateo','carmen','tito','ines','ofelia','osvaldo']);
+const hasAction = ch => !!(ch && ch.some(c => c.fn));
+// opt: { tag: a newer message with the same tag replaces the older one, ttl: days before it clears itself,
+//        role: who they are now, quiet: Messages only }
+function say(who, text, choices, key, front, opt){
+  opt = opt || {};
   if (key){ if (talk.flags[key]) return; talk.flags[key] = dayInt+1; }
-  const m = { who, text, choices: choices && choices.length ? choices : [{ label:'All right' }] };
+  const m = { who, text, choices: choices && choices.length ? choices : [{ label:'All right' }], tag:opt.tag, role:opt.role };
+  const act = hasAction(choices), quiet = opt.quiet || (city.unlocked && FARM_CAST.has(who) && !act && !front);
+  logMsg({ who, role:opt.role, text, quiet });
+  if (quiet) return;
+  // plain news clears itself after two days; anything with a real choice waits for you unless it says otherwise
+  const ttl = opt.ttl ?? (act || front ? null : 2); if (ttl != null) m.until = dayInt + ttl;
+  if (m.tag){ const i = talk.queue.findIndex(x => x.tag===m.tag); if (i>=0){ talk.queue[i] = m; renderTalk(i>0); return; } }
   if (front){ talk.queue.unshift(m); renderTalk(); return; }   // an answer to something the player just did goes first
   if (talk.queue.length > 6) return;
   talk.queue.push(m);
   renderTalk();
 }
 const cool = (key, d) => { if (talk.cd[key] && dayInt - talk.cd[key] < d) return false; talk.cd[key] = dayInt; return true; };
-function renderTalk(){
+// once a day: messages past their date leave the screen (they stay in Messages)
+function talkTick(){ const head = talk.queue[0], n = talk.queue.length; talk.queue = talk.queue.filter(m => m.until==null || m.until >= dayInt); if (talk.queue.length!==n) renderTalk(talk.queue[0]===head); }
+function renderTalk(still){
   const el = $('talk'), m = talk.queue[0];
   if (!m){ el.classList.remove('show'); return; }
   const c = CAST[m.who];
   el.classList.toggle('hasart', !!ART[m.who]);
-  el.innerHTML = `<div class="tportrait">${castFace(m.who,'tface')}</div><div class="tbody">${ART[m.who] ? '' : `<div class="tname">${c.name}</div>`}<div class="trole">${c.role}</div><div class="ttext">${m.text}</div><div class="tchoices">${m.choices.map((ch,i)=>`<button class="btn sm${i===0?' on':''}" data-t="${i}">${ch.label}</button>`).join('')}</div>${talk.queue.length>1?`<div class="tmore">${talk.queue.length-1} more waiting</div>`:''}</div>`;
+  el.innerHTML = `<div class="tportrait">${castFace(m.who,'tface')}</div><div class="tbody">${ART[m.who] ? '' : `<div class="tname">${c.name}</div>`}<div class="trole">${m.role||c.role}</div><div class="ttext">${m.text}</div><div class="tchoices">${m.choices.map((ch,i)=>`<button class="btn sm${i===0?' on':''}" data-t="${i}">${ch.label}</button>`).join('')}</div>${talk.queue.length>1?`<div class="tmore">${talk.queue.length-1} more waiting${talk.queue.slice(1).some(x => !hasAction(x.choices)) ? ' · <a href="#" data-tclear="1">dismiss the news</a>' : ''}</div>`:''}</div>`;
+  if (still && el.classList.contains('show')) return;
   el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
 $('talk').addEventListener('click', e => {
+  if (e.target.closest('[data-tclear]')){ e.preventDefault(); talk.queue = talk.queue.filter((m,i) => i===0 || hasAction(m.choices)); renderTalk(true); return; }
   const b = e.target.closest('[data-t]'); if (!b) return;
   const m = talk.queue.shift(); const ch = m && m.choices[+b.dataset.t];
   if (ch && ch.fn) ch.fn();
@@ -3539,18 +3615,20 @@ function peopleTick(){
   // Señora Beltrán hears about your cigars
   if (biz.products.some(p => stockOf(p,true)>=10) && biz.beltran.status==='none') say('beltran', 'They tell me in town you’re rolling cigars up on the hill. I keep the tobacco shop on the plaza. Bring me ten of your best and I’ll tell you the truth about them. Most people don’t like the truth.', [{ label:'I’ll bring you some', fn:()=>{ opsOpen = true; opsTab = 'sales'; } }, { label:'Not yet' }], 'beltran-intro');
   // the bank
-  if (cash < 400 && debt===0 && dayInt>30 && cool('ortega', 150)) say('ortega', `Forgive me for coming out to the farm. The bank notices when an account runs thin. I can lend you $2,000 today at 1% a month. Farming is a business of waiting, and waiting costs money.`, [{ label:'Borrow $2,000', fn:()=>{ debt += 2000; cash += 2000; finCash('in', 'Bank loan', 2000); spend('Loan received', 0); toast('The bank lent you $2,000 at 1% a month.'); } }, { label:'No, thank you' }]);
+  if (cash < 400 && debt===0 && dayInt>30 && cool('ortega', 150)) say('ortega', `Forgive me for coming out to the farm. The bank notices when an account runs thin. I can lend you $2,000 today at 1% a month. Farming is a business of waiting, and waiting costs money.`, [{ label:'Borrow $2,000', fn:()=>{ debt += 2000; cash += 2000; finCash('in', 'Bank loan', 2000); spend('Loan received', 0); toast('The bank lent you $2,000 at 1% a month.'); } }, { label:'No, thank you' }], null, false, { tag:'ortega', ttl:7 });
   // a roller looking for work
   if (ready('galera').length && !staff.rollers.length) say('yamile', 'Buenas. I heard you built a workshop. I’ve rolled since I was twelve, in my aunt’s kitchen, and at the factory in town until they let half of us go. I’m fast and I’m careful. I’d work for less than they paid me.', [{ label:'Hire Yamilé ($20/day)', fn:()=>{ staff.rollers.push({ id:biz.nextId++, tier:'skilled', name:'Yamilé', cons:0.84, wage:20, rate:85, look:1 }); toast('Yamilé joins your workshop.'); } }, { label:'Not now' }], 'yamile');
   // the lector
   if (staff.rollers.length>=3 && !staff.lector) say('benitez', 'In every great galera there is a lector. Someone reads to the rollers while they work: the news in the morning, a novel in the afternoon. Dumas, Cervantes, Hugo. Their hands go steadier. I would read for you, for $15 a day.', [{ label:'Hire the lector ($15/day)', fn:()=>{ staff.lector = true; toast('Profesor Benítez reads to your rollers now. Their work is steadier.'); } }, { label:'No, thank you' }], 'lector');
-  // tourists want a box
+  // tourists want a box: before the city, and only if you hear out deals. Once you run the city they have a new life:
+  // a cigar club by mail
   const season = [11,0,1,2,3].includes(curMonth()), stand = ready('stand')[0];
   const best = biz.products.filter(p => stockOf(p,true,1)>=25).sort((a,b)=>b.price-a.price)[0];
-  if (stand && season && best && Math.random()<0.04 && cool('tourists', 25)){
+  if (city.unlocked) clubTick();
+  else if (stand && season && best && !biz.noDiscount && Math.random()<0.04 && cool('tourists', 25)){
     let offer = Math.round(25*best.price*(0.72 + Math.random()*0.45)); if (biz.noDiscount) offer = Math.max(offer, Math.ceil(25*best.price)); const cheap = offer < 25*best.price;
     say('tourists', `We stopped for coffee and ended up staying all afternoon! Could you put together a box of 25 ${esc(best.name)} for us to take home? ${cheap ? `Since it’s a whole box, would you do it for ${fmt(offer)}?` : `We’d happily pay ${fmt(offer)}, with a little note in the lid.`}` + dealBox(shelfCompare(best, 1, 25, offer)),
-      [{ label:`Sell the box (${fmt(offer)})`, fn:()=>{ const got = takeStock(best, 1, 25); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(best, 1, got, offer*got/25, 'deal'); biz.rep = Math.min(100, biz.rep+1.5); toast(`Sold a box of ${got} for ${fmt(offer*got/25)}. They promised to tell their friends.`); } }, { label:'Sorry, not today' }, ...(cheap ? [noDiscountBtn] : [])]);
+      [{ label:`Sell the box (${fmt(offer)})`, fn:()=>{ const got = takeStock(best, 1, 25); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(best, 1, got, offer*got/25, 'deal'); biz.rep = Math.min(100, biz.rep+1.5); toast(`Sold a box of ${got} for ${fmt(offer*got/25)}. They promised to tell their friends.`); } }, { label:'Sorry, not today' }, ...(cheap ? [noDiscountBtn] : [])], null, false, { tag:'tourists', ttl:3 });
   }
   // a collector wants a club price
   const fine = biz.products.filter(p => stockOf(p,true,1)>=20 && (p.rateN||0)>=5 && p.rateSum/p.rateN>=3.2).sort((a,b)=>b.rateSum/b.rateN - a.rateSum/a.rateN)[0];
@@ -3560,26 +3638,47 @@ function peopleTick(){
     say('collector', `I smoked one of your ${esc(fine.name)} at El Gordo’s bar. Very good. I run a cigar club in Miami, twenty members who love to discover a new farm. I’d take ${n} today for ${fmt2(offer)}. A club price, you understand. If they like them, they’ll come looking for you.` + dealBox(shelfCompare(fine, 1, n, offer)),
       [{ label:`Sell ${n} for ${fmt2(offer)}`, fn:() => sell(offer) },
        { label:`Counter: ${fmt2(counter)}`, fn:() => { if (Math.random() < 0.5) { say('collector', `“You drive a hard bargain. ${fmt2(counter)} it is.”`); sell(counter); } else say('collector', '“Then I’ll pass, my friend. Good luck with the farm.”'); } },
-       { label:'No, thank you' }, noDiscountBtn]);
+       { label:'No, thank you' }, noDiscountBtn], null, false, { tag:'collector', ttl:5 });
   }
   // the fiesta
   const dd = new Date(Date.UTC(2025,9,1) + dayInt*864e5);
   if (dd.getUTCMonth()===9 && dd.getUTCDate()===10 && dayInt>300 && cool('fiesta', 300)){
     const fp = biz.products.filter(p => stockOf(p,true,1)>=50).sort((a,b) => stockOf(b,true,1) - stockOf(a,true,1))[0];
     const box = fp ? dealBox([[`50 ${esc(fp.name)} at your shelf price`, `50 × ${fmt2(fp.price)} = ${fmt(50*fp.price)}`], ['What they cost you to make', fmt(50*prodCost(fp))], ['Or money for the band', '$100'], ['Reputation', '+5 for the cigars · +2 for the money']], 'The cigars are worth more on your shelf, but they cost you little to make, and the whole town smokes them at the fiesta.') : dealBox([['Rested first-quality cigars on hand', 'fewer than 50'], ['Money for the band', '$100 · reputation +2']]);
-    say('padre', 'The fiesta of San Rafael is at the end of the month. Every year the farms give something for the raffle. A box of cigars from a local farm would make the whole town proud. Or a little money for the band, if you prefer.' + box, [{ label:'Give 50 cigars', fn:()=>{ const p = biz.products.filter(p=>stockOf(p,true,1)>=50)[0]; if (!p){ toast('You don’t have 50 rested cigars. The padre smiles anyway.'); return; } takeStock(p, 1, 50); biz.rep = Math.min(100, biz.rep+5); toast('Your cigars were the talk of the fiesta. Reputation +5.'); } }, { label:'Give $100', fn:()=>{ cash -= 100; spend('Gifts', 100); biz.rep = Math.min(100, biz.rep+2); } }, { label:'Not this year' }]);
+    say('padre', 'The fiesta of San Rafael is at the end of the month. Every year the farms give something for the raffle. A box of cigars from a local farm would make the whole town proud. Or a little money for the band, if you prefer.' + box, [{ label:'Give 50 cigars', fn:()=>{ const p = biz.products.filter(p=>stockOf(p,true,1)>=50)[0]; if (!p){ toast('You don’t have 50 rested cigars. The padre smiles anyway.'); return; } takeStock(p, 1, 50); biz.rep = Math.min(100, biz.rep+5); toast('Your cigars were the talk of the fiesta. Reputation +5.'); } }, { label:'Give $100', fn:()=>{ cash -= 100; spend('Gifts', 100); biz.rep = Math.min(100, biz.rep+2); } }, { label:'Not this year' }], null, false, { tag:'fiesta', ttl:20 });
   }
   // the big grower wants your leaf
   const lot = lots.filter(l => ['fermented','baled'].includes(l.stage) && l.kg>=50 && l.q>=1).sort((a,b)=>b.q-a.q)[0];
   if (dayInt>365 && lot && Math.random()<0.03 && cool('celestino', 120)){
     const offer = Math.round(price(lot)*lot.kg*1.15), fac = price(lot)*lot.kg;
-    say('celestino', `I tasted some of your leaf at Beltrán’s. Not bad, for a newcomer. I’ll buy ${lotName(lot)}, all ${Math.round(lot.kg)} kg, for ${fmt(offer)}. That’s more than the factory will give you, and you know it.` + dealBox([['The factory would pay', `${Math.round(lot.kg)} kg × ${fmt2(price(lot))} = ${fmt(fac)}`], ['Don Celestino offers', `${fmt(offer)} · ${fmt2(offer/lot.kg)} a kg`], ['Above the factory', `+${fmt(offer-fac)} (+15%)`, 'up'], ['Or roll it yourself', `enough leaf for about ${Math.round(lot.kg/0.012).toLocaleString('en-US')} robustos`]], 'Leaf sold is money today. Leaf rolled into cigars is worth far more, but only if you can sell them.'), [{ label:`Sell it (${fmt(offer)})`, fn:()=>{ if (!lots.includes(lot)) return; cash += offer; finRev('rev.leaf', offer); year.leafSales += offer; year.soldKg += lot.kg; lots.splice(lots.indexOf(lot),1); toast(`Sold to Don Celestino for ${fmt(offer)}.`); } }, { label:'I’m keeping it' }]);
+    say('celestino', `I tasted some of your leaf at Beltrán’s. Not bad, for a newcomer. I’ll buy ${lotName(lot)}, all ${Math.round(lot.kg)} kg, for ${fmt(offer)}. That’s more than the factory will give you, and you know it.` + dealBox([['The factory would pay', `${Math.round(lot.kg)} kg × ${fmt2(price(lot))} = ${fmt(fac)}`], ['Don Celestino offers', `${fmt(offer)} · ${fmt2(offer/lot.kg)} a kg`], ['Above the factory', `+${fmt(offer-fac)} (+15%)`, 'up'], ['Or roll it yourself', `enough leaf for about ${Math.round(lot.kg/0.012).toLocaleString('en-US')} robustos`]], 'Leaf sold is money today. Leaf rolled into cigars is worth far more, but only if you can sell them.'), [{ label:`Sell it (${fmt(offer)})`, fn:()=>{ if (!lots.includes(lot)) return; cash += offer; finRev('rev.leaf', offer); year.leafSales += offer; year.soldKg += lot.kg; lots.splice(lots.indexOf(lot),1); toast(`Sold to Don Celestino for ${fmt(offer)}.`); } }, { label:'I’m keeping it' }], null, false, { tag:'celestino', ttl:10 });
   }
 }
 // requests for a discount already waiting in the queue go too, once the policy is set
 const isDiscountAsk = m => m.who==='collector' || (m.who==='tourists' && /would you do it for/.test(m.text));
 function dropDiscountAsks(){ const n = talk.queue.length; talk.queue = talk.queue.filter(m => !isDiscountAsk(m)); if (talk.queue.length !== n) renderTalk(); }
 const noDiscountBtn = { label:'No discounts, as a policy', fn:()=>{ biz.noDiscount = true; setTimeout(dropDiscountAsks, 0); toast('From now on you sell at your shelf price. Nobody will ask for a discount; you can change this on the Sales tab.'); } };
+// Ann and Pete went home and started a club: a new cigar in the mail every month for a few hundred aficionados
+function clubTick(){
+  const C = city.club || (city.club = { members: 280 + Math.floor(Math.random()*120), featured:{}, no:0 });
+  if (Math.random() > 0.035 || !cool('club', C.no>=2 ? 150 : 75)) return;
+  const fresh = biz.products.filter(p => !C.featured[p.id] && stockOf(p,true,1) >= 60).sort((a,b) => b.id - a.id)[0];
+  if (!fresh) return;
+  const role = 'They run The Humidor Post, a cigar club by mail', shelf = fresh.price, have = stockOf(fresh, true, 1);
+  // with your no-discount policy the club pays your price, and only the members who opt in order
+  const per = biz.noDiscount ? shelf : Math.round(shelf*(0.55 + Math.random()*0.1)*4)/4;
+  const n = Math.min(have, Math.round(C.members*(biz.noDiscount ? 0.2 : 1)/10)*10); if (n < 40) return;
+  const amt = Math.round(n*per);
+  const ask = biz.noDiscount
+    ? `We know you don’t discount, so here’s our idea: we feature your ${esc(fresh.name)} in this month’s letter, and the members who want it order at your price. We think about ${n} of them will.`
+    : `We’d love to send them your ${esc(fresh.name)}: ${n} sticks, one per member, at ${fmt2(per)} each, a club price. Or, if you’d rather keep your price, we can run a members’ offer for your shops instead.`;
+  say('tourists', `Remember us? We came for coffee at your stand and left with a box. Back home we started The Humidor Post: every month ${C.members} members get a new cigar in the mail, with a card about the farm that made it. ${ask}` +
+    dealBox([[`${n} at ${biz.noDiscount ? 'your price' : 'the club price'}`, `${n} × ${fmt2(per)} = ${fmt(amt)}`], ['Your farm price', `${fmt2(shelf)} a stick`], ['What they cost you to make', fmt(n*prodCost(fresh))], ['Members’ offer instead', '50 sample cigars, no sale today, more people in your shops']], 'A club box puts your band in the hands of people who buy cigars for the pleasure of discovering them. Some will come looking for more.'),
+    [{ label:`Feature it · ${fmt(amt)}`, fn:()=>{ const got = takeStock(fresh, 1, n); if (!got){ toast('You no longer have them rested and ready.'); return; } const v = Math.round(got*per); cash += v; if (!city.m) city.m = newMonth(); cityEarn(v, 'accounts'); finUnits(fresh.id, got, v, 'accounts'); city.m.cogs += got*prodCost(fresh); fresh.citySold = (fresh.citySold||0) + got; C.featured[fresh.id] = dayInt; C.no = 0; city.aware = Math.min(100, city.aware + 3); biz.rep = Math.min(100, biz.rep + 1); toast(`The Humidor Post took ${got} ${fresh.name} for ${fmt(v)}. Aficionados across the club will smoke your cigar this month.`); } },
+     { label:'Run a members’ offer', fn:()=>{ const got = takeStock(fresh, 1, 50); C.featured[fresh.id] = dayInt; C.no = 0; city.aware = Math.min(100, city.aware + (got>=50 ? 5 : 2)); toast(`${got} samples went out with the club’s letter. Members are asking for ${fresh.name} in your shops.`); } },
+     { label:'Not this time', fn:()=>{ C.no++; C.featured[fresh.id] = dayInt; } }], null, false, { role, tag:'club', ttl:5 });
+  C.members = Math.round(C.members * (1 + Math.random()*0.04));
+}
 function aurelioTick(){
   if (!talk.flags.hello && gameId) say('aurelio', 'So you’re the one who bought the land up the hill. Fifty years I’ve farmed this valley. Come and sit with me when you can. A cup of coffee costs nothing, and you have a lot to learn.', [{ label:'Visit him now', fn:()=>openElder() }, { label:'Later' }], 'hello');
   const L = LESSONS.find(x => x.need>0 && x.need<=elder.trust && !elder.read.has(x.id) && !talk.flags['les-'+x.id]);
@@ -4451,7 +4550,7 @@ const V_FAVORS = [
 const city = {};
 function resetCity(){
   for (const k of Object.keys(city)) delete city[k];
-  Object.assign(city, { unlocked:false, hinted:false, respect:5, read:[], done:[], perks:[], cd:{}, said:'', sel:0, game:null, vsel:0,
+  Object.assign(city, { club:null, unlocked:false, hinted:false, respect:5, read:[], done:[], perks:[], cd:{}, said:'', sel:0, game:null, vsel:0,
     dd:{}, neg:null, shops:[], pos:null, world:{}, worldOpen:false, opsSub:'overview', wsel:'miami', aware:0, line:{ bal:0 }, months:[], m:null, daily:[], log:null, comments:[],
     accounts:ACCOUNTS.map(a => ({ k:a.k, status:'none', pid:0, wk:a.wk, missed:0, said:'' })), ar:[], markets:{}, ratings:{}, subs:[], fair:null, brokers:[], brokerV2:true, brokerDay:-99,
     stats:{ cohMonth:0, servedStreak:0, profitMonths:0 }, global:false, globalDay:null, events:{}, lastAdvice:'' });
@@ -4741,7 +4840,7 @@ function closeMonth(){
   const lines = done.map(([S, m]) => `${shopL(S).name}: sold ${fmt(m.rev.cigars+m.rev.acc+m.rev.bar)}, ${monthNet(m)>=0?`made ${fmt(monthNet(m))}`:`lost ${fmt(-monthNet(m))}`}`);
   const tot = done.reduce((s,[S,m]) => s + monthNet(m), 0), young = done.some(([S]) => (S.months||[]).filter(x => x.open).length <= 4);
   const first = done.find(([S, m]) => monthNet(m) < 0) || done[0];
-  if (city.unlocked) say('victoria', `The books for ${mo}. ${lines.join('. ')}. That is after paying for the cigars themselves. ${tot<0 && young ? 'The first months are the valley. Know how deep it is.' : tot<0 ? 'Bring me the books. We need to talk.' : 'Good. Now do it again.'}`, [{ label:'Show me the books', fn:()=>openShop(first[0].lid, 'books') }, { label:'Later' }], 'month-'+dayInt);
+  if (city.unlocked) say('victoria', `The books for ${mo}. ${lines.join('. ')}. That is after paying for the cigars themselves. ${tot<0 && young ? 'The first months are the valley. Know how deep it is.' : tot<0 ? 'Bring me the books. We need to talk.' : 'Good. Now do it again.'}`, [{ label:'Show me the books', fn:()=>openShop(first[0].lid, 'books') }, { label:'Later' }], 'month-'+dayInt, false, { tag:'v-books', ttl:1 });
   else toast(`${mo} at the shop in San Rafael: ${lines[0].split(': ')[1]}.`);
 }
 function evict(S){ const L = shopL(S); if (fin){ finDispose(S.lid, 0); if (S.lease) fin.cur.other -= (S.deposit||0); } attention(`Evicted. The landlord took back ${L.name} and kept your deposit. Everything you built inside stays with the building.`); city.shops = city.shops.filter(x => x!==S); city.stats.servedStreak = 0; if (scene && scene.lid===S.lid) closeScene(); if (city.unlocked) say('victoria', 'It happens to better people than you, and to worse. Pay what you owe, sleep, and then tell me what you learned. A shop is a bet. Bet smaller next time, or with more cushion.'); }
@@ -4874,7 +4973,7 @@ function cityTick(){
   if (dayInt - city.brokerDay >= 30) refreshBrokers();
   for (const S of city.shops) if (S.built && regionS(S)==='city' && !S.compHit && dayInt - S.opened > 150 && Math.random()<0.004){ S.compHit = dayInt + 120; attention(`${['A big Spanish brand','Casa Montero','A hotel group'][Math.floor(Math.random()*3)]} opened a new cigar shop near yours on ${shopL(S).name}. Fewer people will come in for a few months, unless they have a reason to choose you.`); }
   checkGlobal(); checkVMissions();
-  if (city.shops.some(S => S.built && regionS(S)==='city') && city.respect<15 && !vKnow('breakeven') && cool('v-nudge', 60)) say('victoria', 'Come and see me. Bring the books. We can learn more in one hour with numbers than in a month of hoping.', [{ label:'Visit her', fn:()=>openMentor() }, { label:'Later' }]);
+  if (city.shops.some(S => S.built && regionS(S)==='city') && city.respect<15 && !vKnow('breakeven') && cool('v-nudge', 60)) say('victoria', 'Come and see me. Bring the books. We can learn more in one hour with numbers than in a month of hoping.', [{ label:'Visit her', fn:()=>openMentor() }, { label:'Later' }], null, false, { tag:'v-books', ttl:1 });
 }
 function trailing12(){ const shops = city.shops.reduce((s,S) => s + (S.months||[]).slice(-12).reduce((a,m)=>a+monthRev(m),0), 0), cityRev = city.months.slice(-12).reduce((s,m)=>s+monthRev(m),0) + shops, farm = biz.weeks.slice(-52).reduce((s,w)=>s+(w.revenue||0)+(w.wholesale||0),0); return cityRev + farm; }
 function checkGlobal(){
@@ -6103,19 +6202,19 @@ function dailyTick(){
     b.hum = Math.max(35, Math.min(99, b.hum));
     if (curing.length){
       const off = b.hum>80 ? 'damp' : b.hum<62 ? 'dry' : '';
-      if (off){ b.offDays = (b.offDays||0)+1; if (b.offDays===3) attention(`The ${bName(b).toLowerCase()} is too ${off} (${Math.round(b.hum)}%). ${off==='damp'?'Close the vents in rain and open them on dry days.':'Close the vents to hold moisture in.'}`); }
+      if (off){ b.offDays = (b.offDays||0)+1; if (b.offDays===3) farmNote(`The ${bName(b).toLowerCase()} is too ${off} (${Math.round(b.hum)}%). ${staff.tender || farmMgr() ? 'Someone is working the vents; the weather is doing the rest.' : off==='damp'?'Close the vents in rain and open them on dry days.':'Close the vents to hold moisture in.'}`, !!(staff.tender || farmMgr())); }
       else b.offDays = 0;
     }
     for (const l of curing){
       l.cd++;
       const ideal = b.hum>=65 && b.hum<=80, near = b.hum>=60 && b.hum<=85;
       l.score += ideal?1 : near?0.55 : 0.15;
-      if (b.hum>88){ l.mold += PRIM[l.pr].mold; if (l.mold>=3 && !l.moldWarned){ l.moldWarned = true; attention(`Mold is showing on ${lotName(l)} in the ${bName(b).toLowerCase()}. Open the vents.`); } }
+      if (b.hum>88){ l.mold += PRIM[l.pr].mold; if (l.mold>=3 && !l.moldWarned){ l.moldWarned = true; farmNote(`Mold is showing on ${lotName(l)} in the ${bName(b).toLowerCase()}. Open the vents.`); } }
       if (l.cd >= PRIM[l.pr].cure){
         l.stage = 'cured';
         const cf = 0.65 + 0.35*(l.score/PRIM[l.pr].cure);
         l.q = Math.max(0.35, l.q*cf*(1-Math.min(0.45,l.mold*0.04)));
-        year.grades.push(grade(l.q)); if (['A+','A'].includes(grade(l.q)) && !elder.stats.primA.includes(l.pr)) elder.stats.primA.push(l.pr); attention(`${lotName(l)} has finished curing: grade ${grade(l.q)}.`);
+        year.grades.push(grade(l.q)); if (['A+','A'].includes(grade(l.q)) && !elder.stats.primA.includes(l.pr)) elder.stats.primA.push(l.pr); farmNote(`${lotName(l)} has finished curing: grade ${grade(l.q)}.`);
       }
     }
   }
@@ -6124,11 +6223,11 @@ function dailyTick(){
     l.temp += 2.0 + 1.6*wrnd();
     l.heat += Math.max(0, l.temp-82);
     if (l.temp>115) l.scorch++;
-    if (l.temp>=108 && !l.hotWarned && !workerOf('turner')){ l.hotWarned = true; attention(`Pilón temperature for ${lotName(l)} is ${Math.round(l.temp)}°F. Turn the pile soon.`); }
+    if (l.temp>=108 && !l.hotWarned && !workerOf('turner')){ l.hotWarned = true; farmNote(`Pilón temperature for ${lotName(l)} is ${Math.round(l.temp)}°F. Turn the pile soon.`); }
     if (l.heat>=PRIM[l.pr].heat && l.turns>=PRIM[l.pr].turns){
       l.stage = 'fermented';
       l.q = Math.max(0.35, l.q*Math.max(0.6, 1.12 + (perk('pilonHands')?0.03:0) - 0.035*l.scorch + WORKERS.turner.tiers.pro.q*Math.min(1, (l.proTurns||0)/Math.max(1, l.turns))));
-      attention(`${lotName(l)} has finished fermenting: grade ${grade(l.q)}.`);
+      farmNote(`${lotName(l)} has finished fermenting: grade ${grade(l.q)}.`);
     }
   }
   managerTick(); turnerTick(); balerTick();
@@ -6138,11 +6237,11 @@ function dailyTick(){
   const ripeNow = ripeBy[0], laterRipe = ripeBy[1]+ripeBy[2];
   for (const row of map) for (const t of row) if (t.pick>0) t.pick--;
   crewTick();
-  if (ripeNow && staff.hands>0) toast(`The volado is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Your field hands are starting the first pass.`);
-  else if (ripeNow){ attention(`The volado (bottom leaves) is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Each priming keeps its quality for about four weeks. Seco and ligero follow over the next few weeks.`); }
-  if (laterRipe && !staff.hands){ const which = ripeBy[2]?'ligero':'seco'; attention(`The ${which} is ready on ${laterRipe} tile${laterRipe>1?'s':''}. Time for the next pass.`); }
+  if (ripeNow && staff.hands>0) toast(`The volado is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Your field hands are starting the first pass.`, false, city.unlocked);
+  else if (ripeNow){ farmNote(`The volado (bottom leaves) is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Each priming keeps its quality for about four weeks. Seco and ligero follow over the next few weeks.`); }
+  if (laterRipe && !staff.hands){ const which = ripeBy[2]?'ligero':'seco'; farmNote(`The ${which} is ready on ${laterRipe} tile${laterRipe>1?'s':''}. Time for the next pass.`); }
   if (wx==='Rain' && wetSeason()) for (const row of map) for (const t of row) if (t.work==='seeded') t.g += 0.15; // rain-fed bonus
-  fieldTick(); businessTick(); peopleTick(); aurelioTick(); cityTick(); finDaily();
+  talkTick(); fieldTick(); businessTick(); peopleTick(); aurelioTick(); cityTick(); finDaily();
   const dnow = new Date(Date.UTC(2025,9,1) + dayInt*864e5);
   if (dnow.getUTCMonth()===7 && dnow.getUTCDate()===1 && know('storms') && cash>=1500) elder.stats.stormReady = 1;
   if (debt>0 && dayInt%30===0){ const i = Math.round(debt*0.01); if (cash>=i) cash -= i; else debt += i; spend('Interest', i); }
@@ -6157,7 +6256,7 @@ const r3 = x => Math.round((x||0)*1000)/1000;
 function serialize(){
   const tiles = map.slice(0, NR_FARM).flat().map(t => [t.t, t.owned?1:0, t.work||0, r3(t.g), t.v||0, r3(t.hp??1), t.pr||0, t.seen??-1, t.top||0, r3(t.worm), r3(t.bmold), t.prot||0, t.shankHit?1:0, t.pick||0, r3(t.tested), t.b||0, t.price, r3(t.soil.ph), r3(t.soil.nit), r3(t.soil.drain), r3(t.soil.shank), t.soil.consec, Math.min(9999, Math.round(t.soil.fallow))]);
   return { v:2, cols:NC, meta:gameMeta, cash, debt, days, dayInt, wx, wxQ, nextB, nextLot, variety, tiles, buildings, lots, staff:{...staff}, year, lastAlert:{...lastAlert},
-    talk:{ flags:talk.flags, cd:talk.cd },
+    talk:{ flags:talk.flags, cd:talk.cd, log:talk.log.slice(-150) },
     biz:{ lotInfo:biz.lotInfo||{}, brand:biz.brand||null, today:biz.today||null, blends:biz.blends, products:biz.products, orders:biz.orders, nextId:biz.nextId, rep:biz.rep, comments:biz.comments, weeks:biz.weeks, cur:biz.cur, seg:biz.seg, beltran:biz.beltran, daily:biz.daily, log:biz.log, lastLog:biz.lastLog, reg:biz.reg, noDiscount:!!biz.noDiscount },
     city:JSON.parse(JSON.stringify(city)), fin:fin ? JSON.parse(JSON.stringify(fin)) : null,
     elder:{ trust:elder.trust, read:[...elder.read], cd:elder.cd, roof:elder.roof, seed:elder.seed, said:elder.said, done:[...elder.done], perks:[...elder.perks], stats:elder.stats }, cam:{...cam} };
@@ -6191,7 +6290,7 @@ function restore(st){
   cash = st.cash; debt = st.debt||0; days = st.days; dayInt = st.dayInt; wx = st.wx; wxQ = st.wxQ||[]; nextB = old ? nextB : st.nextB; nextLot = st.nextLot;
   Object.assign(staff, { rollers:[], keeper:false }, st.staff); year = Object.assign(newYear(), st.year);
   migrateStaff(st.staff);
-  if (st.talk){ talk.flags = st.talk.flags||{}; talk.cd = st.talk.cd||{}; }
+  if (st.talk){ talk.flags = st.talk.flags||{}; talk.cd = st.talk.cd||{}; talk.log = st.talk.log||[]; talk.unread = 0; updateMsgBadge(); }
   if (st.biz){ Object.assign(biz, st.biz, { bench:null }); if (!biz.seg || !biz.seg.local) biz.seg = freshSegStats(); if (!biz.cur) biz.cur = newWeek(); biz.daily = biz.daily || []; biz.reg = biz.reg || {}; biz.products.forEach(normProduct); } Object.assign(lastAlert, st.lastAlert);
   const e = st.elder;
   Object.assign(elder, { trust:e.trust, read:new Set(e.read), cd:e.cd||{}, roof:e.roof, seed:false, said:e.said, done:new Set(e.done||[]), perks:new Set(e.perks||[]), stats:Object.assign({ planted:0, topOnTime:0, soldGood:0, stormReady:0, primA:[] }, e.stats), game:null, sel:0 });
