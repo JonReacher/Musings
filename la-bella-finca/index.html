@@ -148,6 +148,8 @@
   .menubox textarea{height:70px;font-size:11px}
   .formrow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
   .formrow label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.7}
+  #printout{display:none}
+  @media print{ body.printing > *:not(#printout){display:none !important} body.printing #printout{display:block;padding:10px;font:12px/1.45 Nunito,sans-serif;color:#000} body.printing #printout .said{font-style:italic} }
   #msglog{position:fixed;left:50%;top:84px;transform:translateX(-50%);width:min(580px,94vw);max-height:calc(100vh - 120px);display:none;flex-direction:column;padding:12px 14px;z-index:14;font-size:13px;line-height:1.45}
   #msglog.show{display:flex}
   #msglog .mhead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
@@ -363,7 +365,7 @@
     </div>
   </div>
   <div class="panel wx"><span id="wxicon"></span><div><span class="lbl" id="season">Dry season</span><div class="date" id="wx">Sunny</div></div><div id="fc"></div></div>
-  <div class="panel btns"><button class="btn" id="opsBtn">Operations</button><button class="btn" id="msgBtn" title="Everything people said and every notice (M)">Messages</button><button class="btn" id="saveBtn">Save</button><button class="btn" id="brandBtn">Brand</button><button class="btn" id="cityBtn" style="display:none">City</button><button class="btn" id="menuBtn">Games</button><a class="btn" id="musicBtn" href="https://www.youtube.com/watch?v=t6z4RXktp84&amp;list=RDt6z4RXktp84&amp;start_radio=1" target="_blank" rel="noopener noreferrer" title="Open the soundtrack on YouTube in a new tab" style="text-decoration:none;display:inline-flex;align-items:center">♫ Soundtrack</a><small id="saveStat" class="muted"></small></div>
+  <div class="panel btns"><button class="btn" id="opsBtn">Operations</button><button class="btn" id="gradeBtn" title="Your grade as a business, month by month (G)">Report card</button><button class="btn" id="msgBtn" title="Everything people said and every notice (M)">Messages</button><button class="btn" id="saveBtn">Save</button><button class="btn" id="brandBtn">Brand</button><button class="btn" id="cityBtn" style="display:none">City</button><button class="btn" id="menuBtn">Games</button><a class="btn" id="musicBtn" href="https://www.youtube.com/watch?v=t6z4RXktp84&amp;list=RDt6z4RXktp84&amp;start_radio=1" target="_blank" rel="noopener noreferrer" title="Open the soundtrack on YouTube in a new tab" style="text-decoration:none;display:inline-flex;align-items:center">♫ Soundtrack</a><small id="saveStat" class="muted"></small></div>
 </div>
 
 <div id="toasts"></div>
@@ -381,6 +383,7 @@
 <div id="bench" class="panel"></div>
 <div id="talk" class="panel"></div>
 <div id="msglog" class="panel"></div>
+<div id="printout"></div>
 <div id="scene"></div>
 <div id="brand" class="panel"></div>
 <div id="title"><div class="tbg"></div><div class="tart"><div class="tbtns"><button data-ts="new">New game</button><button class="alt" data-ts="load">Load game</button></div></div></div>
@@ -847,6 +850,10 @@ function renderMsgLog(){
   el.innerHTML = h + '</div>';
 }
 $('msgBtn').onclick = () => openMsgLog();
+$('gradeBtn').onclick = () => { if ($('review').classList.contains('show') && reportOpen){ $('review').classList.remove('show'); reportOpen = false; setSpeed(reviewPrev); } else openReport(); };
+$('review').addEventListener('click', e => { const b = e.target.closest('[data-rc]'); if (!b) return;
+  if (b.dataset.rc==='copy'){ const t = reportText(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('The report card is copied. Paste it anywhere.'), () => { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('The report card is copied.'); } catch(_){} ta.remove(); }); }
+  if (b.dataset.rc==='print'){ const w = $('printout'); w.innerHTML = reportHTML(true); document.body.classList.add('printing'); window.print(); setTimeout(() => document.body.classList.remove('printing'), 500); } });
 $('msglog').addEventListener('click', e => {
   const f = e.target.closest('[data-mf]'); if (f){ msgFilter = f.dataset.mf; renderMsgLog(); return; }
   const o = e.target.closest('[data-mopen]'); if (o){ reopenOffer(+o.dataset.mopen); return; }
@@ -933,6 +940,7 @@ window.addEventListener('keydown', e => {
   if (e.key===' '){ e.preventDefault(); setSpeed(speedIdx===0?1:0); }
   if (e.key==='o') $('opsBtn').click();
   if (e.key==='m') openMsgLog();
+  if (e.key==='g') $('gradeBtn').click();
   const step = 40;
   if (e.key==='ArrowLeft'||e.key==='a') cam.x += step; if (e.key==='ArrowRight'||e.key==='d') cam.x -= step;
   if (e.key==='ArrowUp'||e.key==='w') cam.y += step;   if (e.key==='ArrowDown'||e.key==='s') cam.y -= step;
@@ -1220,6 +1228,117 @@ function finBS(){
   const assets = c + ar + leaf + cig + dep + land + ppe, liab = debt + line + mort + term + over;
   return { cash:c, ar, leaf, cig, inv:leaf+cig, dep, land, ppe, assets, bank:debt, line, mort, term, over, liab, equity:assets - liab, cur: c + ar + leaf + cig, curL: line + over + debt + (fin && fin.term ? Math.min(fin.term.bal, fin.term.pay*12) : 0) };
 }
+// ================= the report card =================
+// Like a teacher grading a long assignment: every month, when the books close, six fundamentals are scored 0-100.
+// The final grade is a weighted average of those months, where later months count more, and later stages more still:
+// early mistakes are part of learning; what matters is whether the student ends with a business that lasts.
+const GRADE_CATS = [
+  { k:'profit', name:'Profitability', w:25, lesson:'numbers', bench:'EBITDA margin of 15% or more' },
+  { k:'cash',   name:'Cash and safety', w:20, lesson:'cash', bench:'three months of costs in the bank' },
+  { k:'growth', name:'Growth', w:15, lesson:'scale', bench:'sales up 10% or more on a year ago' },
+  { k:'debt',   name:'Debt and risk', w:15, lesson:'chain', bench:'net debt under 2× EBITDA, no channel over 60% of sales' },
+  { k:'brand',  name:'Customers and brand', w:15, lesson:'story', bench:'a rated cigar and a name people know' },
+  { k:'ops',    name:'Operations and quality', w:10, lesson:'people', bench:'few seconds, few empty shelves, no one walking out' },
+];
+const STAGE_W = { A:1, B:2, C:3, D:4 };
+const clamp100 = v => Math.max(0, Math.min(100, Math.round(v)));
+function markFail(k, daily){ if (!fin) return; const F = fin.fails || (fin.fails = {}); if (daily){ if (F['_'+k]===dayInt) return; F['_'+k] = dayInt; } F[k] = (F[k]||0) + 1; (fin.cur.fails || (fin.cur.fails = {}))[k] = 1; }
+function gradeMonth(rec){
+  const st = fin.stage || finStage(), K = finKPIs(), ms = lastMonths(3), n = ms.length || 1;
+  const costs = ms.reduce((a,m) => a + m.pl.prod + m.pl.opex, 0)/n, rev12 = t12('rev'), prev = fin.months.slice(-24, -12), revPrev = prev.reduce((a,m) => a + m.pl.rev, 0);
+  const sc = {};
+  // profitability: EBITDA margin over three months (a farm with no sales yet is judged on its cash instead)
+  sc.profit = K.rev3 > 0 ? clamp100(50 + (K.em||0)*250) : st==='A' ? 50 : 20;
+  // cash: months of costs covered, less for living on the credit line and for any failure to pay
+  const cover = costs > 0 ? Math.max(0, cash)/costs : 6, f = rec.fails || {};
+  sc.cash = clamp100(Math.min(cover, 4)/3*100 - (city.line && city.line.bal > 0 ? 15 : 0) - (f.overdrawn ? 25 : 0) - (f.payroll || f.rent || f.loan ? 30 : 0) - (f.evict ? 40 : 0));
+  // growth: year on year once there is a year of history, otherwise the last three months against the three before
+  let g = null; if (prev.length >= 6 && revPrev > 0) g = rev12/(revPrev*12/prev.length) - 1;
+  else { const a = fin.months.slice(-6, -3).reduce((s2,m) => s2 + m.pl.rev, 0); if (a > 0) g = K.rev3/a - 1; }
+  sc.growth = g==null ? 50 : clamp100(50 + Math.max(-0.5, Math.min(0.5, g))*120);
+  // debt and risk: leverage, plus too much of the business in one channel (from the city on)
+  const chans = {}; for (const m of ms) for (const k in m.rev) chans[k] = (chans[k]||0) + m.rev[k]; const top = K.rev3 > 0 ? Math.max(...Object.values(chans), 0)/K.rev3 : 0;
+  sc.debt = clamp100((K.netDebt <= 0 ? 100 : K.lev==null ? 25 : K.lev <= 1 ? 90 : K.lev <= 2 ? 80 : K.lev <= 3 ? 65 : K.lev <= 4 ? 45 : 25) - ((st==='C'||st==='D') && top > 0.6 ? 15 : 0));
+  // customers and brand: reputation on the farm, then awareness and the press, then recognition around the world
+  const br = bestRating(), rate = br ? clamp100((br.score-80)*7) : 0;
+  sc.brand = st==='A' || st==='B' ? clamp100(biz.rep) : st==='C' ? clamp100(city.aware*0.55 + rate*0.45) : clamp100(recognition().global*0.5 + city.aware*0.2 + rate*0.3);
+  // operations: seconds from the workshop, empty shelves and customers nobody served in the shops
+  const D = lastDays(30), made = D.reduce((a,r) => a + r.made + r.made2, 0), sec = made ? D.reduce((a,r) => a + r.made2, 0)/made : null;
+  const sm = city.shops ? city.shops.map(S => (S.months||[]).slice(-1)[0]).filter(Boolean) : [], vis = sm.reduce((a,m) => a + (m.vis||0), 0), lost = sm.reduce((a,m) => a + (m.walk||0) + (m.empty||0), 0);
+  sc.ops = clamp100((sec==null ? 70 : 100 - sec*250) - (vis ? Math.min(40, lost/vis*400) : 0));
+  const total = Math.round(GRADE_CATS.reduce((a,c) => a + sc[c.k]*c.w, 0)/100);
+  (fin.grades || (fin.grades = [])).push({ key:rec.key, label:rec.label, d:dayInt, st, sc, total, rev:Math.round(rec.pl.rev), net:Math.round(rec.pl.net), cash:Math.round(cash) });
+  if (fin.grades.length > 120) fin.grades.shift();
+  updateGradeBtn();
+}
+const letterOf = v => v>=93?'A':v>=90?'A−':v>=87?'B+':v>=83?'B':v>=80?'B−':v>=77?'C+':v>=73?'C':v>=70?'C−':v>=67?'D+':v>=60?'D':'F';
+// the course grade: later months and later stages weigh more
+function courseGrade(){
+  const G = (fin && fin.grades) || []; if (!G.length) return null;
+  let sw = 0, sv = 0; const cat = {}; GRADE_CATS.forEach(c => cat[c.k] = 0);
+  G.forEach((g,i) => { const w = STAGE_W[g.st] * (1 + 2*i/Math.max(1, G.length-1)); sw += w; sv += g.total*w; GRADE_CATS.forEach(c => cat[c.k] += g.sc[c.k]*w); });
+  GRADE_CATS.forEach(c => cat[c.k] = Math.round(cat[c.k]/sw));
+  const L = lasting(), score = Math.round(Math.max(0, Math.min(100, sv/sw + (L.passed - 3)*2)));   // a lasting business moves the grade a few points
+  return { score, letter:letterOf(score), cat, L, months:G.length };
+}
+// did they build a business that lasts? judged on the last twelve months
+function lasting(){
+  const ms = lastMonths(12), net12 = ms.reduce((a,m) => a + m.pl.net, 0), K = finKPIs(), costs = ms.length ? ms.reduce((a,m) => a + m.pl.prod + m.pl.opex, 0)/ms.length : 0;
+  const prev = fin.months.slice(-24, -12), g = prev.length >= 6 ? t12('rev')/Math.max(1, prev.reduce((a,m) => a + m.pl.rev, 0)*12/prev.length) - 1 : null;
+  const recent = fin.grades ? fin.grades.slice(-12) : [], failsRecent = [...ms, fin.cur].some(m => m.fails && (m.fails.payroll || m.fails.rent || m.fails.loan || m.fails.evict || m.fails.overdrawn)), br = bestRating();
+  const items = [
+    ['Profitable over the last twelve months', ms.length >= 6 && net12 > 0, ms.length >= 6 ? `net ${fmt(net12)}` : 'not enough months yet'],
+    ['Three months of costs in the bank', cash >= costs*3 && cash > 0, costs ? `${(Math.max(0,cash)/costs).toFixed(1)} months` : 'no running costs'],
+    ['Debt it can carry (net debt under 3× EBITDA)', K.netDebt <= 0 || (K.lev != null && K.lev < 3), K.netDebt <= 0 ? 'net cash' : K.lev==null ? 'no earnings to pay it' : `${K.lev.toFixed(1)}×`],
+    ['Sales growing year on year', g != null && g > 0, g==null ? 'not a full year yet' : `${g>=0?'+':''}${Math.round(g*100)}%`],
+    ['Paid every bill this year, never overdrawn', !failsRecent, failsRecent ? 'missed a payment or went overdrawn' : 'yes'],
+    ['A name customers know', (br && br.score >= 88) || (city.unlocked ? city.aware >= 50 : biz.rep >= 60), br ? `best rating ${br.score}` : city.unlocked ? `awareness ${Math.round(city.aware)}` : `reputation ${Math.round(biz.rep)}`],
+  ];
+  return { items, passed: items.filter(x => x[1]).length };
+}
+function updateGradeBtn(){ const el = $('gradeBtn'); if (!el) return; const C = courseGrade(); el.innerHTML = C ? `Report card <b>${C.letter}</b>` : 'Report card'; }
+// a teacher's comment for each category: what the number means and which lesson to reread
+const GRADE_TIPS = {
+  profit:['Your prices and your costs work: each month leaves real money after everyone is paid.', 'Too little is left after costs. Check the margin on each cigar (Finance → Products) and the break-even line before opening anything new.'],
+  cash:['You keep a cushion. When the bad month comes, you can wait it out.', 'The cash runs thin. Keep three months of costs in the bank, collect what you are owed, and never run payroll on hope.'],
+  growth:['Sales keep climbing, and not by accident.', 'Sales are flat or falling. Find the customers you are missing: a new channel, a better street, or a cigar people talk about.'],
+  debt:['You borrow carefully and no single customer can sink you.', 'Too much debt for what you earn, or too much of your business in one channel. Pay down before you expand, and spread your sales.'],
+  brand:['People know your name and trust your cigars.', 'Too few people know you. Get a rating, tell the farm’s story, and make the price, the room and the cigar say the same thing.'],
+  ops:['The work is done well: good cigars, full shelves, nobody left waiting.', 'Customers walk out unserved or find the shelves empty, or the rollers make too many seconds. Fix the basics before growing.'],
+};
+function reportHTML(print){
+  const C = courseGrade(), G = fin.grades || [];
+  const name = biz.brand ? esc(biz.brand.name) : esc((gameMeta && gameMeta.farm) || 'Your farm'), who = esc((gameMeta && gameMeta.player) || 'Student');
+  let h = print ? '' : `<button class="btn sm closeX" data-close="1">Close</button>`;
+  h += `<h2>Report card · ${name}</h2><div class="muted">${who} · ${dateStr()} · ${G.length} month${G.length===1?'':'s'} of books · stage now: ${FIN_STAGES[finStage()]}</div>`;
+  if (!C) return h + `<p>The first grade comes when the books close for your first month, on the 1st. Every month after that is scored on six fundamentals.</p>`;
+  h += `<div class="kpis" style="margin-top:8px">${kpi('Course grade', `${C.letter} · ${C.score}`, 'later months and later stages count more')}${kpi('This month', `${letterOf(G[G.length-1].total)} · ${G[G.length-1].total}`, G[G.length-1].label)}${kpi('A lasting business', `${C.L.passed} of 6`, 'see the checklist below')}</div>`;
+  if (G.length >= 2) h += `<h4>Fundamentals, month by month</h4>` + fline({ vals:G.map(g => g.total), labels:G.map(g => g.label.split(' ')[0] + ' ' + g.label.split(' ').slice(-1)), fy:v => Math.round(v), color:'#3f7a4a' });
+  h += `<h4>The six fundamentals</h4><table class="fs fsk"><tbody>` + GRADE_CATS.map(c => { const v = C.cat[c.k], now = G[G.length-1].sc[c.k];
+    return `<tr><td><b>${c.name}</b> <span class="muted">· ${c.w}% of the grade · aim for ${c.bench}</span><div class="muted">${GRADE_TIPS[c.k][v >= 70 ? 0 : 1]}${v < 70 && !print ? ` Reread Doña Victoria’s “${(V_LESSONS.find(L => L.id===c.lesson)||{}).title}”.` : ''}</div></td><td class="${v>=70?'okc':v>=50?'':'negc'}">${letterOf(v)} · ${v}<div class="muted">now ${now}</div></td></tr>`; }).join('') + `</tbody></table>`;
+  h += `<h4>Did they build a lasting business?</h4>` + verdicts(C.L.items.map(([t, ok, d]) => [ok ? 'ok' : 'bad', `${t}: ${d}`]));
+  // by stage: the mistakes of the early farm next to the habits of the company
+  const byStage = Object.keys(STAGE_W).map(st => { const g = G.filter(x => x.st===st); return g.length ? [st, g.length, Math.round(g.reduce((a,x) => a + x.total, 0)/g.length)] : null; }).filter(Boolean);
+  h += `<h4>By stage</h4>` + byStage.map(([st, n, v]) => `<div class="row"><span>${FIN_STAGES[st]} <span class="muted">· ${n} month${n>1?'s':''} · counts ×${STAGE_W[st]}</span></span><b>${letterOf(v)} · ${v}</b></div>`).join('') + `<div class="muted fsnote">Each month’s score counts more the later it comes, and each stage more than the one before: the farm ×1, the small business ×2, the company ×3, the group ×4. Early mistakes are part of learning.</div>`;
+  const first = G.slice(0, Math.max(1, Math.round(G.length/3))), last = G.slice(-Math.max(1, Math.round(G.length/3))), avg = a => Math.round(a.reduce((s2,x) => s2 + x.total, 0)/a.length);
+  const strong = GRADE_CATS.filter(c => C.cat[c.k] >= 75).map(c => c.name.toLowerCase()), weak = GRADE_CATS.filter(c => C.cat[c.k] < 60).sort((a,b) => C.cat[a.k]-C.cat[b.k]).map(c => c.name.toLowerCase());
+  const F = fin.fails || {}, failTxt = [F.payroll && `${F.payroll} time${F.payroll>1?'s':''} someone quit unpaid`, F.walkout && `${F.walkout} shop walkout${F.walkout>1?'s':''}`, F.rent && `${F.rent} missed rent`, F.loan && `${F.loan} missed loan payment${F.loan>1?'s':''}`, F.evict && `${F.evict} eviction${F.evict>1?'s':''}`, F.overdrawn && `${F.overdrawn} day${F.overdrawn>1?'s':''} overdrawn`].filter(Boolean);
+  const read = elder.read.size, vread = city.read ? city.read.length : 0, vdone = city.done ? city.done.length : 0;
+  h += `<h4>Teacher’s comments</h4><div class="said">${G.length >= 6 ? `Fundamentals ${avg(last) > avg(first)+3 ? `improved from ${avg(first)} in the first months to ${avg(last)} lately` : avg(last) < avg(first)-3 ? `slipped from ${avg(first)} in the first months to ${avg(last)} lately` : `held steady around ${avg(last)}`}. ` : ''}${strong.length ? `Strongest in ${strong.join(', ')}. ` : ''}${weak.length ? `Needs work on ${weak.join(', ')}. ` : ''}${failTxt.length ? `On the record: ${failTxt.join(', ')}. ` : 'Never missed a wage, a rent or a loan payment. '}${C.L.passed >= 5 ? 'This is a business that could outlive its founder.' : C.L.passed >= 3 ? 'The business stands, but it is not yet one you could leave alone for a year.' : 'Not yet a lasting business: the fundamentals above are where to start.'}</div>`;
+  h += `<div class="row"><span>Lessons learned</span><span>Don Aurelio ${read} of ${LESSONS.length} · Doña Victoria ${vread} of ${V_LESSONS.length} (${vdone} challenges done)</span></div>`;
+  if (!print) h += `<div class="acts" style="justify-content:flex-start;margin-top:10px"><button class="btn sm" data-rc="copy">Copy as text</button><button class="btn sm" data-rc="print">Print</button></div><div class="muted" style="margin-top:4px">How it is graded: six fundamentals scored every month (weights shown above), averaged with later months and later stages weighing more, then adjusted a few points for the lasting-business checklist.</div>`;
+  return h;
+}
+function reportText(){
+  const C = courseGrade(), G = fin.grades || []; if (!C) return 'No grade yet: the first month has not closed.';
+  const L = [`REPORT CARD · ${biz.brand ? biz.brand.name : 'La Bella Finca'}`, `${(gameMeta && gameMeta.player) || 'Student'} · ${dateStr()} · ${G.length} months of books`, '', `Course grade: ${C.letter} (${C.score}/100)`, ''];
+  GRADE_CATS.forEach(c => L.push(`${c.name.padEnd(24)} ${letterOf(C.cat[c.k]).padEnd(3)} ${String(C.cat[c.k]).padStart(3)}   (${c.w}% · aim for ${c.bench})`));
+  L.push('', 'A lasting business:'); C.L.items.forEach(([t, ok, d]) => L.push(`  [${ok?'x':' '}] ${t}: ${d}`));
+  L.push('', 'Month by month:'); G.forEach(g => L.push(`  ${g.label.padEnd(10)} ${FIN_STAGES[g.st].padEnd(18)} ${letterOf(g.total).padEnd(3)} ${String(g.total).padStart(3)}   revenue ${fmt(g.rev)} · net ${fmt(g.net)}`));
+  return L.join('\n');
+}
+let reportOpen = false;
+function openReport(){ reviewPrev = speedIdx || 1; setSpeed(0); reportOpen = true; const el = $('review'); el.innerHTML = reportHTML(); el.classList.add('show'); }
 function finStage(){
   if ((city.worldOpen) || (typeof presenceAbroad==='function' && presenceAbroad().length)) return 'D';
   if (city.unlocked) return 'C';
@@ -1229,7 +1348,7 @@ function finStage(){
 // ---------- every day, and the close on the 1st ----------
 function finDaily(){
   finEnsure();
-  fin.cashHist.push([dayInt, Math.round(cash)]); if (fin.cashHist.length > 400) fin.cashHist.splice(0, fin.cashHist.length - 400);
+  fin.cashHist.push([dayInt, Math.round(cash)]); if (cash < 0) markFail('overdrawn', true); if (fin.cashHist.length > 400) fin.cashHist.splice(0, fin.cashHist.length - 400);
   if (monthKeyOf(dayInt) !== monthKeyOf(fin.cur.d0)) finClose();
   const st = finStage(); if (st !== fin.stage){ const was = fin.stage; fin.stage = st; if (was) finStageNews(st); }
 }
@@ -1247,7 +1366,7 @@ function finClose(){
   if (fin.term && fin.term.bal > 0){ const T = fin.term, i = T.bal*T.rate, pay = Math.min(T.bal + i, T.pay), pr = pay - i;
     const ok = city.unlocked ? cityPay(i, 'Company: term loan interest', 'interest') : (cash -= i, spend('Company: term loan interest', i), true);
     if (ok !== false){ if (city.unlocked) cityPay(pr, 'Company: term loan principal', null); else { cash -= pr; spend('Company: term loan principal', pr); } T.bal = Math.max(0, T.bal - pr); }
-    else { T.bal += i; T.missed = (T.missed||0) + 1; attention('You could not make the term-loan payment. The bank added the interest to the loan and noted it.'); } }
+    else { T.bal += i; T.missed = (T.missed||0) + 1; markFail('loan'); attention('You could not make the term-loan payment. The bank added the interest to the loan and noted it.'); } }
   const bs1 = finBS();
   const rev = finSum(m.rev), prod = PROD_KEYS.reduce((s,k) => s + (m.cost[k]||0), 0), opex = OPEX_KEYS.reduce((s,k) => s + (m.cost[k]||0), 0);
   const invChg = bs1.inv - bs0.inv, gross = rev - prod + invChg, ebitda = gross - opex, ebit = ebitda - dep;
@@ -1261,6 +1380,7 @@ function finClose(){
   if (fin.budget && fin.budget.key === rec.key) rec.budget = fin.budget;
   fin.months.push(rec); if (fin.months.length > 72) fin.months.shift();
   fin.lastBS = bs1; fin.cur = newFinMonth();
+  gradeMonth(rec);
   // the currencies move
   for (const c of Object.keys(FX_VOL)){ if (!FX_VOL[c]) continue; const z = (Math.random()+Math.random()+Math.random()-1.5)*2; fin.fx[c] = Math.max(0.7, Math.min(1.35, fin.fx[c] * Math.exp(FX_VOL[c]*z) * Math.pow(1/fin.fx[c], 0.06))); }
   for (const c in fin.hedge) if (fin.hedge[c].until <= dayInt) delete fin.hedge[c];
@@ -1388,7 +1508,7 @@ function fline(o){ // a filled line over time: o.vals, o.labels, o.zero
   let lo = Math.min(0, ...o.vals), hi = Math.max(...o.vals, 10); const st = niceStep(hi-lo, 4); hi = Math.ceil(hi/st)*st; lo = Math.floor(lo/st)*st; if (hi===lo) hi += st;
   const x = i => L + (W-L-R)*i/(n-1), y = v => T + (H-T-B)*(hi - v)/(hi - lo);
   let g = `<svg viewBox="0 0 ${W} ${H}" class="chart fchart" role="img">`;
-  for (let v = lo; v <= hi + 1e-6; v += st){ const yy = y(v); g += `<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="${Math.abs(v)<1e-9?'#9a7a4a':'#eadfc6'}"/><text x="${L-5}" y="${(yy+3.5).toFixed(1)}" class="cl" text-anchor="end">${fmtK(v)}</text>`; }
+  for (let v = lo; v <= hi + 1e-6; v += st){ const yy = y(v); g += `<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="${Math.abs(v)<1e-9?'#9a7a4a':'#eadfc6'}"/><text x="${L-5}" y="${(yy+3.5).toFixed(1)}" class="cl" text-anchor="end">${(o.fy||fmtK)(v)}</text>`; }
   const P = o.vals.map((v,i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   g += `<polygon points="${x(0).toFixed(1)},${y(Math.max(lo,0)).toFixed(1)} ${P} ${x(n-1).toFixed(1)},${y(Math.max(lo,0)).toFixed(1)}" fill="${o.color||FC.cash}" opacity=".14"/><polyline points="${P}" fill="none" stroke="${o.color||FC.cash}" stroke-width="2.2" stroke-linejoin="round"/>`;
   if (o.split != null){ const xs = x(o.split); g += `<line x1="${xs}" y1="${T}" x2="${xs}" y2="${H-B}" stroke="#9a7a4a" stroke-dasharray="3 3"/><text x="${xs+4}" y="${T+10}" class="cl">forecast →</text>`; }
@@ -1738,7 +1858,7 @@ function showYearReview(){
   const el = $('review'); el.innerHTML = h; el.classList.add('show');
   year = newYear(); year.trust0 = elder.trust;
 }
-$('review').addEventListener('click', e => { if (e.target.closest('[data-close]')){ $('review').classList.remove('show'); setSpeed(reviewPrev); } });
+$('review').addEventListener('click', e => { if (e.target.closest('[data-close]')){ $('review').classList.remove('show'); reportOpen = false; setSpeed(reviewPrev); } });
 
 // ================= people: field hands & barn tenders =================
 const PICK_PER_HAND = 4;
@@ -1792,7 +1912,7 @@ function workerQuit(name, job, k, tier){
   const was = speedIdx; setSpeed(0);
   say('mateo', `Patrón, ${name} has gone. ${k==='manager' ? 'The farm manager' : 'Your '+job.toLowerCase()} quit this morning: there was no money for the wage. ${k==='manager' ? 'Nobody is deciding about the leaf now. It is all yours again.' : 'That work is yours again until you hire someone.'}`,
     [{ label:'Show me the people', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 0, opsJump = true; setSpeed(was||1); } }, { label:'All right', fn:()=>setSpeed(was||1) }], null, true);
-  attention(`${name} quit: you couldn’t pay the wage. The game is paused.`);
+  markFail('payroll'); attention(`${name} quit: you couldn’t pay the wage. The game is paused.`);
 }
 // the manager fills vacancies once there is a couple of weeks of wages in hand, above your cash floor
 function mgrRehire(M){
@@ -4774,7 +4894,7 @@ function shopTick(S){
   // wages are salaries: paid every day the shop exists
   const wage = shopWage(S);
   if (wage && !cityPay(wage, reg==='town'?'Shops: wages':'City: wages', 'wages', S)){ S.unpaid = (S.unpaid||0)+1;
-    if (S.unpaid>=3){ S.manager = null; S.clerks = 0; S.hosts = 0; S.roller = false; S.unpaid = 0; attention(`Your staff at ${esc(L.name)} walked out: three days without pay.`); } }
+    if (S.unpaid>=3){ markFail('walkout'); S.manager = null; S.clerks = 0; S.hosts = 0; S.roller = false; S.unpaid = 0; attention(`Your staff at ${esc(L.name)} walked out: three days without pay.`); } }
   else S.unpaid = 0;
   // the city's troubles
   if (reg==='city'){ const blackoutRisk = wetSeason() ? 0.018 : 0.006;
@@ -4879,7 +4999,7 @@ function closeShopMonth(S){
   S.m = newMonth();
   // the new month: rent in advance, the mortgage, members, marketing
   if (S.lease){ if (dayInt >= S.rentFrom){
-      if (!cityPay(S.rent, 'Shops: rent', 'rent', S)){ S.strikes = (S.strikes||0)+1; if (S.strikes>=2){ evict(S); return null; } attention(`You couldn’t pay the rent on ${L.name}. The landlord’s lawyer has written. Miss another month and you lose the shop.`); }
+      if (!cityPay(S.rent, 'Shops: rent', 'rent', S)){ markFail('rent'); S.strikes = (S.strikes||0)+1; if (S.strikes>=2){ evict(S); return null; } attention(`You couldn’t pay the rent on ${L.name}. The landlord’s lawyer has written. Miss another month and you lose the shop.`); }
       else S.strikes = 0; }
     const yrs = Math.floor((dayInt - S.leaseStart)/365); if (yrs > (S.esc||0)){ S.esc = yrs; S.rent = Math.round(S.rent*1.03); toast(`The rent on ${L.name} went up 3%, as the lease says: now ${fmt(S.rent)} a month.${yrs % S.years === 0 ? ` The ${S.years}-year term is over, and the lease renewed for another ${S.years}.` : ''}`); } }
   if (S.mort && S.mort.bal>0){ const r = 0.0065, interest = S.mort.bal*r, pay = Math.min(S.mort.bal+interest, S.mort.pay); S.mort.bal = Math.max(0, S.mort.bal - (pay-interest)); cityPay(interest, 'Shops: mortgage interest', 'rent', S); cityPay(pay-interest, 'Shops: mortgage principal', 'rent', S); }
@@ -4901,7 +5021,7 @@ function closeMonth(){
   if (city.unlocked) say('victoria', `The books for ${mo}. ${lines.join('. ')}. That is after paying for the cigars themselves. ${tot<0 && young ? 'The first months are the valley. Know how deep it is.' : tot<0 ? 'Bring me the books. We need to talk.' : 'Good. Now do it again.'}`, [{ label:'Show me the books', fn:()=>openShop(first[0].lid, 'books') }, { label:'Later' }], 'month-'+dayInt, false, { tag:'v-books', ttl:1 });
   else toast(`${mo} at the shop in San Rafael: ${lines[0].split(': ')[1]}.`);
 }
-function evict(S){ const L = shopL(S); if (fin){ finDispose(S.lid, 0); if (S.lease) fin.cur.other -= (S.deposit||0); } attention(`Evicted. The landlord took back ${L.name} and kept your deposit. Everything you built inside stays with the building.`); city.shops = city.shops.filter(x => x!==S); city.stats.servedStreak = 0; if (scene && scene.lid===S.lid) closeScene(); if (city.unlocked) say('victoria', 'It happens to better people than you, and to worse. Pay what you owe, sleep, and then tell me what you learned. A shop is a bet. Bet smaller next time, or with more cushion.'); }
+function evict(S){ markFail('evict'); const L = shopL(S); if (fin){ finDispose(S.lid, 0); if (S.lease) fin.cur.other -= (S.deposit||0); } attention(`Evicted. The landlord took back ${L.name} and kept your deposit. Everything you built inside stays with the building.`); city.shops = city.shops.filter(x => x!==S); city.stats.servedStreak = 0; if (scene && scene.lid===S.lid) closeScene(); if (city.unlocked) say('victoria', 'It happens to better people than you, and to worse. Pay what you owe, sleep, and then tell me what you learned. A shop is a bet. Bet smaller next time, or with more cushion.'); }
 function closeShop(S){
   const L = shopL(S); if (!S) return;
   if (S.lease){ const term = (S.years||1)*12, left = term - Math.floor((dayInt - S.leaseStart)/30.4) % term, pen = S.rent*Math.min(6, left);
@@ -6499,6 +6619,7 @@ function restore(st){
   cash = st.cash; debt = st.debt||0; days = st.days; dayInt = st.dayInt; wx = st.wx; wxQ = st.wxQ||[]; nextB = old ? nextB : st.nextB; nextLot = st.nextLot;
   Object.assign(staff, { rollers:[], keeper:false }, st.staff); year = Object.assign(newYear(), st.year);
   migrateStaff(st.staff);
+  setTimeout(updateGradeBtn, 0);
   if (st.talk){ talk.flags = st.talk.flags||{}; talk.cd = st.talk.cd||{}; talk.log = st.talk.log||[]; talk.unread = 0; talk.live = {}; talk.resume = null; for (const e of talk.log) if (e.who) talk.flags['met:'+e.who] = 1; updateMsgBadge(); }
   if (st.biz){ Object.assign(biz, st.biz, { bench:null }); if (!biz.seg || !biz.seg.local) biz.seg = freshSegStats(); if (!biz.cur) biz.cur = newWeek(); biz.daily = biz.daily || []; biz.reg = biz.reg || {}; biz.products.forEach(normProduct); } Object.assign(lastAlert, st.lastAlert);
   const e = st.elder;
