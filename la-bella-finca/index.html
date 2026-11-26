@@ -801,8 +801,15 @@ function refreshUI(){
   cv.classList.toggle('pan', tool==='inspect');
   $('cash').textContent = fmt(cash);
 }
-$('speed').querySelectorAll('.btn').forEach(b => b.onclick = () => setSpeed(+b.dataset.s));
-function setSpeed(i){ speedIdx = i; $('speed').querySelectorAll('.btn').forEach(b => b.classList.toggle('on', +b.dataset.s===i)); }
+$('speed').querySelectorAll('.btn').forEach(b => b.onclick = () => userSpeed(+b.dataset.s));
+// One rule for pausing: anything that needs your attention (a card, Don Aurelio's house, Victoria's office, the blending
+// table, a report, the menu) places a hold. When the last hold is released, the game goes back to the speed you were
+// playing at. If you paused it yourself, it stays paused. Pressing play yourself always wins.
+let playSpeed = 1, userPaused = false; const holds = new Set();
+function hold(k){ holds.add(k); if (speedIdx!==0) setSpeed(0); }
+function release(k){ holds.delete(k); if (!holds.size && !userPaused && speedIdx===0) setSpeed(playSpeed); }
+function userSpeed(i){ userPaused = i===0; if (i>0) holds.clear(); setSpeed(i); }
+function setSpeed(i){ speedIdx = i; if (i>0) playSpeed = i; $('speed').querySelectorAll('.btn').forEach(b => b.classList.toggle('on', +b.dataset.s===i)); }
 function flashCash(){ const el=$('cash'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),600); }
 const talk = { queue:[], flags:{}, cd:{}, log:[], unread:0, live:{}, seq:0, resume:null };   // live: offers still open, by id (not saved)
 let msgOpen = false, msgFilter = 'all', msgResume = null;
@@ -842,8 +849,8 @@ $('opsBtn').onclick = () => { opsOpen = !opsOpen; opsFocus = 0, opsJump = true; 
 // ---------- Messages: everything people said and every notice, newest first ----------
 function openMsgLog(open){
   msgOpen = open ?? !msgOpen;
-  if (msgOpen){ talk.unread = 0; updateMsgBadge(); if (speedIdx!==0){ msgResume = speedIdx; setSpeed(0); } else msgResume = null; }
-  else if (msgResume!=null && speedIdx===0){ setSpeed(msgResume); msgResume = null; }
+  if (msgOpen){ talk.unread = 0; updateMsgBadge(); hold('msg'); }
+  else release('msg');
   $('msgBtn').classList.toggle('on', msgOpen); renderMsgLog();
 }
 function renderMsgLog(){
@@ -866,7 +873,7 @@ function renderMsgLog(){
   el.innerHTML = h + '</div>';
 }
 $('msgBtn').onclick = () => openMsgLog();
-$('gradeBtn').onclick = () => { if ($('review').classList.contains('show') && reportOpen){ $('review').classList.remove('show'); reportOpen = false; setSpeed(reviewPrev); } else openReport(); };
+$('gradeBtn').onclick = () => { if ($('review').classList.contains('show') && reportOpen){ $('review').classList.remove('show'); reportOpen = false; release('review'); } else openReport(); };
 $('review').addEventListener('click', e => { if (e.target.closest('[data-rc-open]')){ e.preventDefault(); openReport(); } });
 $('review').addEventListener('input', e => { const t = e.target.closest('[data-journal]'); if (!t) return; (fin.journal || (fin.journal = {}))[t.dataset.journal] = t.value.slice(0, 2000); markDirty(); });
 $('review').addEventListener('click', e => { const b = e.target.closest('[data-rc]'); if (!b) return;
@@ -955,7 +962,7 @@ window.addEventListener('keydown', e => {
   const i = '123456789'.indexOf(e.key); if (i>=0) setTool(TOOLS[i].id);
   if (e.key==='Escape' && msgOpen){ openMsgLog(false); return; }
   if (e.key==='Escape'){ drag = null; sel = null; hideTip(); if (elderOpen) closeElder(); if (mentorOpen) closeMentor(); if (scene) closeScene(); }
-  if (e.key===' '){ e.preventDefault(); setSpeed(speedIdx===0?1:0); }
+  if (e.key===' '){ e.preventDefault(); userSpeed(speedIdx===0 ? playSpeed : 0); }
   if (e.key==='o') $('opsBtn').click();
   if (e.key==='m') openMsgLog();
   if (e.key==='g') $('gradeBtn').click();
@@ -1054,7 +1061,7 @@ function hideTip(){ $('tip').style.display='none'; }
 const floats = [];
 function commit(){
   if (!sel || !sel.elig.length) return;
-  if (!sel.act.length){ flashCash(); return; }
+  if (!sel.act.length){ if (tool==='harvest' && sel.barnLimited && freeBarn()<=0){ say('aurelio', hasBarnComing() ? 'Your barn isn’t finished, or it is full. Picked leaf has to hang somewhere the same day. Wait for the barn, or sell cured leaf to make room.' : 'Where will you hang it? Picked leaf has to go into a curing barn the same day. You need a barn first.', hasBarnComing() ? null : [...barnChoices(), { label:'Later' }], null, true); return; } flashCash(); return; }
   cash -= sel.cost; spend(TOOL_CAT[tool], sel.cost); markDirty(); setTimeout(checkMissions, 0);
   if (tool==='harvest'){ harvest(sel.act); learn('pick'); } else sel.act.forEach(t => apply(tool,t));
   if (tool==='care' && careAct==='spray') learn('spray');
@@ -1084,7 +1091,7 @@ function harvest(tiles, quiet, crewQ){
     }
     ts.forEach(t => { t.pr = pr+1; if (t.pr>=3){ t.work = 'stalks'; endCrop(t); } });
   }
-  if (!quiet){ if (finStage()==='A' && !farmMgr()){ toast(`Fresh leaf is hanging in the barn. Keep the humidity in the green band.`); opsOpen = true; } else toast('Fresh leaf is hanging in the barn.', false, true); }
+  if (!quiet){ if (finStage()==='A' && !farmMgr()) toast(`Fresh leaf is hanging in the barn. Keep the humidity in the green band (Operations → Farm).`); else toast('Fresh leaf is hanging in the barn.', false, true); }
 }
 
 // ================= soil & crop health =================
@@ -1377,7 +1384,7 @@ function journalHTML(print){
   return h + `<div class="muted" style="margin:2px 0 4px">Year ${y}: ${JOURNAL_Q[(y-1) % JOURNAL_Q.length]}</div><textarea class="journal" data-journal="${y}" rows="3" placeholder="A few sentences. It prints with your report card.">${esc(J[y]||'')}</textarea>`;
 }
 let reportOpen = false;
-function openReport(){ reviewPrev = speedIdx || 1; setSpeed(0); reportOpen = true; const el = $('review'); el.innerHTML = reportHTML(); el.classList.add('show'); }
+function openReport(){ hold('review'); reportOpen = true; const el = $('review'); el.innerHTML = reportHTML(); el.classList.add('show'); }
 // ================= the glossary: every term the books use, in plain words =================
 const GLOSS = {
   'Revenue':['Everything customers paid you for, before any costs.', 'numbers'],
@@ -1486,9 +1493,9 @@ function goTo(t){
   lastOps = ''; renderOps(true); $('ops').scrollTop = 0; $('talk').classList.add('left');
 }
 let notebookOpen = false;
-function openYearReview(){ if (!fin || !fin.yearRev){ toast('The first year in review comes at the end of September.'); return; } if (!$('review').classList.contains('show')) reviewPrev = speedIdx || 1; setSpeed(0); reportOpen = false; notebookOpen = false; const el = $('review'); el.innerHTML = fin.yearRev.h; el.classList.add('show'); }
+function openYearReview(){ if (!fin || !fin.yearRev){ toast('The first year in review comes at the end of September.'); return; } hold('review'); reportOpen = false; notebookOpen = false; const el = $('review'); el.innerHTML = fin.yearRev.h; el.classList.add('show'); }
 function openNotebook(focus){
-  if (!$('review').classList.contains('show')) reviewPrev = speedIdx || 1; setSpeed(0); notebookOpen = true; reportOpen = false;
+  hold('review'); notebookOpen = true; reportOpen = false;
   const all = [...FARM_BIZ.map(L => ({ ...L, from: CAST[L.who].name })), ...V_LESSONS.map(L => ({ ...L, from:'Doña Victoria' }))];
   let h = `<button class="btn sm closeX" data-close="1">Close</button><h2>Your business notebook</h2><div class="muted">Every lesson in business you have been taught, with the place in your books where it lives. Screens in Finance link back here.</div>`;
   for (const L of all){ const known = lessonKnown(L.id), go = (LESSON_GO[L.id]||[]);
@@ -2085,7 +2092,7 @@ const TOOL_CAT = { buy:'Land', clear:'Fieldwork', plow:'Fieldwork', seed:'Seed &
 
 let reviewPrev = 1;
 function showYearReview(quiet){
-  if (!quiet){ reviewPrev = speedIdx || 1; setSpeed(0); }
+  if (!quiet) hold('review');
   const y = Math.floor(dayInt/365), spent = Object.entries(year.spent).sort((a,b)=>b[1]-a[1]), spentTotal = spent.reduce((s2,x)=>s2+x[1],0);
   const net = year.leafSales + (year.cigarSales||0) - spentTotal, stock = lots.reduce((s2,l)=>s2+l.kg,0), kgAll = year.kg.reduce((a,b)=>a+b,0);
   const low = year.grades.filter(g=>g==='C'||g==='D').length;
@@ -2116,7 +2123,7 @@ function showYearReview(quiet){
   else { const el = $('review'); el.innerHTML = h; el.classList.add('show'); }
   year = newYear(); year.trust0 = elder.trust;
 }
-$('review').addEventListener('click', e => { if (e.target.closest('[data-close]')){ $('review').classList.remove('show'); reportOpen = false; notebookOpen = false; setSpeed(reviewPrev); } });
+$('review').addEventListener('click', e => { if (e.target.closest('[data-close]')){ $('review').classList.remove('show'); reportOpen = false; notebookOpen = false; release('review'); } });
 
 // ================= people: field hands & barn tenders =================
 const PICK_PER_HAND = 4;
@@ -2167,9 +2174,9 @@ function workerQuit(name, job, k, tier){
     if (staff.vacant.some(v => v.k===k)) mgrAlert('vac:'+k, `${name} quit this morning: there was no money for the wage, and there isn’t enough to hire anyone in ${name.split(' ')[0]==='Doña'?'her':'his'} place. ${JOB_GAP[k]} I will hire again as soon as two weeks of wages are in hand.`);
     return;
   }
-  const was = speedIdx; setSpeed(0);
+  hold('alert');
   say('mateo', `Patrón, ${name} has gone. ${k==='manager' ? 'The farm manager' : 'Your '+job.toLowerCase()} quit this morning: there was no money for the wage. ${k==='manager' ? 'Nobody is deciding about the leaf now. It is all yours again.' : 'That work is yours again until you hire someone.'}`,
-    [{ label:'Show me the people', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 0, opsJump = true; setSpeed(was||1); } }, { label:'All right', fn:()=>setSpeed(was||1) }], null, true);
+    [{ label:'Show me the people', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 0, opsJump = true; release('alert'); } }, { label:'All right', fn:()=>release('alert') }], null, true);
   markFail('payroll'); attention(`${name} quit: you couldn’t pay the wage. The game is paused.`);
 }
 // the manager fills vacancies once there is a couple of weeks of wages in hand, above your cash floor
@@ -2430,12 +2437,12 @@ function mgrAlert(key, text){
     staff.mgrLog = staff.mgrLog || []; staff.mgrLog.unshift({ d:dayInt, t:`Noted: ${text}`, slip:false }); staff.mgrLog.length = Math.min(staff.mgrLog.length, 14);
     logMsg({ who: farmMgr() ? mgrCast() : 'mateo', text, quiet:true }); return; }
   staff.mgrLog = staff.mgrLog || []; staff.mgrLog.unshift({ d:dayInt, t:`Needs you: ${text}`, slip:false }); staff.mgrLog.length = Math.min(staff.mgrLog.length, 14);
-  const was = speedIdx || 1; setSpeed(0);
+  hold('alert');
   const choices = farmMgr() ? [
-    { label:'Handle it', fn:()=>{ const r = mgrHandle(key); if (r && r.no){ say(mgrCast(), `I can’t: ${r.no}`, [{ label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr', opsJump = true; toast('Still paused. Press play when you’re ready.'); } }, { label:'Leave it to me', fn:()=>setSpeed(was) }], null, true); } else { toast(`${first}: ${r}`); setSpeed(was); } } },
+    { label:'Handle it', fn:()=>{ const r = mgrHandle(key); if (r && r.no){ say(mgrCast(), `I can’t: ${r.no}`, [{ label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr', opsJump = true; toast('Still paused. Press play when you’re ready.'); } }, { label:'Leave it to me', fn:()=>release('alert') }], null, true); } else { toast(`${first}: ${r}`); release('alert'); } } },
     { label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr', opsJump = true; toast('Still paused. Press play when you’re ready.'); } },
-    { label:'Leave it to me', fn:()=>setSpeed(was) } ]
-    : [{ label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr', opsJump = true; toast('Still paused. Press play when you’re ready.'); } }, { label:'Leave it to me', fn:()=>setSpeed(was) }];
+    { label:'Leave it to me', fn:()=>release('alert') } ]
+    : [{ label:'Show me', fn:()=>{ opsOpen = true; opsTab = 'farm'; opsFocus = 'mgr', opsJump = true; toast('Still paused. Press play when you’re ready.'); } }, { label:'Leave it to me', fn:()=>release('alert') }];
   say(farmMgr() ? mgrCast() : 'mateo', text, choices, null, true);
   attention(`${farmMgr() ? farmMgr().name : 'The farm'} needs you. The game is paused.`);
 }
@@ -2736,8 +2743,8 @@ function doFavor(id){
   refreshUI(); renderElder();
 }
 let elderOpen = false, prevSpeed = 1;
-function openElder(){ if (elderOpen) return; prevSpeed = speedIdx; setSpeed(0); elderOpen = true; if (!elder.said) elder.said = '“So, you are the one who bought the land up the hill. Come, sit.”'; renderElder(); }
-function closeElder(){ stopGame(); elderOpen = false; $('elder').classList.remove('show'); setSpeed(prevSpeed||1); }
+function openElder(){ if (elderOpen) return; hold('elder'); elderOpen = true; if (!elder.said) elder.said = '“So, you are the one who bought the land up the hill. Come, sit.”'; renderElder(); }
+function closeElder(){ stopGame(); elderOpen = false; $('elder').classList.remove('show'); release('elder'); }
 function renderElder(){
   const el = $('elder'); el.classList.add('show');
   const L = LESSONS[elder.sel], open = elder.trust >= L.need;
@@ -3403,10 +3410,10 @@ function openBench(){
   const L = leafLots(); if (L.length < 2){ toast('You need at least two lots of cured or fermented leaf to blend.', true); return; }
   const by = pr => L.filter(l=>l.pr===pr).sort((a,b)=>b.q-a.q)[0];
   biz.bench = { name:'', wrap:(by(1)||L[0]).id, bind:(by(0)||L[0]).id, fill:[{ lot:(by(1)||L[0]).id, pct:60 }, { lot:(by(2)||by(0)||L[1]).id, pct:40 }], tasted:null, noise:[Math.random(),Math.random(),Math.random(),Math.random(),Math.random()] };
-  prevSpeedB = speedIdx; setSpeed(0); renderBench();
+  hold('bench'); renderBench();
 }
 let prevSpeedB = 1;
-function closeBench(){ biz.bench = null; $('bench').classList.remove('show'); setSpeed(prevSpeedB||1); }
+function closeBench(){ biz.bench = null; $('bench').classList.remove('show'); release('bench'); }
 function benchLots(){ const b = biz.bench, g = id => lots.find(l => l.id===id); return { wrap:g(b.wrap), bind:g(b.bind), fill:b.fill.map(f => ({ lot:g(f.lot), pct:f.pct })).filter(f => f.lot && f.pct>0) }; }
 function stars(x, max=5){ const n = Math.max(0, Math.min(max, Math.round(x*2)/2)); return `<span class="stars">${'★'.repeat(Math.floor(n))}${n%1?'½':''}<span class="dim">${'★'.repeat(max-Math.ceil(n))}</span></span>`; }
 function renderBench(){
@@ -4008,7 +4015,7 @@ function closeOffer(m, how){ if (!m) return; delete talk.live[m.id]; if (m.log &
 // reopen an offer from Messages: it goes to the front, and the game stays paused until you answer
 function reopenOffer(id){ const m = talk.live[id]; if (!m || (m.until!=null && m.until < dayInt)) return;
   talk.queue = talk.queue.filter(x => x!==m); talk.queue.unshift(m); m.reopened = true;
-  if (talk.resume==null) talk.resume = msgResume; msgResume = null; msgOpen = false; $('msgBtn').classList.remove('on'); renderMsgLog(); renderTalk(); }
+  m.pause = true; m.paused = false; holds.delete('msg'); msgOpen = false; $('msgBtn').classList.remove('on'); renderMsgLog(); renderTalk(); }
 const cool = (key, d) => { if (talk.cd[key] && dayInt - talk.cd[key] < d) return false; talk.cd[key] = dayInt; return true; };
 // once a day: messages past their date leave the screen (they stay in Messages)
 function talkTick(){
@@ -4017,9 +4024,9 @@ function talkTick(){
   talk.queue = talk.queue.filter(m => !gone(m)); if (talk.queue.length!==n) renderTalk(talk.queue[0]===head); }
 function renderTalk(still){
   const el = $('talk'), m = talk.queue[0];
-  if (!m){ el.classList.remove('show'); el._m = null; return; }
+  if (!m){ el.classList.remove('show'); el._m = null; release('talk'); return; }
   if (m===el._m && el.classList.contains('show')) still = true; el._m = m;
-  if (m.pause && !m.paused){ m.paused = true; if (speedIdx!==0){ talk.resume = speedIdx; setSpeed(0); } }
+  if (m.pause && !m.paused){ m.paused = true; hold('talk'); }
   const c = CAST[m.who];
   el.classList.toggle('hasart', !!ART[m.who]);
   el.innerHTML = `<div class="tportrait">${castFace(m.who,'tface')}</div><div class="tbody">${ART[m.who] ? '' : `<div class="tname">${c.name}</div>`}<div class="trole">${m.role||c.role}</div><div class="ttext">${m.text}</div>${hasAction(m.choices) && m.until!=null ? `<div class="tuntil">Open until ${dateAt(m.until)}</div>` : ''}<div class="tchoices">${m.choices.map((ch,i)=>`<button class="btn sm${i===0?' on':''}" data-t="${i}">${ch.label}</button>`).join('')}</div>${talk.queue.length>1?`<div class="tmore">${talk.queue.length-1} more waiting${talk.queue.slice(1).some(x => !hasAction(x.choices)) ? ' · <a href="#" data-tclear="1">dismiss the news</a>' : ''}</div>`:''}</div>`;
@@ -4035,8 +4042,8 @@ $('talk').addEventListener('click', e => {
   if (m) closeOffer(m, ch ? `You chose: ${ch.label}` : 'Answered');
   if (ch && ch.fn) ch.fn();
   // back to the speed you were playing at, once nothing waiting needs you to stop
-  if (speedIdx!==0) talk.resume = null;   // you pressed play yourself
-  if (talk.resume!=null && speedIdx===0 && !(talk.queue[0] && talk.queue[0].pause && !talk.queue[0].paused) && !talk.queue.some(x => x.reopened)){ setSpeed(talk.resume); talk.resume = null; }
+  // back to the speed you were playing at, once nothing waiting needs you to stop
+  if (!(talk.queue[0] && talk.queue[0].pause && !talk.queue[0].paused) && !talk.queue.some(x => x.reopened)) release('talk');
   markDirty(); refreshUI(); renderOps(true); renderTalk();
 });
 function peopleTick(){
@@ -4070,7 +4077,7 @@ function peopleTick(){
   }
   // a collector wants a club price
   const fine = biz.products.filter(p => stockOf(p,true,1)>=20 && (p.rateN||0)>=5 && p.rateSum/p.rateN>=3.2).sort((a,b)=>b.rateSum/b.rateN - a.rateSum/a.rateN)[0];
-  if (stand && fine && biz.rep>=30 && !biz.noDiscount && Math.random()<0.025 && cool('collector', 45)){
+  if (stand && fine && biz.rep>=30 && !biz.noDiscount && !city.unlocked && Math.random()<0.025 && cool('collector', 45)){
     const n = 20, offer = Math.round(n*fine.price*(0.85 - Math.random()*0.12)*2)/2, counter = Math.round(n*fine.price*0.93*2)/2;
     const sell = amt => { const got = takeStock(fine, 1, n); if (!got){ toast('You no longer have them rested and ready.'); return; } recSale(fine, 1, got, amt*got/n, 'deal'); biz.rep = Math.min(100, biz.rep+2); toast(`Mr. Álvarez took ${got} ${fine.name} for ${fmt2(amt*got/n)}. Aficionados will hear about you.`); };
     say('collector', `I smoked one of your ${esc(fine.name)} at El Gordo’s bar. Very good. I run a cigar club in Miami, twenty members who love to discover a new farm. I’d take ${n} today for ${fmt2(offer)}. A club price, you understand. If they like them, they’ll come looking for you.` + dealBox(shelfCompare(fine, 1, n, offer)),
@@ -4116,6 +4123,84 @@ function clubTick(){
      { label:'Run a members’ offer', fn:()=>{ const got = takeStock(fresh, 1, 50); C.featured[fresh.id] = dayInt; C.no = 0; city.aware = Math.min(100, city.aware + (got>=50 ? 5 : 2)); toast(`${got} samples went out with the club’s letter. Members are asking for ${fresh.name} in your shops.`); } },
      { label:'Not this time', fn:()=>{ C.no++; C.featured[fresh.id] = dayInt; } }], null, false, { role, tag:'club', ttl:5 });
   C.members = Math.round(C.members * (1 + Math.random()*0.04));
+}
+// ================= first steps =================
+// The first time each step comes up, Don Aurelio says what to do and a button takes you to the control for it.
+// Each card shows once per game, and never for a step the player has already done (old saves catch up silently).
+const panTo = (c, r) => { const f = iso(c, r); cam.x = W/2 - f.x*cam.z; cam.y = H/2 - f.y*cam.z; };
+function openPanel(tab, focus){ opsOpen = true; opsTab = tab; if (focus!=null){ opsFocus = focus, opsJump = true; } lastOps = ''; renderOps(true); $('talk').classList.add('left'); }
+const stillPaused = () => { hold('look'); toast('The game is still paused while you look. Press play when you’re ready.'); };
+const owned = () => map.flat().filter(t => t.owned);
+const hasBarnComing = () => buildings.some(b => b.type==='barn' && b.owned);
+const oldBarn = () => buildings.find(b => b.type==='barn' && b.forSale);
+function barnChoices(){
+  const B = oldBarn(), ch = [{ label:'Build a curing barn', fn:()=>{ btype = 'barn'; setTool('build'); toast('Build tool: click open ground you own, 2×2 tiles. A curing barn costs $4,200 and takes 24 days.'); } }];
+  if (B) ch.push({ label:'Show me the old barn for sale', fn:()=>{ setTool('buy'); panTo(B.c+1, B.r+1); toast(`The old barn by the road: buy it and its land with the Buy land tool. It’s run-down: it holds 20 pickings instead of 36.`); } });
+  return ch;
+}
+const GUIDES = [
+  // the very start: the field is waiting
+  { k:'start', when:() => dayInt >= 1 && talk.flags.hello && !owned().some(t => t.work==='plowed' || t.work==='seeded'),
+    text:'Your fields are around the shack. First you plow: pick up the <b>Plow</b> (key 4) and drag across the land you own. Then you plant. Tobacco takes about four months to the first leaf, so the sooner it is in the ground, the better.',
+    ch:() => [{ label:'Pick up the plow', fn:()=>setTool('plow') }, { label:'I know' }] },
+  { k:'plant', when:() => owned().some(t => t.work==='plowed') && !owned().some(t => t.work==='seeded'),
+    text:'Good ground. Now plant: pick up the <b>Plant</b> tool (key 6), choose a seed in the bar that opens, and drag across the plowed land. Criollo is the honest one to start with.',
+    ch:() => [{ label:'Pick up the seed', fn:()=>setTool('seed') }, { label:'I know' }] },
+  { k:'growing', when:() => owned().some(t => t.work==='seeded'),
+    text:'Now the waiting, and the watching. Hover over a tile with <b>Look</b> (key 1) to see how it grows. In about three months the plants flower: then you top them with the <b>Care</b> tool (key 7). Hornworms and blue mold come too; Care handles those once I have shown you how. Come and sit with me: I have a lot to teach you before the harvest.',
+    ch:() => [{ label:'Visit Don Aurelio', fn:()=>openElder() }, { label:'All right' }] },
+  // weeks before the first leaf is ripe, with nowhere to hang it
+  { k:'barn', when:() => !hasBarnComing() && owned().some(t => t.work==='seeded' && t.g >= PRIM[0].start - 40),
+    text:'Listen. In about a month your bottom leaves will be ripe, and picked leaf has to hang in a <b>curing barn</b> the same day, or it rots in the cart. You have no barn. Build one with the <b>Build</b> tool (key 8): it takes 24 days, so start now. Or buy the old barn by the road with <b>Buy land</b> (key 2): cheaper, and smaller.',
+    ch:() => [...barnChoices(), { label:'Later' }] },
+  // the first ripe leaf
+  { k:'ripe', when:() => owned().some(t => t.work==='seeded' && nextPrim(t) && t.g >= nextPrim(t).start),
+    text:() => freeBarn() > 0 ? 'The bottom leaves are ripe: the volado. Pick up the <b>Harvest</b> tool (key 9) and drag across the ripe plants. Each priming keeps its quality for about four weeks; the seco and the ligero follow, higher up the stalk.'
+      : 'The bottom leaves are ripe, and you have no barn space to hang them. Leaf you cannot hang stays on the plant and slowly goes past its best. Get a barn up first, then harvest with the <b>Harvest</b> tool (key 9).',
+    ch:() => freeBarn() > 0 ? [{ label:'Pick up the harvest tool', fn:()=>setTool('harvest') }, { label:'I know' }] : [...barnChoices(), { label:'Later' }] },
+  // the first leaf in the barn: tending the cure
+  { k:'curing', when:() => lots.some(l => l.stage==='curing'),
+    text:'Your first leaf is hanging. For the next five to eight weeks you <b>tend the barn</b>: keep the humidity in the green band, 65 to 80%. On rainy days close the vents to keep the wet out; on dry, sunny days open them, or half. Too wet and it molds; too dry and it locks green. The barn controls are in <b>Operations → Farm</b>, under Curing barns.',
+    ch:() => [{ label:'Open the barn controls', fn:()=>{ const b = lots.find(l => l.stage==='curing'); openPanel('farm', b ? b.loc : null); stillPaused(); } }, { label:'I know' }] },
+  // the first cured leaf
+  { k:'cured', when:() => lots.some(l => l.stage==='cured'),
+    text:'The first lot is cured. Now you choose: sell it to the factory in town as it is, or keep it and make it better. Fermented in a pilón, it is worth more, and aged in bales more still, but each step needs a building, time and my lessons. It is all in <b>Operations → Farm</b>: each lot has its buttons.',
+    ch:() => [{ label:'Show me my leaf', fn:()=>{ const l = lots.find(x => x.stage==='cured'); openPanel('farm', l ? l.loc : null); stillPaused(); } }, { label:'Show me the factory’s prices', fn:()=>{ openPanel('farm', 'market'); stillPaused(); } }, { label:'I know' }] },
+  // the first pile in a pilón
+  { k:'ferment', when:() => lots.some(l => l.stage==='fermenting'),
+    text:'The pile is building heat: that is the fermentation working. Watch the thermometer in <b>Operations → Farm</b>, under the fermentation house. When it climbs past 110°F, <b>turn</b> the pile: outside leaves in, inside leaves out. Never let it reach 115°F. Burnt leaf tastes like burnt leaf.',
+    ch:() => [{ label:'Show me the pile', fn:()=>{ const l = lots.find(x => x.stage==='fermenting'); openPanel('farm', l ? l.loc : null); stillPaused(); } }, { label:'I know' }] },
+  // the first fermented lot
+  { k:'fermented', when:() => lots.some(l => l.stage==='fermented'),
+    text:'Fermented. You can sell it now for a better price, or bale it and let it age in the warehouse: aged leaf is worth more every month, up to about two years. And once I have shown you the blender’s table, this is the leaf your cigars are made of.',
+    ch:() => [{ label:'Show me the lot', fn:()=>{ const l = lots.find(x => x.stage==='fermented'); openPanel('farm', l ? l.loc : null); stillPaused(); } }, { label:'I know' }] },
+  // the first rolling workshop
+  { k:'galera', when:() => ready('galera').length > 0,
+    text:'A galera of your own. Three things make cigars: rollers at the tables, a <b>blend</b> from the blending table, and an <b>order</b> on the chalkboard. Click the workshop on the map to walk inside, or use <b>Operations → Workshop</b>.',
+    ch:() => [{ label:'Walk into the workshop', fn:()=>openScene('workshop') }, { label:'Open the Workshop tab', fn:()=>{ openPanel('workshop'); stillPaused(); } }, { label:'Later' }] },
+  // the first roadside stand
+  { k:'stand', when:() => ready('stand').length > 0,
+    text:'Your stand is built. Put a price on each cigar inside: click the stand on the map to walk in, and click the shelves. Without a keeper you open on weekends only. Watch who walks away over the price, and who buys.',
+    ch:() => [{ label:'Walk into the stand', fn:()=>openScene('stand') }, { label:'Later' }] },
+  // the first cigars ready to sell
+  { k:'rested', when:() => biz.products.some(p => stockOf(p, true, 1) > 0),
+    text:'Your first cigars have rested in the cedar and are ready to sell. Sell them at your stand, to Señora Beltrán in town, or both. What each one costs you and earns you is in <b>Operations → Finance → Products</b>.',
+    ch:() => [{ label:'Open Sales', fn:()=>{ openPanel('sales'); stillPaused(); } }, { label:'Later' }] },
+];
+// a save from before this update: steps already done are marked as taught
+function guidesCatchUp(){
+  if (talk.flags['g:init']) return; talk.flags['g:init'] = 1;
+  if (dayInt < 3 && !lots.length && !owned().some(t => t.work==='plowed' || t.work==='seeded')) return;   // a brand-new game
+  const done = { start:true, plant:owned().some(t => t.work==='seeded') || lots.length > 0, growing:lots.length > 0, barn:hasBarnComing() || lots.length > 0, ripe:lots.length > 0,
+    curing:lots.some(l => l.stage!=='curing'), cured:lots.some(l => ['fermenting','fermented','baled'].includes(l.stage)), ferment:lots.some(l => ['fermented','baled'].includes(l.stage)), fermented:lots.some(l => l.stage==='baled') || biz.products.length > 0,
+    galera:ready('galera').length > 0, stand:ready('stand').length > 0, rested:biz.products.some(p => (p.sold||0) > 0) };
+  for (const k in done) if (done[k]) talk.flags['g:'+k] = 1;
+}
+function guideTick(){
+  guidesCatchUp();
+  if (city.unlocked) return;
+  for (const G of GUIDES){ if (talk.flags['g:'+G.k] || !G.when()) continue;
+    talk.flags['g:'+G.k] = 1; say('aurelio', typeof G.text==='function' ? G.text() : G.text, G.ch(), null, false, { pause:true, ttl:30, role:'Your neighbor · first steps' }); break; }
 }
 function aurelioTick(){
   if (!talk.flags.hello && gameId) say('aurelio', 'So you’re the one who bought the land up the hill. Fifty years I’ve farmed this valley. Come and sit with me when you can. A cup of coffee costs nothing, and you have a lot to learn.', [{ label:'Visit him now', fn:()=>openElder() }, { label:'Later' }], 'hello');
@@ -4690,9 +4775,9 @@ function boxSVG0(B){
 let brandDraft = null, brandPrev = 1;
 function openBrand(){
   if (!brandDraft){ const P = PALETTES[0].c; brandDraft = biz.brand ? { ...biz.brand } : { name: gameMeta ? gameMeta.farm.replace(/^Finca\s+/,'') : 'La Esperanza', tagline:'Grown and rolled by hand', est:`Desde ${new Date(Date.UTC(2025,9,1)+dayInt*864e5).getUTCFullYear()}`, frame:'circle', emblem:'leaf', ornament:'laurel', font:'Playfair Display', layout:'arc', pal:0, c1:P[0], c2:P[1], c3:P[2], c4:P[3] }; }
-  brandPrev = speedIdx || 1; setSpeed(0); document.body.classList.add('inscene'); renderBrand();
+  hold('brand'); document.body.classList.add('inscene'); renderBrand();
 }
-function closeBrand(){ if (!scene) document.body.classList.remove('inscene'); $('brand').classList.remove('show'); brandDraft = null; setSpeed(brandPrev||1); }
+function closeBrand(){ if (!scene) document.body.classList.remove('inscene'); $('brand').classList.remove('show'); brandDraft = null; release('brand'); }
 const NAME_A = ['Casa','Finca','Don','Doña','La','El','Vega','Hacienda','Tabacos','Herencia'], NAME_B = ['Esperanza','Aurelio','San Rafael','del Valle','Colina','Aurora','Montecristo de la Loma','Palmar','Rocío','Las Nubes','Sol Naciente','Vuelta Alta','Real','Media Luna','Cedro'];
 function renderBrand(){
   const B = brandDraft, el = $('brand'); el.classList.add('show');
@@ -5494,7 +5579,7 @@ function vanceConfirm(price){
   say('sterling', `${fmt(price)}, then. My lawyers have the papers. Sign here, and here, and it’s ours.`, [{ label:'Sign', fn:()=>sellToVance(price) }, { label:'I can’t do it', fn:()=>{ V_().vance.walk = dayInt + 180; } }], null, true, { tag:'sterling', ttl:7 });
 }
 function sellToVance(price){
-  const V = V_(); V.sold = { day:dayInt, price }; reviewPrev = speedIdx || 1; setSpeed(0);
+  const V = V_(); V.sold = { day:dayInt, price }; hold('review');
   const name = biz.brand ? esc(biz.brand.name) : 'Your house', yrs = Math.max(1, Math.round(dayInt/365));
   let h = `<button class="btn sm closeX" data-close="1">Keep playing</button><h2>${name}: sold</h2><div class="muted">${dateStr()} · after ${yrs} year${yrs>1?'s':''}</div>`;
   h += `<div class="ebody" style="grid-template-columns:1fr 1fr"><div class="etext"><h3>The deal</h3><div class="row"><span>Consolidated Tobacco paid</span><span>${fmt(price)}</span></div><div class="row"><span>Best rating</span><span>${bestRating() ? bestRating().score+' points in '+MAG : 'none'}</span></div><div class="row"><span>Known as</span><span>${esc(knownAs())}</span></div><div class="row"><span>Notoriety</span><span>${notoriety()}/100</span></div><p class="muted">From one small field to a check in a briefcase.</p></div>`;
@@ -5563,7 +5648,7 @@ function checkGlobal(){
   if (live >= GLOBAL.markets && br && br.score >= GLOBAL.rating && trailing12() >= GLOBAL.revenue){ city.global = true; city.globalDay = dayInt; showGlobal(); }
 }
 function showGlobal(){
-  reviewPrev = speedIdx || 1; setSpeed(0);
+  hold('review');
   const name = biz.brand ? esc(biz.brand.name) : 'Your house', live = presenceAbroad().map(M => M.name);
   let h = `<button class="btn sm closeX" data-close="1">Continue</button><h2>${name}: a global name</h2><div class="muted">${dateStr()} · ${esc(knownAs())}</div>`;
   h += `<div class="ebody" style="grid-template-columns:1fr 1fr"><div class="etext"><h3>Where your cigars are smoked</h3><p>San Rafael, ${CITY}, ${live.join(', ')}.</p><div class="row"><span>Sales in the last 12 months</span><span>${fmt(trailing12())}</span></div><div class="row"><span>Best rating</span><span>${bestRating().score} points in ${MAG}</span></div><div class="row"><span>City awareness</span><span>${Math.round(city.aware)} / 100</span></div><div class="row"><span>Cash</span><span>${fmt(cash)}</span></div></div>`;
@@ -5668,8 +5753,8 @@ function initCityCast(){
   MARKETS.forEach((M,i) => { CAST['imp_'+M.k] = { name:M.imp, role:`Cigar distributor, ${M.name}`, p:{ ...ROLLER_LOOKS[(i*3+1)%ROLLER_LOOKS.length], tie:['#8e1b1b','#1f2a3a','#2f6b4f'][i%3], bg:'#e6e0f0' } }; });
 }
 initCityCast();
-function openMentor(){ if (mentorOpen) return; mentorPrev = speedIdx || 1; setSpeed(0); mentorOpen = true; renderMentor(); }
-function closeMentor(){ mentorOpen = false; city.game = null; $('mentor').classList.remove('show'); setSpeed(mentorPrev||1); }
+function openMentor(){ if (mentorOpen) return; hold('mentor'); mentorOpen = true; renderMentor(); }
+function closeMentor(){ mentorOpen = false; city.game = null; $('mentor').classList.remove('show'); release('mentor'); }
 function vMissionBox(id){
   const M = V_MISSIONS[id]; if (!M) return '';
   let h = `<div class="mission"><b>${M.game?'A case from her drawer':'Doña Victoria’s challenge'}</b><div>${M.text}</div>`;
@@ -6833,7 +6918,7 @@ function dailyTick(){
   else if (ripeNow){ farmNote(`The volado (bottom leaves) is ripe on ${ripeNow} tile${ripeNow>1?'s':''}. Each priming keeps its quality for about four weeks. Seco and ligero follow over the next few weeks.`); }
   if (laterRipe && !staff.hands){ const which = ripeBy[2]?'ligero':'seco'; farmNote(`The ${which} is ready on ${laterRipe} tile${laterRipe>1?'s':''}. Time for the next pass.`); }
   if (wx==='Rain' && wetSeason()) for (const row of map) for (const t of row) if (t.work==='seeded') t.g += 0.15; // rain-fed bonus
-  talkTick(); fieldTick(); businessTick(); peopleTick(); farmLessonsTick(); quizTick(); aurelioTick(); cityTick(); finDaily();
+  talkTick(); fieldTick(); businessTick(); peopleTick(); farmLessonsTick(); quizTick(); guideTick(); aurelioTick(); cityTick(); finDaily();
   const dnow = new Date(Date.UTC(2025,9,1) + dayInt*864e5);
   if (dnow.getUTCMonth()===7 && dnow.getUTCDate()===1 && know('storms') && cash>=1500) elder.stats.stormReady = 1;
   if (debt>0 && dayInt%30===0){ const i = Math.round(debt*0.01); if (cash>=i) cash -= i; else debt += i; spend('Interest', i); }
@@ -6958,8 +7043,8 @@ $('brandBtn').onclick = () => openBrand();
 $('cityBtn').onclick = () => { if (city.unlocked){ closeScene(); flyToCity(); } };
 document.addEventListener('visibilitychange', () => { if (document.visibilityState==='hidden' && dirty) saveGame(false); });
 let menuState = { confirm:null, importing:false, msg:'' };
-function openMenu(){ if (!$('menu').classList.contains('show')){ menuPrev = speedIdx || 1; setSpeed(0); } menuState = { confirm:null, importing:false, msg:'' }; renderMenu(); if (gameId && dirty) saveGame(false); }
-function closeMenu(){ $('menu').classList.remove('show'); setSpeed(menuPrev||1); }
+function openMenu(){ hold('menu'); menuState = { confirm:null, importing:false, msg:'' }; renderMenu(); if (gameId && dirty) saveGame(false); }
+function closeMenu(){ $('menu').classList.remove('show'); release('menu'); }
 const ago = ms => { const m = Math.round((Date.now()-ms)/60000); return m<1?'just now':m<60?`${m} min ago`:m<1440?`${Math.round(m/60)} h ago`:`${Math.round(m/1440)} days ago`; };
 function esc(x){ return String(x??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function renderMenu(){
@@ -7050,7 +7135,7 @@ async function startNewGame(player, farm, quiet){
   if (gameId && dirty) await saveGame(false);
   resetGame(); gameId = newId(); gameMeta = { player: player||'Grower', farm: farm||'Finca La Esperanza' };
   applyMeta(); initCam(); setTool('inspect'); refreshUI(); updateWeatherHUD(); renderOps(true);
-  $('menu').classList.remove('show'); setSpeed(1);
+  $('menu').classList.remove('show'); holds.clear(); userPaused = false; setSpeed(1);
   await saveGame(false);
   if (!quiet) setTimeout(aurelioTick, 700); else talk.flags.hello = 1;
 }
@@ -7060,7 +7145,7 @@ async function loadGame(id, st){
   if (!st){ menuState.msg = 'That game could not be found.'; renderMenu(); return; }
   restore(st); gameId = id; gameMeta = st.meta || { player:'Grower', farm:'Finca La Esperanza' };
   applyMeta(); setTool('inspect'); closeScene(); refreshUI(); updateWeatherHUD(); renderOps(true); dirty = false; setSaveStat('Saved');
-  $('menu').classList.remove('show'); setSpeed(1);
+  $('menu').classList.remove('show'); holds.clear(); userPaused = false; setSpeed(1);
 }
 $('menu').addEventListener('click', async e => {
   const b = e.target.closest('[data-m]'); if (!b) return;
